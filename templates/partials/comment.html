@@ -1,0 +1,21 @@
+{{define "comment"}}
+<div id="comment-{{.ID}}" class="flex gap-3">
+  <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .AuthorName}}</div>
+  <div class="flex-1 min-w-0">
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-sm font-medium">{{.AuthorName}}</span>
+      <span class="font-mono text-xs text-base-content/40">{{.CreatedAt.Format "Jan 2, 2006 · 15:04"}}</span>
+      {{if .Edited}}<span class="text-xs text-base-content/30">(edited)</span>{{end}}
+    </div>
+    <div class="text-sm text-base-content/80 leading-relaxed bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto">
+      {{.BodyHTML}}
+    </div>
+    <div class="flex items-center gap-3 mt-1.5">
+      <button hx-get="/comments/{{.ID}}/edit" hx-target="#comment-{{.ID}}" hx-swap="outerHTML"
+              class="text-xs text-base-content/30 hover:text-base-content">Edit</button>
+      <button hx-delete="/comments/{{.ID}}" hx-target="#comment-{{.ID}}" hx-swap="outerHTML" hx-confirm="Delete this comment?"
+              class="text-xs text-base-content/30 hover:text-red-400">Delete</button>
+    </div>
+  </div>
+</div>
+{{end}}

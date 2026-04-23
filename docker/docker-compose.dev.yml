@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: docket
+      POSTGRES_PASSWORD: docket
+      POSTGRES_DB: docket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docket"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - valkey_data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    ports:
+      - "8081:8081"
+    env_file:
+      - ../.env
+    environment:
+      DATABASE_URL: postgres://docket:docket@postgres:5432/docket?sslmode=disable
+      REDIS_URL: redis://valkey:6379
+    volumes:
+      # Mount the full source tree so Air + Tailwind watch live edits
+      - ../:/app
+      # Persist Go build cache across restarts
+      - go_build_cache:/root/.cache/go-build
+      - go_mod_cache:/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  valkey_data:
+  go_build_cache:
+  go_mod_cache:

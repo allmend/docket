@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide Alpine x-cloak elements until Alpine initialises */
+[x-cloak] { display: none !important; }
+
+/* Syntax-highlighted code blocks: scroll internally, never expand container.
+   min-width:0 prevents pre from sizing to max-content in flex/grid contexts. */
+pre { min-width: 0; overflow-x: auto !important; }

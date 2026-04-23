@@ -1,0 +1,14 @@
+[build]
+  cmd = "go build -o ./tmp/docket ./cmd/serve"
+  bin = "./tmp/docket"
+  args_bin = ["--mode=all"]
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "static", "node_modules"]
+  delay = 500
+
+[log]
+  time = false
+
+[color]
+  build = "yellow"
+  runner = "green"

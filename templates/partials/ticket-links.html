@@ -1,0 +1,92 @@
+{{define "ticket-links"}}
+<div id="ticket-links" class="flex flex-col gap-2">
+
+  {{range .Links}}
+  <div class="flex items-center gap-2 text-sm group">
+    <span class="text-xs text-base-content/40 w-20 shrink-0">
+      {{if eq (printf "%s" .Relation) "blocked_by"}}Blocked by
+      {{else}}{{.Relation.Label}}{{end}}
+    </span>
+    <a href="/tickets/{{.ToDisplayID}}" class="font-mono text-xs text-primary hover:underline shrink-0">{{.ToDisplayID}}</a>
+    <span class="text-base-content/60 truncate flex-1 text-xs">{{.ToTitle}}</span>
+    <button hx-delete="/tickets/{{.FromTicketID}}/links/{{.ID}}"
+            hx-target="#ticket-links"
+            hx-swap="outerHTML"
+            hx-confirm="Remove this link?"
+            class="opacity-0 group-hover:opacity-100 p-0.5 text-base-content/30 hover:text-red-400 shrink-0 transition-opacity">
+      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+  {{end}}
+
+  <!-- Add link -->
+  <div x-data="{
+    open: false,
+    q: '',
+    selectedID: '',
+    selectedLabel: '',
+    selectTicket(id, displayID, title) {
+      this.selectedID = id;
+      this.selectedLabel = displayID + ' — ' + title;
+      this.q = displayID;
+      document.getElementById('link-results-{{.TicketID}}').innerHTML = '';
+    }
+  }" class="mt-1" @click.outside="open = false" @select-ticket="selectTicket($event.detail.id, $event.detail.displayID, $event.detail.title)">
+
+    <button @click="open = !open" class="flex items-center gap-1 text-xs text-base-content/40 hover:text-primary transition-colors">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+      Add link
+    </button>
+
+    <form x-show="open" x-cloak
+          hx-post="/tickets/{{.TicketID}}/links"
+          hx-target="#ticket-links"
+          hx-swap="outerHTML"
+          class="mt-2 flex flex-col gap-2">
+
+      <!-- Relation type -->
+      <select name="relation_type"
+              class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary">
+        <option value="blocks">Blocks</option>
+        <option value="blocked_by_inverse">Blocked by (I am blocked by…)</option>
+        <option value="depends_on">Depends on</option>
+        <option value="duplicates">Duplicates</option>
+        <option value="relates_to">Relates to</option>
+      </select>
+
+      <!-- Ticket search -->
+      <div class="relative">
+        <input type="text"
+               name="q"
+               x-model="q"
+               hx-get="/tickets/{{.TicketID}}/link-search"
+               hx-trigger="input changed delay:250ms"
+               hx-target="#link-results-{{.TicketID}}"
+               hx-swap="innerHTML"
+placeholder="Search tickets… (e.g. ENG)"
+               autocomplete="off"
+               class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+        <div id="link-results-{{.TicketID}}" class="absolute z-50 left-0 right-0 top-full mt-1"></div>
+      </div>
+
+      <!-- Hidden field carrying the resolved UUID -->
+      <input type="hidden" name="to_ticket_id" :value="selectedID" />
+
+      <div x-show="selectedLabel" class="text-xs text-primary truncate" x-text="'→ ' + selectedLabel"></div>
+
+      <div class="flex gap-2">
+        <button type="submit" :disabled="!selectedID"
+                class="px-3 py-1 bg-primary text-base-100 text-xs font-medium rounded hover:opacity-90 disabled:opacity-40">Add</button>
+        <button type="button" @click="open = false; q = ''; selectedID = ''"
+                class="px-3 py-1 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+      </div>
+
+    </form>
+  </div>
+
+</div>
+{{end}}

@@ -1,0 +1,23 @@
+{{define "link-search-results"}}
+{{if .Tickets}}
+<ul class="bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+  {{range .Tickets}}
+  <li>
+    <button type="button"
+            data-id="{{.ID}}"
+            data-display-id="{{.DisplayID}}"
+            data-title="{{.Title}}"
+            onclick="this.dispatchEvent(new CustomEvent('select-ticket', { bubbles: true, detail: { id: this.dataset.id, displayID: this.dataset.displayId, title: this.dataset.title } }))"
+            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
+      <span class="font-mono text-xs text-primary shrink-0">{{.DisplayID}}</span>
+      <span class="text-sm text-base-content truncate">{{.Title}}</span>
+    </button>
+  </li>
+  {{end}}
+</ul>
+{{else if .Query}}
+<div class="bg-base-200 border border-base-300 rounded-lg px-3 py-2 text-xs text-base-content/40">
+  No tickets found for "{{.Query}}"
+</div>
+{{end}}
+{{end}}

@@ -1,0 +1,108 @@
+{{template "base" .}}
+
+{{define "title"}}Backlog{{if .Team}} — {{.Team.Name}}{{end}} — Docket{{end}}
+
+{{define "scripts"}}<script src="/static/board.js"></script>{{end}}
+
+{{define "content"}}
+<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6" x-data="{ selected: [] }">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <nav class="text-sm text-base-content/50 mb-1">
+        <a href="/teams" class="hover:text-primary">Teams</a>
+        {{if .Team}}
+        <span class="mx-1">/</span>
+        <a href="/teams/{{.Team.ID}}" class="hover:text-primary"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
+        {{end}}
+        <span class="mx-1">/</span>
+        <span class="text-base-content/70">Backlog</span>
+      </nav>
+      <div class="flex items-center gap-2">
+        <h1 class="text-2xl font-semibold">Backlog</h1>
+      </div>
+    </div>
+  </div>
+
+  <!-- Two-column layout: ticket list + sprint sidebar -->
+  <div class="flex gap-6 items-start">
+
+    <!-- Left: backlog ticket list -->
+    <div class="flex-1 min-w-0">
+      {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews)}}
+    </div>
+
+    <!-- Right: sprints sidebar -->
+    <div class="w-72 shrink-0 flex flex-col gap-3" x-data="{ newSprint: false }">
+
+      <!-- Section header -->
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Sprints</span>
+        <button @click="newSprint = !newSprint" class="flex items-center gap-1 text-xs text-primary hover:opacity-80">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          New sprint
+        </button>
+      </div>
+
+      <!-- Inline new sprint form -->
+      <div x-show="newSprint" x-cloak class="bg-base-200 border border-base-300 rounded-lg p-3 flex flex-col gap-2">
+        <form method="POST" action="/boards/{{.Board.ID}}/sprints" class="flex flex-col gap-2">
+          <input type="text" name="name" required placeholder="Sprint name…"
+                 class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
+          <div class="flex gap-2">
+            <input type="date" name="start_date" class="flex-1 bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+            <input type="date" name="end_date" class="flex-1 bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" class="flex-1 px-3 py-1.5 bg-primary text-base-100 text-xs font-medium rounded hover:opacity-90">Create</button>
+            <button type="button" @click="newSprint = false" class="px-3 py-1.5 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Sprint cards -->
+      {{range .Sprints}}
+      {{if not (.Status.IsCompleted)}}
+      <div class="bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="font-medium text-sm">{{.Name}}</span>
+              {{if .Status.IsActive}}
+              <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5">Active</span>
+              {{else if .Status.IsPlanning}}
+              <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5">Planning</span>
+              {{end}}
+            </div>
+            {{if and .StartDate .EndDate}}
+            <span class="font-mono text-xs text-base-content/40">{{.StartDate.Format "Jan 2"}} – {{.EndDate.Format "Jan 2"}}</span>
+            {{end}}
+          </div>
+        </div>
+        <!-- Move selected tickets to this sprint -->
+        <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/assign">
+          <template x-for="id in selected" :key="id">
+            <input type="hidden" name="ticket_ids" :value="id" />
+          </template>
+          <button type="submit"
+                  :disabled="selected.length === 0"
+                  class="w-full text-center text-xs border border-base-300 text-base-content/20 cursor-not-allowed rounded py-1.5 transition-colors"
+                  :class="selected.length > 0 ? '!text-primary !border-primary/30 hover:bg-primary/10 !cursor-pointer' : ''">
+            <span x-text="selected.length > 0 ? 'Move ' + selected.length + ' ticket' + (selected.length > 1 ? 's' : '') + ' to {{.Name}}' : 'Move selected to {{.Name}}'"></span>
+          </button>
+        </form>
+      </div>
+      {{end}}
+      {{end}}
+
+      {{if not .Sprints}}
+      <p class="text-sm text-base-content/30 text-center py-4">No sprints yet.</p>
+      {{end}}
+
+    </div>
+
+  </div>
+
+</div>
+{{end}}
