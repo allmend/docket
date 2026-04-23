@@ -21,6 +21,8 @@ Part of the [Allmend](https://github.com/allmend) suite of open-source tools.
 - Notification inbox
 - Ticket and comment history
 
+![Docket board view](docs/screenshot.png)
+
 ---
 
 ## Tech stack
