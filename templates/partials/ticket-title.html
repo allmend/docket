@@ -1,0 +1,24 @@
+{{define "ticket-title"}}
+<div id="ticket-title-{{.ID}}" x-data="{ editing: false }" @click.outside="editing = false">
+  <h1 x-show="!editing"
+      @click="editing = true; $nextTick(() => $refs.titleInput.select())"
+      class="text-xl font-semibold leading-snug cursor-text hover:bg-base-200 rounded px-1 -mx-1 py-0.5 transition-colors"
+      title="Click to edit">
+    {{.Title}}
+  </h1>
+  <form x-show="editing" x-cloak
+        hx-put="/tickets/{{.ID}}/title"
+        hx-target="#ticket-title-{{.ID}}"
+        hx-swap="outerHTML"
+        @keydown.escape="editing = false"
+        class="flex flex-col gap-2">
+    <input x-ref="titleInput"
+           type="text" name="title" value="{{.Title}}" required
+           class="w-full text-xl font-semibold bg-base-100 border border-primary rounded px-2 py-1 focus:outline-none" />
+    <div class="flex gap-2">
+      <button type="submit" class="px-3 py-1 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
+      <button type="button" @click="editing = false" class="px-3 py-1 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+    </div>
+  </form>
+</div>
+{{end}}

@@ -1,0 +1,440 @@
+package api
+
+import (
+	"net/http"
+	"time"
+
+	"github.com/allmend/docket/internal/model"
+	"github.com/allmend/docket/internal/service"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+)
+
+
+// boardViewData expands a BoardView struct into a template data map that also
+// includes NavTeams so the sidebar can render the team list.
+// SprintID is the active sprint ID (or first planning sprint ID) for drag-from-backlog support.
+func (h *Handler) boardViewData(r *http.Request, view *model.BoardView) map[string]any {
+	sprintID := ""
+	if view.ActiveSprint != nil {
+		sprintID = view.ActiveSprint.ID.String()
+	} else {
+		for _, s := range view.Sprints {
+			if s.Status == model.SprintStatusPlanning {
+				sprintID = s.ID.String()
+				break
+			}
+		}
+	}
+	return h.pageData(r, map[string]any{
+		"Board":         view.Board,
+		"Team":          view.Team,
+		"Columns":       view.Columns,
+		"ActiveSprint":  view.ActiveSprint,
+		"Sprints":       view.Sprints,
+		"BacklogCount":  view.BacklogCount,
+		"FirstColumnID": view.FirstColumnID,
+		"SprintID":      sprintID,
+	})
+}
+
+func (h *Handler) BoardView(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+
+	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+
+	h.render(w, "board.html", h.boardViewData(r, view))
+}
+
+func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.boards.UpdateBoard(r.Context(), orgID, boardID, r.FormValue("name"), r.FormValue("description"))
+	if err != nil {
+		http.Error(w, "failed to update board", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+
+	board, err := h.boards.GetBoard(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+
+	if err := h.boards.DeleteBoard(r.Context(), orgID, boardID); err != nil {
+		http.Error(w, "failed to delete board", http.StatusInternalServerError)
+		return
+	}
+
+	redirectTo := "/teams"
+	if board.TeamID != nil {
+		redirectTo = "/teams/" + board.TeamID.String()
+	}
+	w.Header().Set("HX-Redirect", redirectTo)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// BoardColumnsPartial returns just the board columns div for HTMX out-of-band refreshes.
+// Used by the board page to reload columns when a ticketUpdated event fires.
+func (h *Handler) BoardColumnsPartial(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "board-columns-partial.html", h.boardViewData(r, view))
+}
+
+func (h *Handler) CreateColumn(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	name := r.FormValue("name")
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	_, err = h.boards.AddColumn(r.Context(), orgID, boardID, name)
+	if err != nil {
+		http.Error(w, "failed to create column", http.StatusInternalServerError)
+		return
+	}
+
+	// Return refreshed board view.
+	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "failed to reload board", http.StatusInternalServerError)
+		return
+	}
+	h.render(w, "board-columns-partial.html", view)
+}
+
+func (h *Handler) RenameColumn(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	columnID, err := uuid.Parse(chi.URLParam(r, "columnID"))
+	if err != nil {
+		http.Error(w, "invalid column ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	name := r.FormValue("name")
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+
+	if _, err = h.boards.RenameColumn(r.Context(), orgID, columnID, name); err != nil {
+		http.Error(w, "failed to rename column", http.StatusInternalServerError)
+		return
+	}
+
+	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "failed to reload board", http.StatusInternalServerError)
+		return
+	}
+	h.render(w, "board-columns-partial.html", view)
+}
+
+func (h *Handler) DeleteColumn(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	columnID, err := uuid.Parse(chi.URLParam(r, "columnID"))
+	if err != nil {
+		http.Error(w, "invalid column ID", http.StatusBadRequest)
+		return
+	}
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.boards.DeleteColumn(r.Context(), orgID, columnID); err != nil {
+		http.Error(w, "failed to delete column", http.StatusInternalServerError)
+		return
+	}
+
+	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "failed to reload board", http.StatusInternalServerError)
+		return
+	}
+	h.render(w, "board-columns-partial.html", view)
+}
+
+// --- Sprint handlers ---
+
+func (h *Handler) CreateSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	name := r.FormValue("name")
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	var startDate, endDate *time.Time
+	if v := r.FormValue("start_date"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err == nil {
+			startDate = &t
+		}
+	}
+	if v := r.FormValue("end_date"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err == nil {
+			endDate = &t
+		}
+	}
+	_, err = h.boards.CreateSprint(r.Context(), orgID, boardID, userID, name, startDate, endDate)
+	if err != nil {
+		http.Error(w, "failed to create sprint", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
+}
+
+func (h *Handler) UpdateSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var startDate, endDate *time.Time
+	if v := r.FormValue("start_date"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err == nil {
+			startDate = &t
+		}
+	}
+	if v := r.FormValue("end_date"); v != "" {
+		t, err := time.Parse("2006-01-02", v)
+		if err == nil {
+			endDate = &t
+		}
+	}
+	_, err = h.boards.UpdateSprint(r.Context(), orgID, sprintID, r.FormValue("name"), startDate, endDate)
+	if err != nil {
+		http.Error(w, "failed to update sprint", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "sprintUpdated")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) StartSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.boards.StartSprint(r.Context(), orgID, sprintID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
+}
+
+func (h *Handler) CloseSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.boards.CloseSprint(r.Context(), orgID, sprintID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
+}
+
+func (h *Handler) DeleteSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	if err := h.boards.DeleteSprint(r.Context(), orgID, sprintID); err != nil {
+		http.Error(w, "failed to delete sprint", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
+}
+
+func (h *Handler) AssignTicketToSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var sprintID *uuid.UUID
+	if v := r.FormValue("sprint_id"); v != "" && v != "backlog" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+			return
+		}
+		sprintID = &id
+	}
+	if err := h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, sprintID); err != nil {
+		http.Error(w, "failed to assign ticket", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", `{"backlogUpdated":true,"boardUpdated":true}`)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// AssignTicketsToSprint bulk-assigns selected backlog tickets to a sprint.
+// Called from the backlog page "Move selected to Sprint N" button.
+func (h *Handler) AssignTicketsToSprint(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	for _, raw := range r.Form["ticket_ids"] {
+		ticketID, err := uuid.Parse(raw)
+		if err != nil {
+			continue
+		}
+		_ = h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, &sprintID)
+	}
+	http.Redirect(w, r, "/boards/"+boardID.String()+"/backlog", http.StatusSeeOther)
+}
+
+func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	view, err := h.boards.GetBacklog(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "backlog not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "backlog.html", h.boardViewData(r, view))
+}
+
+// BacklogTicketList renders just the ticket list partial for HTMX refresh.
+func (h *Handler) BacklogTicketList(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	view, err := h.boards.GetBacklog(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "backlog not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "backlog-ticket-list.html", map[string]any{
+		"Board":       view.Board,
+		"Tickets":     view.Columns[0].Tickets,
+		"SprintViews": view.SprintViews,
+	})
+}

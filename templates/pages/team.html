@@ -1,0 +1,99 @@
+{{template "base" .}}
+
+{{define "title"}}{{if .Team}}{{.Team.Name}} — {{end}}Team — Docket{{end}}
+
+{{define "content"}}
+<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6" x-data="{ editing: false }">
+
+  <!-- Breadcrumb -->
+  <nav class="text-sm text-base-content/50">
+    <a href="/teams" class="hover:text-primary">Teams</a>
+    <span class="mx-1">/</span>
+    <span class="text-base-content/70">{{.Team.Name}}</span>
+  </nav>
+
+  <!-- Team header -->
+  <div class="flex items-start justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+        <span class="font-mono text-primary text-sm font-bold">{{.Team.Key}}</span>
+      </div>
+      <div>
+        <h1 class="text-2xl font-semibold">{{.Team.Name}}</h1>
+        {{if .Team.Description}}
+        <p class="text-sm text-base-content/50 mt-0.5">{{.Team.Description}}</p>
+        {{end}}
+      </div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0" x-show="!editing">
+      <button @click="editing = true"
+              class="px-3 py-1.5 text-sm text-base-content/60 hover:text-base-content hover:bg-base-300 rounded border border-base-300">Edit</button>
+      <button class="px-3 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-base-300 rounded border border-base-300"
+              hx-delete="/teams/{{.Team.ID}}"
+              hx-confirm="Delete team {{.Team.Name}}? This cannot be undone."
+              hx-swap="none">Delete</button>
+    </div>
+  </div>
+
+  <!-- Inline edit form -->
+  <div x-show="editing" x-cloak class="bg-base-200 border border-base-300 rounded-lg p-4">
+    <form hx-put="/teams/{{.Team.ID}}" hx-swap="none" @submit="editing = false" class="flex flex-col gap-3">
+      <div>
+        <label class="block text-xs text-base-content/50 mb-1">Team name</label>
+        <input type="text" name="name" value="{{.Team.Name}}" required
+               class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+      </div>
+      <div>
+        <label class="block text-xs text-base-content/50 mb-1">Description</label>
+        <input type="text" name="description" value="{{.Team.Description}}"
+               class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+      </div>
+      <div class="flex gap-2">
+        <button type="submit" class="px-4 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
+        <button type="button" @click="editing = false" class="px-4 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Boards section -->
+  <div>
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Boards</span>
+    </div>
+
+    {{if .Board}}
+    <a href="/boards/{{.Board.ID}}"
+       class="group flex items-center justify-between bg-base-200 border border-base-300 rounded-lg p-4 hover:border-primary/40">
+      <div class="flex items-center gap-3">
+        <svg class="h-5 w-5 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+        </svg>
+        <div>
+          <p class="text-sm font-medium">{{.Board.Name}}</p>
+          {{if .Board.Description}}
+          <p class="text-xs text-base-content/40 mt-0.5">{{.Board.Description}}</p>
+          {{end}}
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-xs border border-base-300 rounded px-1.5 py-0.5 text-base-content/50">{{.Board.Mode.Label}}</span>
+        <svg class="h-4 w-4 text-base-content/30 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+      </div>
+    </a>
+    {{else}}
+    <p class="text-sm text-base-content/30 text-center py-6">No board yet.</p>
+    {{end}}
+  </div>
+
+  <!-- Members section -->
+  <div class="max-w-sm">
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Members</span>
+    </div>
+    {{template "team-members" (dict "Team" .Team "Members" .Members)}}
+  </div>
+
+</div>
+{{end}}

@@ -1,0 +1,6 @@
+.env
+docket
+tmp/
+static/dist/*.js
+static/dist/*.css
+node_modules/

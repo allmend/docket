@@ -1,0 +1,7 @@
+{{template "base" .}}
+
+{{define "title"}}{{.Ticket.DisplayID}} — Docket{{end}}
+
+{{define "content"}}
+{{template "ticket-detail" .}}
+{{end}}

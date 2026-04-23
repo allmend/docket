@@ -1,0 +1,50 @@
+{{define "ticket-assignees"}}
+<div id="ticket-assignees-{{.Ticket.ID}}"
+     class="flex flex-col gap-2"
+     x-data="{ searching: false, q: '' }"
+     @click.outside="searching = false">
+
+  {{range .Assignees}}
+  <div class="flex items-center justify-between group">
+    <div class="flex items-center gap-2">
+      <div class="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0">{{initials .Name}}</div>
+      <span class="text-sm text-base-content/80">{{.Name}}</span>
+    </div>
+    <button class="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-base-content/30 hover:text-red-400"
+            hx-delete="/tickets/{{$.Ticket.ID}}/assignees/{{.ID}}"
+            hx-target="#ticket-assignees-{{$.Ticket.ID}}"
+            hx-swap="outerHTML"
+            title="Remove">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  </div>
+  {{end}}
+
+  <!-- Add assignee -->
+  <div class="relative">
+    <button @click="searching = !searching; if(searching) $nextTick(() => { let el = $el.nextElementSibling.querySelector('input'); if(el){ el.focus(); htmx.trigger(el, 'input'); } })"
+            class="flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5">
+      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Add assignee
+    </button>
+
+    <div x-show="searching" x-cloak class="absolute left-0 top-6 z-30 w-56 bg-base-200 border border-base-300 rounded-lg shadow-xl flex flex-col">
+      <div class="p-2 border-b border-base-300">
+        <input type="text"
+               name="q"
+               x-model="q"
+               placeholder="Search people…"
+               hx-get="/tickets/{{.Ticket.ID}}/assignees/search"
+               hx-trigger="input changed delay:200ms"
+               hx-target="#assignee-results-{{.Ticket.ID}}"
+               hx-swap="innerHTML"
+               class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+      </div>
+      <div id="assignee-results-{{.Ticket.ID}}" class="max-h-48 overflow-y-auto py-1">
+        <p class="text-xs text-base-content/30 px-3 py-2">Type to search…</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{{end}}

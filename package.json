@@ -1,0 +1,21 @@
+{
+  "name": "docket",
+  "private": true,
+  "scripts": {
+    "build": "npm run css && npm run js",
+    "css": "tailwindcss -i static/src/app.css -o static/dist/app.css --minify",
+    "css:watch": "tailwindcss -i static/src/app.css -o static/dist/app.css --watch",
+    "js": "esbuild static/src/board.js --bundle --minify --outdir=static/dist",
+    "js:watch": "esbuild static/src/board.js --bundle --outdir=static/dist --watch",
+    "vendor": "node scripts/vendor.js"
+  },
+  "dependencies": {
+    "sortablejs": "^1.15.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/typography": "^0.5.15",
+    "daisyui": "^4.12.23",
+    "esbuild": "^0.24.2",
+    "tailwindcss": "^3.4.17"
+  }
+}

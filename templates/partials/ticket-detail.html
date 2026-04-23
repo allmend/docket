@@ -1,0 +1,221 @@
+{{define "ticket-detail"}}
+<div class="flex flex-1 min-h-0 h-full min-w-0">
+
+  <!-- Left: main content -->
+  <div class="flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-8 py-6 flex flex-col gap-5">
+
+    <!-- Breadcrumb / identity row -->
+    <nav class="text-sm text-base-content/50 flex items-center gap-1 flex-wrap">
+      {{if .Team}}
+      <a href="/teams" class="hover:text-primary">Teams</a>
+      <span class="mx-0.5">/</span>
+      <a href="/teams/{{.Team.ID}}" class="hover:text-primary">
+        <span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}
+      </a>
+      {{if .Board}}
+      <span class="mx-0.5">/</span>
+      <a href="/boards/{{.Board.ID}}" class="hover:text-primary">{{.Board.Name}}</a>
+      {{end}}
+      <span class="mx-0.5">/</span>
+      <span class="font-mono text-primary">{{.Ticket.DisplayID}}</span>
+      {{else}}
+      {{/* Modal context: show ID + open-in-full link */}}
+      <a href="/tickets/{{.Ticket.DisplayID}}" class="font-mono text-primary hover:underline">{{.Ticket.DisplayID}}</a>
+      <a href="/tickets/{{.Ticket.DisplayID}}"
+         class="flex items-center gap-1 text-xs text-base-content/30 hover:text-base-content/60 ml-1"
+         title="Open full page">
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+        </svg>
+        Open
+      </a>
+      {{end}}
+    </nav>
+
+    <!-- Title -->
+    {{template "ticket-title" .Ticket}}
+
+    <!-- Description -->
+    {{template "ticket-body-section" .Ticket}}
+
+    <!-- Links (between description and tabs) -->
+    {{if .Links}}
+    <div class="flex flex-col gap-1.5">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Links</span>
+      {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links)}}
+    </div>
+    {{else}}
+    {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links)}}
+    {{end}}
+
+    <!-- Tabs: Comments + History -->
+    <div x-data="{ tab: 'comments', commentCount: {{len .Comments}} }" @comment-added="commentCount++" class="flex flex-col gap-4 mt-2">
+      <div class="flex items-center gap-1 border-b border-base-300">
+        <button @click="tab = 'comments'"
+                :class="tab === 'comments' ? 'border-b-2 border-primary text-base-content' : 'text-base-content/50 hover:text-base-content'"
+                class="px-3 py-2 text-sm font-medium -mb-px transition-colors">
+          Comments
+          <span x-show="commentCount > 0" x-text="commentCount" class="ml-1.5 text-xs bg-base-300 rounded px-1.5 py-0.5"></span>
+        </button>
+        <button @click="tab = 'history'"
+                :class="tab === 'history' ? 'border-b-2 border-primary text-base-content' : 'text-base-content/50 hover:text-base-content'"
+                class="px-3 py-2 text-sm font-medium -mb-px transition-colors">
+          History
+        </button>
+      </div>
+
+      <!-- Comments tab -->
+      <div x-show="tab === 'comments'" class="flex flex-col gap-4">
+        <div class="comments-list flex flex-col gap-4">
+          {{range .Comments}}
+          <div id="comment-{{.ID}}" class="flex gap-3">
+            <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .AuthorName}}</div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-sm font-medium">{{.AuthorName}}</span>
+                <span class="font-mono text-xs text-base-content/40">{{.CreatedAt.Format "Jan 2, 2006 · 15:04"}}</span>
+                {{if .Edited}}<span class="text-xs text-base-content/30">(edited)</span>{{end}}
+              </div>
+              <div class="text-sm text-base-content/80 leading-relaxed bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto">
+                {{.BodyHTML}}
+              </div>
+              <div class="flex items-center gap-3 mt-1.5">
+                <button hx-get="/comments/{{.ID}}/edit" hx-target="#comment-{{.ID}}" hx-swap="outerHTML"
+                        class="text-xs text-base-content/30 hover:text-base-content">Edit</button>
+                <button hx-delete="/comments/{{.ID}}" hx-target="#comment-{{.ID}}" hx-swap="outerHTML" hx-confirm="Delete this comment?"
+                        class="text-xs text-base-content/30 hover:text-red-400">Delete</button>
+              </div>
+            </div>
+          </div>
+          {{end}}
+        </div>
+
+        <!-- New comment form -->
+        <div class="flex gap-3 mt-2">
+          {{if .CurrentUser}}
+          <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .CurrentUser.Name}}</div>
+          {{end}}
+          <div x-data="mentionInput()" class="relative flex-1 min-w-0 flex flex-col gap-2">
+            <form hx-post="/tickets/{{.Ticket.ID}}/comments" hx-target=".comments-list" hx-swap="beforeend"
+                  hx-on::after-request="if(event.detail.successful){this.reset();this.dispatchEvent(new CustomEvent('comment-added',{bubbles:true}))}">
+              <textarea @input="mentionInput($event)" name="body" rows="3"
+                        placeholder="Write a comment… (@username, #TICKET-ID)"
+                        class="w-full bg-base-200 border border-base-300 text-base-content text-sm rounded-lg px-3 py-2 placeholder:text-base-content/30 focus:outline-none focus:border-primary resize-y font-mono"></textarea>
+              <div class="mt-2">
+                <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Comment</button>
+              </div>
+            </form>
+            <!-- @mention dropdown -->
+            <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
+                 class="absolute bottom-full mb-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+              <template x-for="u in mentionUsers" :key="u.username">
+                <button type="button" @mousedown.prevent="mentionPick(u.username)"
+                        class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
+                  <span class="text-xs font-bold text-primary" x-text="'@' + u.username"></span>
+                  <span class="text-xs text-base-content/60" x-text="u.name"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- History tab -->
+      <div x-show="tab === 'history'" class="flex flex-col gap-2">
+        {{if .History}}
+        {{range .History}}
+        <div class="flex items-center gap-3 py-2 border-b border-base-300/50">
+          <span class="font-mono text-xs text-base-content/30 w-36 shrink-0">{{.CreatedAt.Format "Jan 2, 2006 15:04"}}</span>
+          <span class="text-sm text-base-content/70">
+            <span class="text-base-content">{{.ActorName}}</span>
+            {{if eq .Field "title"}} changed <span class="text-base-content">title</span>
+            {{else if eq .Field "priority"}} changed <span class="text-base-content">priority</span> from <span class="text-base-content/50">{{.OldValue}}</span> to <span class="text-base-content">{{.NewValue}}</span>
+            {{else if eq .Field "description"}} updated <span class="text-base-content">description</span>
+            {{else if eq .Field "comment"}} added a <span class="text-base-content">comment</span>
+            {{else}} updated <span class="text-base-content">{{.Field}}</span>
+            {{end}}
+          </span>
+        </div>
+        {{end}}
+        {{else}}
+        <p class="text-sm text-base-content/30 py-2">No history yet.</p>
+        {{end}}
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Right: metadata sidebar -->
+  <div class="w-72 shrink-0 border-l border-base-300 px-5 py-6 flex flex-col gap-5 overflow-y-auto">
+
+    <!-- Assignees -->
+    <div class="flex flex-col gap-2">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Assignees</span>
+      {{template "ticket-assignees" (dict "Ticket" .Ticket "Assignees" .Assignees)}}
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <!-- Priority -->
+    <div class="flex flex-col gap-2">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Priority</span>
+      <select name="priority"
+              hx-put="/tickets/{{.Ticket.ID}}/priority"
+              hx-trigger="change"
+              hx-swap="none"
+              class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
+        <option value=""         {{if eq .Ticket.Priority ""}}selected{{end}}>No priority</option>
+        <option value="low"      {{if eq .Ticket.Priority "low"}}selected{{end}}>Low</option>
+        <option value="medium"   {{if eq .Ticket.Priority "medium"}}selected{{end}}>Medium</option>
+        <option value="high"     {{if eq .Ticket.Priority "high"}}selected{{end}}>High</option>
+        <option value="critical" {{if eq .Ticket.Priority "critical"}}selected{{end}}>Critical</option>
+      </select>
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <!-- Status (column) -->
+    <div class="flex flex-col gap-2">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Status</span>
+      <select name="column_id"
+              hx-put="/tickets/{{.Ticket.ID}}/column"
+              hx-trigger="change"
+              hx-swap="none"
+              class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
+        {{range .Columns}}
+        <option value="{{.ID}}" {{if eq .ID $.Ticket.ColumnID}}selected{{end}}>{{.Name}}</option>
+        {{end}}
+      </select>
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <!-- Timestamps -->
+    <div class="flex flex-col gap-2.5">
+      <div class="flex flex-col gap-0.5">
+        <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Created</span>
+        <span class="font-mono text-xs text-base-content/60">{{.Ticket.CreatedAt.Format "Jan 2, 2006"}}</span>
+      </div>
+      <div class="flex flex-col gap-0.5">
+        <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Updated</span>
+        <span class="font-mono text-xs text-base-content/60">{{.Ticket.UpdatedAt.Format "Jan 2, 2006"}}</span>
+      </div>
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <!-- Delete -->
+    <div>
+      <button hx-delete="/tickets/{{.Ticket.ID}}"
+              hx-confirm="Delete this ticket? This cannot be undone."
+              hx-target="body"
+              class="w-full text-left px-3 py-1.5 text-sm text-red-400 hover:bg-base-300 rounded">
+        Delete ticket
+      </button>
+    </div>
+
+  </div>
+
+</div>
+{{end}}

@@ -1,0 +1,58 @@
+{{define "backlog-ticket-list"}}
+<div id="backlog-ticket-list"
+     hx-get="/boards/{{.Board.ID}}/backlog/tickets"
+     hx-trigger="boardUpdated from:body"
+     hx-swap="outerHTML"
+     x-data="backlogList()">
+
+  <div class="flex items-center gap-2 mb-2">
+    <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Backlog</span>
+    <span class="text-xs bg-base-300 text-base-content/50 rounded px-1.5 py-0.5">{{len .Tickets}}</span>
+  </div>
+
+  <div class="backlog-list flex flex-col gap-1 min-h-[2.5rem]">
+    {{range .Tickets}}
+    <div class="group flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 hover:border-primary/30"
+         :class="selected.includes('{{.ID}}') ? 'border-primary/40 bg-primary/5' : ''"
+         data-ticket-id="{{.ID}}"
+         data-position="{{.Position}}"
+         data-ticket-column-id="{{.ColumnID}}">
+      <svg class="drag-handle h-4 w-4 text-base-content/20 shrink-0 cursor-grab group-hover:text-base-content/40" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M7 4a1 1 0 100 2 1 1 0 000-2zM13 4a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zM13 9a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zM13 14a1 1 0 100 2 1 1 0 000-2z"/>
+      </svg>
+      <input type="checkbox"
+             :checked="selected.includes('{{.ID}}')"
+             @click="selected.includes('{{.ID}}') ? selected = selected.filter(i => i !== '{{.ID}}') : selected.push('{{.ID}}')"
+             class="w-4 h-4 rounded accent-primary shrink-0 cursor-pointer" />
+      <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary shrink-0 hover:underline">{{.DisplayID}}</a>
+      <span class="text-sm text-base-content flex-1 min-w-0 truncate hover:text-primary cursor-pointer"
+            hx-get="/tickets/{{.ID}}/quick"
+            hx-target="#modal-body"
+            hx-swap="innerHTML"
+            hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">{{.Title}}</span>
+      {{if eq .Priority "critical"}}
+      <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5 shrink-0">critical</span>
+      {{else if eq .Priority "high"}}
+      <span class="text-xs border border-amber-700 text-amber-400 rounded-md px-1.5 py-0.5 shrink-0">high</span>
+      {{else if eq .Priority "medium"}}
+      <span class="text-xs border border-blue-700 text-blue-400 rounded-md px-1.5 py-0.5 shrink-0">medium</span>
+      {{else if eq .Priority "low"}}
+      <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5 shrink-0">low</span>
+      {{end}}
+      {{if .Assignees}}
+      <div class="flex shrink-0">
+        {{range $i, $a := .Assignees}}{{if lt $i 3}}
+        <div class="w-5 h-5 rounded-full bg-primary/20 border border-base-300 flex items-center justify-center text-[10px] font-bold text-primary {{if gt $i 0}}-ml-1{{end}}">{{initials $a.Name}}</div>
+        {{end}}{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <div class="text-sm text-base-content/20 py-8 text-center border border-dashed border-base-300 rounded-lg">
+      Backlog is empty
+    </div>
+    {{end}}
+  </div>
+
+</div>
+{{end}}

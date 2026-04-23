@@ -1,0 +1,17 @@
+{{define "comment-edit-form"}}
+<div id="comment-{{.ID}}" class="flex gap-3">
+  <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .AuthorName}}</div>
+  <div class="flex-1 min-w-0">
+    <form hx-put="/comments/{{.ID}}" hx-target="#comment-{{.ID}}" hx-swap="outerHTML" class="flex flex-col gap-2">
+      <textarea name="body" rows="3" autofocus
+                class="w-full bg-base-200 border border-primary text-base-content text-sm rounded-lg px-3 py-2 focus:outline-none resize-y font-mono">{{.Body}}</textarea>
+      <div class="flex items-center gap-2">
+        <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
+        <button type="button"
+                hx-get="/comments/{{.ID}}/view" hx-target="#comment-{{.ID}}" hx-swap="outerHTML"
+                class="px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}

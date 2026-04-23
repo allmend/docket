@@ -1,0 +1,31 @@
+FROM mirror.gcr.io/library/golang:1.25-alpine
+
+# Node + npm for Tailwind + esbuild
+RUN apk add --no-cache nodejs npm curl git make
+
+WORKDIR /app
+
+# Install Go tools
+RUN go install github.com/air-verse/air@latest
+
+# Pre-download Go modules (cache layer — invalidated only on go.mod change)
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Pre-install npm packages (cache layer — invalidated only on package.json change)
+COPY package.json ./
+RUN npm install
+
+# Vendor JS libraries (htmx, alpine) into static/dist
+COPY scripts/vendor.js ./scripts/vendor.js
+RUN node scripts/vendor.js
+
+EXPOSE 8081
+
+# air watches Go files and restarts the binary.
+# Tailwind + esbuild run in parallel via the entrypoint script.
+CMD ["/bin/sh", "-c", "\
+  npx tailwindcss -i static/src/app.css -o static/dist/app.css --watch & \
+  npx esbuild static/src/board.js --bundle --outdir=static/dist --watch & \
+  air \
+"]

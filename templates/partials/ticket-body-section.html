@@ -1,0 +1,48 @@
+{{define "ticket-body-section"}}
+<div id="ticket-body-{{.ID}}" x-data="{ editing: false, ...mentionInput() }" @click.outside="editing = false; mentionOpen = false">
+  <div x-show="!editing">
+    {{if .Body}}
+    <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm cursor-text hover:bg-base-200 rounded px-3 py-2 -mx-3 transition-colors [&_a]:text-primary [&_a]:hover:underline overflow-x-auto"
+         @click="editing = true; $nextTick(() => $refs.bodyInput.focus())"
+         title="Click to edit">
+      {{.BodyHTML}}
+    </div>
+    {{else}}
+    <p class="text-sm text-base-content/30 italic cursor-text hover:bg-base-200 rounded px-3 py-2 -mx-3 transition-colors"
+       @click="editing = true; $nextTick(() => $refs.bodyInput.focus())"
+       title="Click to add description">
+      Add a description…
+    </p>
+    {{end}}
+  </div>
+  <div class="relative">
+    <form x-show="editing" x-cloak
+          x-effect="if (editing) setTimeout(() => { let el = $refs.bodyInput; if (el) { el.style.height = 'auto'; el.style.height = Math.max(144, el.scrollHeight) + 'px' } }, 0)"
+          hx-put="/tickets/{{.ID}}/body"
+          hx-target="#ticket-body-{{.ID}}"
+          hx-swap="outerHTML"
+          @keydown.escape="editing = false; mentionOpen = false"
+          class="flex flex-col gap-2">
+      <textarea x-ref="bodyInput" @input="mentionInput($event)"
+                name="body"
+                rows="6"
+                placeholder="Write a description… (Markdown supported, @username)"
+                class="w-full bg-base-100 border border-primary text-base-content text-sm rounded-lg px-3 py-2 focus:outline-none resize-y font-mono">{{.Body}}</textarea>
+      <div class="flex gap-2">
+        <button type="submit" class="px-3 py-1 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
+        <button type="button" @click="editing = false; mentionOpen = false" class="px-3 py-1 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+      </div>
+    </form>
+    <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
+         class="absolute bottom-full mb-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+      <template x-for="u in mentionUsers" :key="u.username">
+        <button type="button" @mousedown.prevent="mentionPick(u.username)"
+                class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
+          <span class="text-xs font-bold text-primary" x-text="'@' + u.username"></span>
+          <span class="text-xs text-base-content/60" x-text="u.name"></span>
+        </button>
+      </template>
+    </div>
+  </div>
+</div>
+{{end}}
