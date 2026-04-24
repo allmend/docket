@@ -1,0 +1,50 @@
+{{define "ticket-tags"}}
+<div id="ticket-tags-{{.Ticket.ID}}"
+     class="flex flex-col gap-2"
+     x-data="{ open: false }"
+     @click.outside="open = false">
+
+  {{range .Tags}}
+  <div class="flex items-center justify-between group">
+    <span class="flex items-center gap-1.5">
+      <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{.Color}}"></span>
+      <span class="text-sm text-base-content/80">{{.Name}}</span>
+    </span>
+    {{if not $.Ticket.ClosedAt}}
+    <button class="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-base-content/30 hover:text-red-400"
+            hx-delete="/tickets/{{$.Ticket.ID}}/tags/{{.ID}}"
+            hx-target="#ticket-tags-{{$.Ticket.ID}}"
+            hx-swap="outerHTML"
+            title="Remove">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if and .BoardTags (not .Ticket.ClosedAt)}}
+  <div class="relative">
+    <button @click="open = !open"
+            class="flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5">
+      <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Add label
+    </button>
+    <div x-show="open" x-cloak class="absolute left-0 top-6 z-30 w-48 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
+      {{range .BoardTags}}
+      <button type="button"
+              hx-post="/tickets/{{$.Ticket.ID}}/tags"
+              hx-vals='{"tag_id": "{{.ID}}"}'
+              hx-target="#ticket-tags-{{$.Ticket.ID}}"
+              hx-swap="outerHTML"
+              @click="open = false"
+              class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-sm">
+        <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: {{.Color}}"></span>
+        {{.Name}}
+      </button>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+</div>
+{{end}}

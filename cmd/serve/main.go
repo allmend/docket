@@ -73,6 +73,7 @@ func main() {
 	ticketSvc     := service.NewTicketService(st, notifSvc)
 	commentSvc    := service.NewCommentService(st)
 	linkSvc       := service.NewLinkService(st)
+	retroSvc      := service.NewRetroService(st, ticketSvc, boardSvc)
 
 	// Auto-seed: create default org + admin user on first run.
 	// Silently skips if org already exists (idempotent).
@@ -80,7 +81,7 @@ func main() {
 
 	switch *mode {
 	case "api", "all":
-		if err := startAPI(ctx, cfg, authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc); err != nil {
+		if err := startAPI(ctx, cfg, authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc); err != nil {
 			slog.Error("api server", "err", err)
 			os.Exit(1)
 		}
@@ -103,8 +104,9 @@ func startAPI(
 	commentSvc *service.CommentService,
 	linkSvc    *service.LinkService,
 	notifSvc   *service.NotificationService,
+	retroSvc   *service.RetroService,
 ) error {
-	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, "templates")
+	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, "templates")
 	if err != nil {
 		return fmt.Errorf("init handler: %w", err)
 	}

@@ -83,16 +83,37 @@ const (
 )
 
 type Sprint struct {
-	ID        uuid.UUID    `json:"id"`
-	OrgID     uuid.UUID    `json:"org_id"`
-	BoardID   uuid.UUID    `json:"board_id"`
-	Name      string       `json:"name"`
-	Status    SprintStatus `json:"status"`
-	StartDate *time.Time   `json:"start_date,omitempty"`
-	EndDate   *time.Time   `json:"end_date,omitempty"`
-	CreatedBy uuid.UUID    `json:"created_by"`
-	CreatedAt time.Time    `json:"created_at"`
-	UpdatedAt time.Time    `json:"updated_at"`
+	ID               uuid.UUID    `json:"id"`
+	OrgID            uuid.UUID    `json:"org_id"`
+	BoardID          uuid.UUID    `json:"board_id"`
+	Name             string       `json:"name"`
+	Goal             string       `json:"goal"`
+	Status           SprintStatus `json:"status"`
+	StartDate        *time.Time   `json:"start_date,omitempty"`
+	EndDate          *time.Time   `json:"end_date,omitempty"`
+	CommittedTickets int          `json:"committed_tickets"`
+	CompletedTickets int          `json:"completed_tickets"`
+	CommittedPoints  float64      `json:"committed_points"`
+	CompletedPoints  float64      `json:"completed_points"`
+	CreatedBy        uuid.UUID    `json:"created_by"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
+}
+
+// CompletionPct returns ticket completion percentage, 0 if no tickets committed.
+func (s Sprint) CompletionPct() int {
+	if s.CommittedTickets == 0 {
+		return 0
+	}
+	return int(float64(s.CompletedTickets) / float64(s.CommittedTickets) * 100)
+}
+
+// PointsPct returns story point completion percentage, 0 if no points committed.
+func (s Sprint) PointsPct() int {
+	if s.CommittedPoints == 0 {
+		return 0
+	}
+	return int(s.CompletedPoints / s.CommittedPoints * 100)
 }
 
 func (s SprintStatus) IsActive() bool    { return s == SprintStatusActive }

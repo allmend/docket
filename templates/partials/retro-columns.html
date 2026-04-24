@@ -1,0 +1,89 @@
+{{define "retro-columns"}}
+<div id="retro-columns" class="flex gap-4 flex-1 min-h-0">
+
+  {{$userID := .CurrentUserID}}
+  {{$retroID := .RetroView.RetroBoard.ID}}
+  {{$boardID := .RetroView.Board.ID}}
+  {{$closed := .RetroView.RetroBoard.IsClosed}}
+
+  <!-- What Went Well -->
+  {{template "retro-col" dict "Col" "went_well" "Label" "What Went Well" "Accent" "text-green-400" "Border" "border-green-800/40" "Cards" .RetroView.WentWell "CurrentUserID" $userID "RetroBoardID" $retroID "BoardID" $boardID "Closed" $closed}}
+
+  <!-- What Didn't Go Well -->
+  {{template "retro-col" dict "Col" "didnt_go_well" "Label" "What Didn't Go Well" "Accent" "text-red-400" "Border" "border-red-800/40" "Cards" .RetroView.DidntGoWell "CurrentUserID" $userID "RetroBoardID" $retroID "BoardID" $boardID "Closed" $closed}}
+
+  <!-- Action Items -->
+  {{template "retro-col" dict "Col" "action_item" "Label" "Action Items" "Accent" "text-amber-400" "Border" "border-amber-800/40" "Cards" .RetroView.ActionItems "CurrentUserID" $userID "RetroBoardID" $retroID "BoardID" $boardID "Closed" $closed}}
+
+</div>
+{{end}}
+
+{{define "retro-col"}}
+<div class="flex flex-col flex-1 min-h-0 bg-base-200 border {{.Border}} rounded-lg overflow-hidden">
+  <div class="px-4 py-3 border-b border-base-300 shrink-0 flex items-center justify-between">
+    <span class="text-sm font-semibold {{.Accent}}">{{.Label}}</span>
+    <span class="text-xs text-base-content/30 font-mono">{{len .Cards}}</span>
+  </div>
+
+  <!-- Cards -->
+  <div class="flex flex-col gap-2 p-3 flex-1 overflow-y-auto">
+    {{range .Cards}}
+    <div class="bg-base-100 border border-base-300 rounded-lg p-3 flex flex-col gap-2 group">
+      <p class="text-sm text-base-content/80 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
+
+      {{if eq $.Col "action_item"}}
+        {{if .TicketDisplay}}
+        <a href="/tickets/{{.TicketDisplay}}" class="text-xs font-mono text-primary/60 hover:text-primary self-start">{{.TicketDisplay}}</a>
+        {{end}}
+      {{end}}
+
+      {{if and (not $.Closed) (eq .AuthorID.String $.CurrentUserID)}}
+      <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+        <button hx-delete="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards/{{.ID}}"
+                hx-target="#retro-columns" hx-swap="outerHTML"
+                hx-confirm="Delete this card?"
+                class="text-xs text-base-content/30 hover:text-red-400 transition-colors">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </button>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+  </div>
+
+  <!-- Add card form (hidden when retro is closed) -->
+  {{if not $.Closed}}
+  <div class="p-3 border-t border-base-300 shrink-0"
+       x-data="{ open: false, body: '' }">
+    <div x-show="!open">
+      <button @click="open=true; $nextTick(()=>$refs.cardBody&&$refs.cardBody.focus())"
+              class="w-full flex items-center gap-2 text-xs text-base-content/30 hover:text-base-content/60 transition-colors py-1">
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Add card
+      </button>
+    </div>
+    <form x-show="open" x-cloak
+          hx-post="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards"
+          hx-target="#retro-columns" hx-swap="outerHTML"
+          @htmx:after-request="open=false; body=''"
+          class="flex flex-col gap-2">
+      <input type="hidden" name="column" value="{{.Col}}">
+      <textarea x-ref="cardBody" x-model="body" name="body" rows="3"
+                placeholder="Share your thoughts…"
+                @keydown.escape="open=false; body=''"
+                class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none text-base-content/80 placeholder:text-base-content/20"></textarea>
+      <div class="flex gap-2">
+        <button type="submit" :disabled="!body.trim()"
+                class="px-3 py-1.5 bg-primary text-base-100 text-xs font-medium rounded hover:opacity-90 disabled:opacity-40">
+          Add
+        </button>
+        <button type="button" @click="open=false; body=''"
+                class="px-3 py-1.5 text-xs text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+  {{end}}
+</div>
+{{end}}

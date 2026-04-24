@@ -1,0 +1,73 @@
+{{define "title"}}Retrospective — {{.RetroView.Board.Name}}{{end}}
+
+{{define "content"}}
+{{$v := .RetroView}}
+<div class="flex flex-col h-full min-h-0 gap-4 p-6">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between shrink-0">
+    <div class="flex flex-col gap-0.5">
+      <nav class="mb-1">
+        <ol class="flex items-center gap-1 text-sm text-base-content/50">
+          <li><a href="/teams" class="hover:text-base-content">Teams</a></li>
+          {{if .Team}}
+          <li class="flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
+            <a href="/teams/{{.Team.ID}}" class="hover:text-base-content"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
+          </li>
+          {{end}}
+          <li class="flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
+            <a href="/boards/{{$v.Board.ID}}" class="hover:text-base-content">{{$v.Board.Name}}</a>
+          </li>
+          <li class="flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
+            <a href="/boards/{{$v.Board.ID}}/retros" class="hover:text-base-content">Retrospectives</a>
+          </li>
+          <li class="flex items-center gap-1">
+            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
+            <span class="text-base-content/30">{{if $v.Sprint}}{{$v.Sprint.Name}}{{else}}Retrospective{{end}}</span>
+          </li>
+        </ol>
+      </nav>
+      {{if $v.RetroBoard.IsClosed}}
+      <p class="text-xs text-base-content/30">This retrospective is closed — cards are read-only.</p>
+      {{else}}
+      <p class="text-xs text-base-content/30">Cards are anonymous — only you can delete your own.</p>
+      {{end}}
+    </div>
+
+    <!-- Sprint stats + close button -->
+    <div class="flex items-center gap-4 shrink-0">
+      {{if $v.Sprint}}
+      {{if gt $v.Sprint.CompletedTickets 0}}
+      <div class="flex items-center gap-3 text-xs text-base-content/40">
+        <span class="font-mono">
+          <span class="text-base-content/70 font-semibold">{{$v.Sprint.CompletedTickets}}</span>/{{$v.Sprint.CommittedTickets}} tickets
+        </span>
+        {{if gt $v.Sprint.CommittedPoints 0.0}}
+        <span class="font-mono">
+          <span class="text-base-content/70 font-semibold">{{printf "%.0f" $v.Sprint.CompletedPoints}}</span>/{{printf "%.0f" $v.Sprint.CommittedPoints}} pts
+        </span>
+        {{end}}
+        <span class="text-primary font-semibold">{{$v.Sprint.CompletionPct}}%</span>
+      </div>
+      {{end}}
+      {{end}}
+
+      {{if not $v.RetroBoard.IsClosed}}
+      <form method="POST" action="/boards/{{$v.Board.ID}}/retro/{{$v.RetroBoard.ID}}/close">
+        <button type="submit"
+                class="px-4 py-2 bg-base-300 text-base-content/70 text-sm font-medium rounded-lg hover:bg-base-content/10 hover:text-base-content">
+          Close Retro
+        </button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Columns -->
+  {{template "retro-columns" .}}
+
+</div>
+{{end}}

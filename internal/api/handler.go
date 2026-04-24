@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"strconv"
 
 	"github.com/allmend/docket/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,7 @@ type Handler struct {
 	comments      *service.CommentService
 	links         *service.LinkService
 	notifications *service.NotificationService
+	retro         *service.RetroService
 	tmpls         map[string]*template.Template
 }
 
@@ -31,13 +33,14 @@ func NewHandler(
 	comments *service.CommentService,
 	links *service.LinkService,
 	notifications *service.NotificationService,
+	retro *service.RetroService,
 	tmplDir string,
 ) (*Handler, error) {
 	tmpls, err := parseTemplates(tmplDir)
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{auth: auth, teams: teams, boards: boards, tickets: tickets, comments: comments, links: links, notifications: notifications, tmpls: tmpls}, nil
+	return &Handler{auth: auth, teams: teams, boards: boards, tickets: tickets, comments: comments, links: links, notifications: notifications, retro: retro, tmpls: tmpls}, nil
 }
 
 var authPages = map[string]bool{
@@ -58,12 +61,32 @@ func parseTemplates(root string) (map[string]*template.Template, error) {
 
 	funcs := template.FuncMap{
 		"sub": func(a, b int) int { return a - b },
+		"add": func(a, b int) int { return a + b },
+		"mul": func(a, b int) int { return a * b },
+		"pct": func(part, total int) int {
+			if total == 0 {
+				return 0
+			}
+			return int(float64(part) / float64(total) * 100)
+		},
 		"initials": func(s string) string {
 			runes := []rune(s)
 			if len(runes) == 0 {
 				return "?"
 			}
 			return string(runes[0])
+		},
+		"deref": func(p *float64) string {
+			if p == nil {
+				return ""
+			}
+			return strconv.FormatFloat(*p, 'f', -1, 64)
+		},
+		"derefStr": func(p *string) string {
+			if p == nil {
+				return ""
+			}
+			return *p
 		},
 		"dict": func(pairs ...any) (map[string]any, error) {
 			if len(pairs)%2 != 0 {
@@ -185,6 +208,11 @@ func (h *Handler) Routes(r chi.Router) {
 
 	r.Get("/boards/{boardID}/backlog", h.BoardBacklog)
 	r.Get("/boards/{boardID}/backlog/tickets", h.BacklogTicketList)
+	r.Get("/boards/{boardID}/tags", h.BoardTagsJSON)
+	r.Get("/boards/{boardID}/tags/manage", h.BoardTagsPanel)
+	r.Post("/boards/{boardID}/tags", h.CreateTag)
+	r.Delete("/boards/{boardID}/tags/{tagID}", h.DeleteTag)
+
 	r.Post("/boards/{boardID}/sprints", h.CreateSprint)
 	r.Post("/boards/{boardID}/sprints/{sprintID}/assign", h.AssignTicketsToSprint)
 	r.Put("/boards/{boardID}/sprints/{sprintID}", h.UpdateSprint)
@@ -205,17 +233,23 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/tickets/{ticketID}/title", h.UpdateTicketTitle)
 	r.Put("/tickets/{ticketID}/body", h.UpdateTicketBody)
 	r.Put("/tickets/{ticketID}/priority", h.UpdateTicketPriority)
+	r.Put("/tickets/{ticketID}/points", h.UpdateTicketPoints)
 	r.Put("/tickets/{ticketID}/column", h.UpdateTicketColumn)
 	r.Get("/tickets/{ticketID}/link-search", h.SearchTicketsForLink)
-	r.Delete("/tickets/{ticketID}", h.DeleteTicket)
+	r.Post("/tickets/{ticketID}/close", h.CloseTicket)
+		r.Post("/tickets/{ticketID}/reopen", h.ReopenTicket)
+		r.Delete("/tickets/{ticketID}", h.DeleteTicket)
 	r.Post("/tickets/{ticketID}/move", h.MoveTicket)
 	r.Post("/tickets/{ticketID}/sprint-place", h.SprintPlaceTicket)
 	r.Get("/tickets/{ticketID}/assignees/search", h.SearchTicketAssignees)
 	r.Post("/tickets/{ticketID}/assignees", h.AddTicketAssignee)
 	r.Delete("/tickets/{ticketID}/assignees/{userID}", h.RemoveTicketAssignee)
+	r.Post("/tickets/{ticketID}/tags", h.AddTagToTicket)
+	r.Delete("/tickets/{ticketID}/tags/{tagID}", h.RemoveTagFromTicket)
 
 	r.Get("/search", h.Search)
 	r.Get("/users/search", h.SearchUsersForMention)
+	r.Get("/tickets/search-mention", h.SearchTicketsForMention)
 
 	r.Post("/tickets/{ticketID}/comments", h.CreateComment)
 	r.Get("/comments/{commentID}/edit", h.CommentEditForm)
@@ -225,5 +259,15 @@ func (h *Handler) Routes(r chi.Router) {
 
 	r.Post("/tickets/{ticketID}/links", h.CreateLink)
 	r.Delete("/tickets/{ticketID}/links/{linkID}", h.DeleteLink)
+
+	r.Get("/boards/{boardID}/sprints/{sprintID}/review", h.SprintReviewPage)
+	r.Post("/boards/{boardID}/sprints/{sprintID}/close-and-retro", h.CloseSprintAndStartRetro)
+
+	r.Get("/boards/{boardID}/retros", h.RetrosListPage)
+	r.Get("/boards/{boardID}/retro/{retroBoardID}", h.RetroBoardPage)
+	r.Post("/boards/{boardID}/retro/{retroBoardID}/close", h.CloseRetroBoard)
+	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards", h.CreateRetroCard)
+	r.Delete("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}", h.DeleteRetroCard)
+	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}/assign", h.AssignRetroCardOwner)
 
 }

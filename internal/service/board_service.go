@@ -110,8 +110,9 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		// Backlog count: tickets with no sprint assigned.
 		view.BacklogCount, _ = s.store.CountBacklogTickets(ctx, orgID, boardID)
 
-		// Load all ticket assignees and blocked status for the board once.
+		// Load all ticket assignees, tags, and blocked status for the board once.
 		assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
+		tagsByTicket, _ := s.store.BulkListTicketTags(ctx, boardID)
 		blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 
 		// Active sprint: show ONLY sprint columns — no virtual backlog.
@@ -125,6 +126,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 			}
 			for i := range tickets {
 				tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
+				tickets[i].Tags = tagsByTicket[tickets[i].ID]
 				if blocker, ok := blockedBy[tickets[i].ID]; ok {
 					tickets[i].IsBlocked = true
 					tickets[i].BlockedBy = blocker
@@ -145,6 +147,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		backlogTickets, _ := s.store.ListBacklogTickets(ctx, orgID, boardID)
 		for i := range backlogTickets {
 			backlogTickets[i].Assignees = assigneesByTicket[backlogTickets[i].ID]
+			backlogTickets[i].Tags = tagsByTicket[backlogTickets[i].ID]
 			if blocker, ok := blockedBy[backlogTickets[i].ID]; ok {
 				backlogTickets[i].IsBlocked = true
 				backlogTickets[i].BlockedBy = blocker
@@ -168,6 +171,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 			planningTickets, _ := s.store.ListSprintTickets(ctx, orgID, planningSprint.ID)
 			for i := range planningTickets {
 				planningTickets[i].Assignees = assigneesByTicket[planningTickets[i].ID]
+				planningTickets[i].Tags = tagsByTicket[planningTickets[i].ID]
 			}
 			byCol := make(map[uuid.UUID][]model.Ticket)
 			for _, t := range planningTickets {
@@ -191,9 +195,11 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		return nil, fmt.Errorf("list tickets: %w", err)
 	}
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
+	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
+		tickets[i].Tags = tagsByTicket[tickets[i].ID]
 		if blocker, ok := blockedBy[tickets[i].ID]; ok {
 			tickets[i].IsBlocked = true
 			tickets[i].BlockedBy = blocker
@@ -253,12 +259,12 @@ func (s *BoardService) GetSprint(ctx context.Context, orgID, sprintID uuid.UUID)
 	return s.store.GetSprint(ctx, orgID, sprintID)
 }
 
-func (s *BoardService) CreateSprint(ctx context.Context, orgID, boardID, userID uuid.UUID, name string, startDate, endDate *time.Time) (*model.Sprint, error) {
-	return s.store.CreateSprint(ctx, orgID, boardID, userID, name, startDate, endDate)
+func (s *BoardService) CreateSprint(ctx context.Context, orgID, boardID, userID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*model.Sprint, error) {
+	return s.store.CreateSprint(ctx, orgID, boardID, userID, name, goal, startDate, endDate)
 }
 
-func (s *BoardService) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UUID, name string, startDate, endDate *time.Time) (*model.Sprint, error) {
-	return s.store.UpdateSprint(ctx, orgID, sprintID, name, startDate, endDate)
+func (s *BoardService) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*model.Sprint, error) {
+	return s.store.UpdateSprint(ctx, orgID, sprintID, name, goal, startDate, endDate)
 }
 
 // StartSprint transitions a planning sprint to active.
@@ -276,7 +282,7 @@ func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUI
 
 // CloseSprint transitions an active sprint to completed and returns unfinished
 // tickets to the backlog.
-func (s *BoardService) CloseSprint(ctx context.Context, orgID, sprintID uuid.UUID) (*model.Sprint, error) {
+func (s *BoardService) CloseSprint(ctx context.Context, orgID, sprintID, actorID uuid.UUID) (*model.Sprint, error) {
 	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
 	if err != nil {
 		return nil, err
@@ -284,9 +290,26 @@ func (s *BoardService) CloseSprint(ctx context.Context, orgID, sprintID uuid.UUI
 	if sp.Status != model.SprintStatusActive {
 		return nil, fmt.Errorf("sprint must be active to close")
 	}
+	// Snapshot stats before moving tickets so counts remain accurate.
+	if err := s.store.SnapshotSprintStats(ctx, orgID, sprintID); err != nil {
+		return nil, fmt.Errorf("snapshot sprint stats: %w", err)
+	}
 	// Return non-done tickets to backlog before marking completed.
 	if err := s.store.ReturnSprintTicketsToBacklog(ctx, orgID, sprintID); err != nil {
 		return nil, fmt.Errorf("return tickets to backlog: %w", err)
+	}
+	// Record history on each blocked ticket before clearing resolved blocking links.
+	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
+	actorName := ""
+	if actor != nil {
+		actorName = actor.Name
+	}
+	clearedLinks, _ := s.store.ListBlockingLinksForDoneTickets(ctx, orgID, sprintID)
+	for _, l := range clearedLinks {
+		_ = s.store.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, "")
+	}
+	if err := s.store.ClearBlockingLinksForDoneTickets(ctx, orgID, sprintID); err != nil {
+		return nil, fmt.Errorf("clear resolved blocking links: %w", err)
 	}
 	return s.store.SetSprintStatus(ctx, orgID, sprintID, model.SprintStatusCompleted)
 }
@@ -385,4 +408,30 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 	}
 
 	return view, nil
+}
+
+// --- Tag service methods ---
+
+func (s *BoardService) ListBoardTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model.Tag, error) {
+	return s.store.ListTags(ctx, orgID, boardID)
+}
+
+func (s *BoardService) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color string) (*model.Tag, error) {
+	return s.store.CreateTag(ctx, orgID, boardID, name, color)
+}
+
+func (s *BoardService) DeleteTag(ctx context.Context, orgID, tagID uuid.UUID) error {
+	return s.store.DeleteTag(ctx, orgID, tagID)
+}
+
+func (s *BoardService) ListTicketTags(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.Tag, error) {
+	return s.store.ListTicketTags(ctx, orgID, ticketID)
+}
+
+func (s *BoardService) AddTagToTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
+	return s.store.AddTagToTicket(ctx, orgID, ticketID, tagID)
+}
+
+func (s *BoardService) RemoveTagFromTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
+	return s.store.RemoveTagFromTicket(ctx, orgID, ticketID, tagID)
 }

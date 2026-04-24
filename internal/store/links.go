@@ -66,6 +66,19 @@ func (s *Store) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) ([]mod
 	return links, rows.Err()
 }
 
+func (s *Store) GetLink(ctx context.Context, orgID, linkID uuid.UUID) (*model.TicketLink, error) {
+	var l model.TicketLink
+	err := scanLink(s.replica.QueryRow(ctx,
+		`SELECT `+linkCols+linkJoins+`
+		 WHERE tl.org_id = $1 AND tl.id = $2`,
+		orgID, linkID,
+	), &l)
+	if err != nil {
+		return nil, err
+	}
+	return &l, nil
+}
+
 func (s *Store) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType) (*model.TicketLink, error) {
 	var l model.TicketLink
 	err := s.primary.QueryRow(ctx,
@@ -84,6 +97,55 @@ func (s *Store) DeleteLink(ctx context.Context, orgID, linkID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
 		`DELETE FROM ticket_links WHERE org_id = $1 AND id = $2`,
 		orgID, linkID,
+	)
+	return err
+}
+
+// ListBlockingLinksForDoneTickets returns "blocks" links where the blocker is in a
+// Done column of the sprint, so callers can record history before clearing them.
+func (s *Store) ListBlockingLinksForDoneTickets(ctx context.Context, orgID, sprintID uuid.UUID) ([]model.TicketLink, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT `+linkCols+linkJoins+`
+		 JOIN tickets ft2 ON ft2.id = tl.from_ticket_id
+		 JOIN columns  c  ON c.id   = ft2.column_id
+		 WHERE tl.org_id = $1
+		   AND tl.relation_type = 'blocks'
+		   AND ft2.sprint_id = $2
+		   AND LOWER(c.name) = 'done'`,
+		orgID, sprintID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var links []model.TicketLink
+	for rows.Next() {
+		var l model.TicketLink
+		if err := scanLink(rows, &l); err != nil {
+			return nil, err
+		}
+		links = append(links, l)
+	}
+	return links, rows.Err()
+}
+
+// ClearBlockingLinksForDoneTickets removes "blocks" links where the blocker ticket
+// is in a Done column of the given sprint. Called on sprint close so that tickets
+// resolved within the sprint no longer block others going into the next sprint.
+func (s *Store) ClearBlockingLinksForDoneTickets(ctx context.Context, orgID, sprintID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`DELETE FROM ticket_links
+		 WHERE org_id = $1
+		   AND relation_type = 'blocks'
+		   AND from_ticket_id IN (
+		       SELECT t.id
+		       FROM tickets t
+		       JOIN columns c ON c.id = t.column_id
+		       WHERE t.org_id = $1
+		         AND t.sprint_id = $2
+		         AND LOWER(c.name) = 'done'
+		   )`,
+		orgID, sprintID,
 	)
 	return err
 }

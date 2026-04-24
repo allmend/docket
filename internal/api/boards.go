@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -250,7 +251,7 @@ func (h *Handler) CreateSprint(w http.ResponseWriter, r *http.Request) {
 			endDate = &t
 		}
 	}
-	_, err = h.boards.CreateSprint(r.Context(), orgID, boardID, userID, name, startDate, endDate)
+	_, err = h.boards.CreateSprint(r.Context(), orgID, boardID, userID, name, r.FormValue("goal"), startDate, endDate)
 	if err != nil {
 		http.Error(w, "failed to create sprint", http.StatusInternalServerError)
 		return
@@ -282,7 +283,7 @@ func (h *Handler) UpdateSprint(w http.ResponseWriter, r *http.Request) {
 			endDate = &t
 		}
 	}
-	_, err = h.boards.UpdateSprint(r.Context(), orgID, sprintID, r.FormValue("name"), startDate, endDate)
+	_, err = h.boards.UpdateSprint(r.Context(), orgID, sprintID, r.FormValue("name"), r.FormValue("goal"), startDate, endDate)
 	if err != nil {
 		http.Error(w, "failed to update sprint", http.StatusInternalServerError)
 		return
@@ -322,7 +323,8 @@ func (h *Handler) CloseSprint(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
 		return
 	}
-	if _, err := h.boards.CloseSprint(r.Context(), orgID, sprintID); err != nil {
+	userID := service.UserIDFromContext(r.Context())
+	if _, err := h.boards.CloseSprint(r.Context(), orgID, sprintID, userID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -417,6 +419,165 @@ func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "backlog.html", h.boardViewData(r, view))
+}
+
+// --- Tag handlers ---
+
+func filterUnusedTags(all, applied []model.Tag) []model.Tag {
+	used := make(map[uuid.UUID]bool, len(applied))
+	for _, t := range applied {
+		used[t.ID] = true
+	}
+	out := make([]model.Tag, 0, len(all))
+	for _, t := range all {
+		if !used[t.ID] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func (h *Handler) BoardTagsJSON(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
+	type tagResult struct {
+		ID    string `json:"id"`
+		Name  string `json:"name"`
+		Color string `json:"color"`
+	}
+	out := make([]tagResult, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, tagResult{ID: t.ID.String(), Name: t.Name, Color: t.Color})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(out)
+}
+
+func (h *Handler) BoardTagsPanel(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
+	h.render(w, "board-tags-panel.html", map[string]any{
+		"BoardID": boardID,
+		"Tags":    tags,
+	})
+}
+
+func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	name := r.FormValue("name")
+	color := r.FormValue("color")
+	if name == "" || color == "" {
+		http.Error(w, "name and color required", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.boards.CreateTag(r.Context(), orgID, boardID, name, color); err != nil {
+		http.Error(w, "failed to create tag", http.StatusInternalServerError)
+		return
+	}
+	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
+	h.render(w, "board-tags-panel.html", map[string]any{
+		"BoardID": boardID,
+		"Tags":    tags,
+	})
+}
+
+func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	tagID, err := uuid.Parse(chi.URLParam(r, "tagID"))
+	if err != nil {
+		http.Error(w, "invalid tag ID", http.StatusBadRequest)
+		return
+	}
+	_ = h.boards.DeleteTag(r.Context(), orgID, tagID)
+	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
+	h.render(w, "board-tags-panel.html", map[string]any{
+		"BoardID": boardID,
+		"Tags":    tags,
+	})
+}
+
+func (h *Handler) AddTagToTicket(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	tagID, err := uuid.Parse(r.FormValue("tag_id"))
+	if err != nil {
+		http.Error(w, "invalid tag ID", http.StatusBadRequest)
+		return
+	}
+	_ = h.boards.AddTagToTicket(r.Context(), orgID, ticketID, tagID)
+	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
+	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticketID)
+	var boardTags []model.Tag
+	if ticket != nil {
+		all, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
+		boardTags = filterUnusedTags(all, tags)
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	h.render(w, "ticket-tags.html", map[string]any{
+		"Ticket":    ticket,
+		"Tags":      tags,
+		"BoardTags": boardTags,
+	})
+}
+
+func (h *Handler) RemoveTagFromTicket(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	tagID, err := uuid.Parse(chi.URLParam(r, "tagID"))
+	if err != nil {
+		http.Error(w, "invalid tag ID", http.StatusBadRequest)
+		return
+	}
+	_ = h.boards.RemoveTagFromTicket(r.Context(), orgID, ticketID, tagID)
+	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
+	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticketID)
+	var boardTags []model.Tag
+	if ticket != nil {
+		all, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
+		boardTags = filterUnusedTags(all, tags)
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	h.render(w, "ticket-tags.html", map[string]any{
+		"Ticket":    ticket,
+		"Tags":      tags,
+		"BoardTags": boardTags,
+	})
 }
 
 // BacklogTicketList renders just the ticket list partial for HTMX refresh.

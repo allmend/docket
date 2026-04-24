@@ -9,6 +9,7 @@
     </span>
     <a href="/tickets/{{.ToDisplayID}}" class="font-mono text-xs text-primary hover:underline shrink-0">{{.ToDisplayID}}</a>
     <span class="text-base-content/60 truncate flex-1 text-xs">{{.ToTitle}}</span>
+    {{if not $.Closed}}
     <button hx-delete="/tickets/{{.FromTicketID}}/links/{{.ID}}"
             hx-target="#ticket-links"
             hx-swap="outerHTML"
@@ -18,9 +19,11 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
       </svg>
     </button>
+    {{end}}
   </div>
   {{end}}
 
+  {{if not .Closed}}
   <!-- Add link -->
   <div x-data="{
     open: false,
@@ -87,6 +90,7 @@ placeholder="Search tickets… (e.g. ENG)"
 
     </form>
   </div>
+  {{end}}
 
 </div>
 {{end}}

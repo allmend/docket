@@ -11,6 +11,7 @@ import (
 
 func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
 	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
 	if err != nil {
 		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
@@ -44,7 +45,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.links.CreateLink(r.Context(), orgID, fromID, toTicketID, relation); err != nil {
+	if _, err := h.links.CreateLink(r.Context(), orgID, fromID, toTicketID, relation, userID, ticketID); err != nil {
 		http.Error(w, "failed to create link", http.StatusInternalServerError)
 		return
 	}
@@ -59,6 +60,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
 	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
 	if err != nil {
 		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
@@ -70,7 +72,7 @@ func (h *Handler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.links.DeleteLink(r.Context(), orgID, linkID); err != nil {
+	if err := h.links.DeleteLink(r.Context(), orgID, linkID, ticketID, userID); err != nil {
 		http.Error(w, "failed to delete link", http.StatusInternalServerError)
 		return
 	}

@@ -10,6 +10,7 @@
       <div class="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0">{{initials .Name}}</div>
       <span class="text-sm text-base-content/80">{{.Name}}</span>
     </div>
+    {{if not $.Ticket.ClosedAt}}
     <button class="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 text-base-content/30 hover:text-red-400"
             hx-delete="/tickets/{{$.Ticket.ID}}/assignees/{{.ID}}"
             hx-target="#ticket-assignees-{{$.Ticket.ID}}"
@@ -17,9 +18,11 @@
             title="Remove">
       <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
     </button>
+    {{end}}
   </div>
   {{end}}
 
+  {{if not .Ticket.ClosedAt}}
   <!-- Add assignee -->
   <div class="relative">
     <button @click="searching = !searching; if(searching) $nextTick(() => { let el = $el.nextElementSibling.querySelector('input'); if(el){ el.focus(); htmx.trigger(el, 'input'); } })"
@@ -45,6 +48,7 @@
       </div>
     </div>
   </div>
+  {{end}}
 
 </div>
 {{end}}

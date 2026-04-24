@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
@@ -164,7 +165,22 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		return s.MoveTicket(ctx, orgID, ticketID, targetColumnID, prevPos, nextPos)
 	}
 
-	return s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos)
+	if err := s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos); err != nil {
+		return err
+	}
+
+	ticket, _ := s.store.GetTicket(ctx, orgID, ticketID)
+	newCol, _ := s.store.GetColumn(ctx, orgID, targetColumnID)
+	if ticket != nil && newCol != nil {
+		isDone := strings.EqualFold(newCol.Name, "done")
+		if isDone && ticket.ClosedAt == nil {
+			_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
+		} else if !isDone && ticket.ClosedAt != nil {
+			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
+		}
+	}
+
+	return nil
 }
 
 // MoveToColumn moves a ticket to a target column (placing it last) and records history.
@@ -183,6 +199,14 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 	maxPos, _ := s.store.MaxTicketPositionInColumn(ctx, columnID)
 	if err := s.store.MoveTicket(ctx, orgID, ticketID, columnID, maxPos+1000); err != nil {
 		return nil, err
+	}
+
+	isDone := strings.EqualFold(newCol.Name, "done")
+	wasDone := oldCol != nil && strings.EqualFold(oldCol.Name, "done")
+	if isDone && old.ClosedAt == nil {
+		_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
+	} else if !isDone && wasDone {
+		_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 	}
 
 	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
@@ -213,6 +237,60 @@ func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, act
 		}
 		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "priority", string(old.Priority), string(priority))
 	}
+	return t, nil
+}
+
+func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actorID uuid.UUID, points *float64) (*model.Ticket, error) {
+	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
+	t, err := s.store.UpdateTicketPoints(ctx, orgID, ticketID, points)
+	if err != nil {
+		return nil, err
+	}
+	if old != nil {
+		oldVal, newVal := "(none)", "(none)"
+		if old.StoryPoints != nil {
+			oldVal = fmt.Sprintf("%g", *old.StoryPoints)
+		}
+		if points != nil {
+			newVal = fmt.Sprintf("%g", *points)
+		}
+		if oldVal != newVal {
+			actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
+			actorName := ""
+			if actor != nil {
+				actorName = actor.Name
+			}
+			_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "story_points", oldVal, newVal)
+		}
+	}
+	return t, nil
+}
+
+func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorID uuid.UUID, reason string) (*model.Ticket, error) {
+	t, err := s.store.CloseTicket(ctx, orgID, ticketID, reason)
+	if err != nil {
+		return nil, err
+	}
+	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
+	actorName := ""
+	if actor != nil {
+		actorName = actor.Name
+	}
+	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "closed", "", reason)
+	return t, nil
+}
+
+func (s *TicketService) ReopenTicket(ctx context.Context, orgID, ticketID, actorID uuid.UUID) (*model.Ticket, error) {
+	t, err := s.store.ReopenTicket(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
+	actorName := ""
+	if actor != nil {
+		actorName = actor.Name
+	}
+	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "reopened", "", "")
 	return t, nil
 }
 
@@ -283,7 +361,12 @@ func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, 
 		return nil, err
 	}
 	if old != nil && old.Title != title {
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, "", "title", old.Title, title)
+		actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
+		actorName := ""
+		if actor != nil {
+			actorName = actor.Name
+		}
+		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "title", old.Title, title)
 	}
 	return t, nil
 }
@@ -293,7 +376,12 @@ func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, a
 	if err != nil {
 		return nil, err
 	}
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, "", "description", "(previous)", "(updated)")
+	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
+	actorName := ""
+	if actor != nil {
+		actorName = actor.Name
+	}
+	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "description", "(previous)", "(updated)")
 	return t, nil
 }
 
@@ -302,6 +390,13 @@ func (s *TicketService) SearchTicketsForLink(ctx context.Context, orgID, exclude
 		return nil, nil
 	}
 	return s.store.SearchTicketsForLink(ctx, orgID, excludeID, q)
+}
+
+func (s *TicketService) SearchTicketsForMention(ctx context.Context, orgID uuid.UUID, q string) ([]model.Ticket, error) {
+	if q == "" {
+		return nil, nil
+	}
+	return s.store.SearchTicketsForMention(ctx, orgID, q)
 }
 
 // ListMyTickets returns all tickets assigned to the given user, grouped by column name.

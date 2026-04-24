@@ -1,0 +1,109 @@
+{{define "title"}}Sprint Review — {{.ReviewData.Sprint.Name}}{{end}}
+
+{{define "content"}}
+{{$d := .ReviewData}}
+{{$completed := len $d.Completed}}
+{{$returned := len $d.Returned}}
+{{$total := add $completed $returned}}
+<div class="flex flex-col gap-6 p-6 max-w-4xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-start justify-between">
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-2 text-sm text-base-content/40">
+        <a href="/boards/{{$d.Board.ID}}" class="hover:text-base-content">{{$d.Board.Name}}</a>
+        <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
+        <span>Sprint Review</span>
+      </div>
+      <h1 class="text-2xl font-semibold">{{$d.Sprint.Name}}</h1>
+      {{if $d.Sprint.Goal}}
+      <p class="text-sm text-base-content/50 italic mt-1">Goal: {{$d.Sprint.Goal}}</p>
+      {{end}}
+    </div>
+    <form method="POST" action="/boards/{{$d.Board.ID}}/sprints/{{$d.Sprint.ID}}/close-and-retro">
+      <button type="submit"
+              class="px-4 py-2 bg-primary text-base-100 text-sm font-medium rounded-lg hover:opacity-90">
+        Close Sprint &amp; Start Retro →
+      </button>
+    </form>
+  </div>
+
+  <!-- Stats row -->
+  <div class="grid grid-cols-2 gap-4">
+    <!-- Ticket completion -->
+    <div class="bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-2">
+      <span class="text-xs text-base-content/40 uppercase tracking-wide">Tickets Completed</span>
+      <div class="flex items-end gap-2">
+        <span class="text-3xl font-bold">{{$completed}}</span>
+        <span class="text-base-content/40 text-sm mb-1">/ {{$total}}</span>
+        {{if gt $total 0}}
+        <span class="text-sm font-mono text-primary ml-auto mb-1">{{pct $completed $total}}%</span>
+        {{end}}
+      </div>
+      {{if gt $total 0}}
+      <div class="h-1.5 bg-base-300 rounded-full overflow-hidden">
+        <div class="h-full bg-primary rounded-full transition-all" style="width:{{pct $completed $total}}%"></div>
+      </div>
+      {{end}}
+    </div>
+
+    <!-- Story points -->
+    <div class="bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-2">
+      <span class="text-xs text-base-content/40 uppercase tracking-wide">Story Points</span>
+      {{if gt $d.Sprint.CommittedPoints 0.0}}
+      <div class="flex items-end gap-2">
+        <span class="text-3xl font-bold">{{printf "%.0f" $d.Sprint.CompletedPoints}}</span>
+        <span class="text-base-content/40 text-sm mb-1">/ {{printf "%.0f" $d.Sprint.CommittedPoints}} committed</span>
+        <span class="text-sm font-mono text-primary ml-auto mb-1">{{$d.Sprint.PointsPct}}%</span>
+      </div>
+      <div class="h-1.5 bg-base-300 rounded-full overflow-hidden">
+        <div class="h-full bg-primary rounded-full" style="width:{{$d.Sprint.PointsPct}}%"></div>
+      </div>
+      {{else}}
+      <p class="text-sm text-base-content/30 italic">No story points set for this sprint.</p>
+      {{end}}
+    </div>
+  </div>
+
+  <!-- Completed tickets -->
+  <div class="flex flex-col gap-3">
+    <h2 class="text-sm font-semibold text-green-400 flex items-center gap-2">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      Completed ({{$completed}})
+    </h2>
+    {{if $d.Completed}}
+    <div class="flex flex-col gap-1">
+      {{range $d.Completed}}
+      <div class="flex items-center gap-3 px-3 py-2 bg-base-200 border border-base-300 rounded-lg">
+        <span class="font-mono text-xs text-primary/60 shrink-0">{{.DisplayID}}</span>
+        <span class="text-sm text-base-content/70 flex-1 min-w-0 truncate">{{.Title}}</span>
+        {{if .StoryPoints}}<span class="text-xs font-mono text-primary/50 shrink-0">{{deref .StoryPoints}}sp</span>{{end}}
+      </div>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="text-sm text-base-content/30 italic">No tickets completed this sprint.</p>
+    {{end}}
+  </div>
+
+  <!-- Returning to backlog -->
+  {{if $d.Returned}}
+  <div class="flex flex-col gap-3">
+    <h2 class="text-sm font-semibold text-amber-400 flex items-center gap-2">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+      Returning to Backlog ({{$returned}})
+    </h2>
+    <div class="flex flex-col gap-1">
+      {{range $d.Returned}}
+      <div class="flex items-center gap-3 px-3 py-2 bg-base-200 border border-base-300/50 rounded-lg opacity-60">
+        <span class="font-mono text-xs text-base-content/40 shrink-0">{{.DisplayID}}</span>
+        <span class="text-sm text-base-content/50 flex-1 min-w-0 truncate">{{.Title}}</span>
+        {{if .StoryPoints}}<span class="text-xs font-mono text-base-content/30 shrink-0">{{deref .StoryPoints}}sp</span>{{end}}
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+</div>
+{{end}}

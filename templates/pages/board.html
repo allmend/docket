@@ -40,74 +40,126 @@
       </div>
     </div>
 
-    <!-- Add column button — only shown when actively planning (not when no sprint exists, not when sprint is active) -->
-    {{if and (not .ActiveSprint) (not $noSprint)}}
-    <div x-data="{ addCol: false }" class="flex items-center gap-2 shrink-0">
-      <div x-show="!addCol">
-        <button @click="addCol = true"
+    <!-- Right-side header actions (Labels + Add column) always grouped together -->
+    <div class="flex items-center gap-2 shrink-0">
+
+      <!-- Labels button -->
+      <div x-data="{ open: false }" class="relative">
+        <button @click="open = !open; if(open) htmx.ajax('GET', '/boards/{{.Board.ID}}/tags/manage', {target: '#board-tags-panel-target', swap: 'innerHTML'})"
                 class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded border border-base-300">
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-          Add column
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+          Labels
         </button>
+        <div id="board-tags-panel-target" x-show="open" x-cloak @click.outside="open = false"
+             class="absolute right-0 top-full mt-1 z-30">
+        </div>
       </div>
-      <form x-show="addCol" x-cloak
-            hx-post="/boards/{{.Board.ID}}/columns"
-            hx-target="#board-columns"
-            hx-swap="outerHTML"
-            hx-on::after-request="addCol = false"
-            class="flex items-center gap-2">
-        <input type="text" name="name" required placeholder="Column name"
-               class="bg-base-100 border border-base-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-primary w-40" />
-        <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm rounded hover:opacity-90">Add</button>
-        <button type="button" @click="addCol = false" class="px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-      </form>
+
+      <!-- Add column button — only shown when actively planning (not when no sprint exists, not when sprint is active) -->
+      {{if and (not .ActiveSprint) (not $noSprint)}}
+      <div x-data="{ addCol: false }">
+        <div x-show="!addCol">
+          <button @click="addCol = true"
+                  class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded border border-base-300">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            Add column
+          </button>
+        </div>
+        <form x-show="addCol" x-cloak
+              hx-post="/boards/{{.Board.ID}}/columns"
+              hx-target="#board-columns"
+              hx-swap="outerHTML"
+              hx-on::after-request="addCol = false"
+              class="flex items-center gap-2">
+          <input type="text" name="name" required placeholder="Column name"
+                 class="bg-base-100 border border-base-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-primary w-40" />
+          <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm rounded hover:opacity-90">Add</button>
+          <button type="button" @click="addCol = false" class="px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+        </form>
+      </div>
+      {{end}}
+
     </div>
-    {{end}}
   </div>
 
   <!-- Active sprint bar -->
   {{if .ActiveSprint}}
-  <div class="flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-4 py-2 shrink-0">
-    <div class="flex-1 flex items-center gap-2 min-w-0">
+  <div class="flex flex-col gap-2 bg-base-200 border border-base-300 rounded-lg px-4 py-3 shrink-0">
+    <div class="flex items-center gap-2">
       <span class="font-medium text-sm">{{.ActiveSprint.Name}}</span>
       {{if and .ActiveSprint.StartDate .ActiveSprint.EndDate}}
       <span class="font-mono text-xs text-base-content/50">{{.ActiveSprint.StartDate.Format "Jan 2"}} – {{.ActiveSprint.EndDate.Format "Jan 2"}}</span>
       {{end}}
       <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5">Active</span>
-    </div>
-    <form method="POST" action="/boards/{{.Board.ID}}/sprints/{{.ActiveSprint.ID}}/close">
-      <button type="submit"
-              class="px-3 py-1.5 text-sm font-medium bg-amber-500 text-base-100 rounded hover:bg-amber-400 shrink-0">
+      <a href="/boards/{{.Board.ID}}/sprints/{{.ActiveSprint.ID}}/review"
+         class="ml-auto px-3 py-1.5 text-sm font-medium bg-amber-500 text-base-100 rounded hover:bg-amber-400 shrink-0">
         Close sprint
-      </button>
-    </form>
+      </a>
+    </div>
+    <!-- Sprint Goal — prominent, locked once active -->
+    <div class="border-t border-base-300 pt-2 flex items-start gap-2">
+      <svg class="h-4 w-4 text-primary/60 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0m9-4v4l2.5 2.5"/></svg>
+      <div class="flex-1 min-w-0">
+        <span class="text-xs font-medium text-primary/70 uppercase tracking-wide">Sprint Goal</span>
+        {{if .ActiveSprint.Goal}}
+        <p class="text-sm text-base-content/80 mt-0.5">{{.ActiveSprint.Goal}}</p>
+        {{else}}
+        <p class="text-sm text-base-content/30 italic mt-0.5">No sprint goal was set.</p>
+        {{end}}
+      </div>
+    </div>
   </div>
   {{else if .Board.Mode.IsScrum}}
   <!-- Planning sprint bar -->
   {{range .Sprints}}{{if .Status.IsPlanning}}
-  <div class="flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-4 py-2 shrink-0">
-    <div class="flex-1 flex items-center gap-2 min-w-0">
+  <div class="flex flex-col gap-2 bg-base-200 border border-base-300 rounded-lg px-4 py-3 shrink-0"
+       x-data="{ editing: false }">
+    <div class="flex items-center gap-2">
       <span class="font-medium text-sm">{{.Name}}</span>
       {{if and .StartDate .EndDate}}
       <span class="font-mono text-xs text-base-content/50">{{.StartDate.Format "Jan 2"}} – {{.EndDate.Format "Jan 2"}}</span>
       {{end}}
       <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5">Planning</span>
-    </div>
-    <div class="flex items-center gap-2 shrink-0">
-      <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/delete"
-            onsubmit="return confirm('Delete this sprint? Tickets will return to the backlog.')">
-        <button type="submit"
+      <div class="ml-auto flex items-center gap-2 shrink-0">
+        <button @click="editing = !editing"
                 class="px-3 py-1.5 text-sm text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">
-          Delete sprint
+          Edit
         </button>
-      </form>
-      <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/start">
-        <button type="submit"
-                class="px-3 py-1.5 text-sm font-medium bg-primary text-base-100 rounded hover:opacity-90">
-          Start sprint
-        </button>
-      </form>
+        <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/delete"
+              onsubmit="return confirm('Delete this sprint? Tickets will return to the backlog.')">
+          <button type="submit"
+                  class="px-3 py-1.5 text-sm text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">
+            Delete
+          </button>
+        </form>
+        <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/start">
+          <button type="submit"
+                  class="px-3 py-1.5 text-sm font-medium bg-primary text-base-100 rounded hover:opacity-90">
+            Start sprint
+          </button>
+        </form>
+      </div>
     </div>
+    {{if .Goal}}
+    <p x-show="!editing" class="text-sm text-base-content/70 italic">Goal: {{.Goal}}</p>
+    {{else}}
+    <p x-show="!editing" class="text-sm text-base-content/30 italic">No sprint goal set — <button @click="editing = true" class="underline hover:text-base-content/60">add one</button></p>
+    {{end}}
+    <form x-show="editing" x-cloak
+          hx-put="/boards/{{$.Board.ID}}/sprints/{{.ID}}"
+          hx-swap="none"
+          @htmx:after-request="editing = false; window.location.reload()"
+          class="flex flex-col gap-2">
+      <input type="hidden" name="name" value="{{.Name}}" />
+      <input type="hidden" name="start_date" value="{{if .StartDate}}{{.StartDate.Format "2006-01-02"}}{{end}}" />
+      <input type="hidden" name="end_date" value="{{if .EndDate}}{{.EndDate.Format "2006-01-02"}}{{end}}" />
+      <textarea name="goal" rows="2" placeholder="What does this sprint achieve?"
+                class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none">{{.Goal}}</textarea>
+      <div class="flex gap-2">
+        <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm rounded hover:opacity-90">Save goal</button>
+        <button type="button" @click="editing = false" class="px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+      </div>
+    </form>
   </div>
   {{end}}{{end}}
   {{end}}
@@ -144,6 +196,11 @@
             <label class="text-xs text-base-content/50">Name</label>
             <input type="text" name="name" required placeholder="e.g. Sprint 1"
                    class="w-full bg-base-100 border border-base-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs text-base-content/50">Sprint Goal</label>
+            <textarea name="goal" rows="2" placeholder="What does this sprint achieve?"
+                      class="w-full bg-base-100 border border-base-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none"></textarea>
           </div>
           <div class="flex gap-3">
             <div class="flex flex-col gap-1 flex-1">
@@ -201,7 +258,7 @@
             <span class="text-xs font-medium">Blocked by {{.BlockedBy}}</span>
           </div>
           {{end}}
-          <p class="text-sm font-medium leading-snug">{{.Title}}</p>
+          <p class="text-sm font-medium leading-snug">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</p>
           <div class="flex items-center gap-2">
             <a href="/tickets/{{.DisplayID}}"
                class="font-mono text-xs text-primary hover:underline"
@@ -289,7 +346,7 @@
             <span class="text-xs font-medium">Blocked by {{.BlockedBy}}</span>
           </div>
           {{end}}
-          <p class="text-sm font-medium leading-snug">{{.Title}}</p>
+          <p class="text-sm font-medium leading-snug">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</p>
           <div class="flex items-center gap-2">
             <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary hover:underline" @click.stop>{{.DisplayID}}</a>
             {{if eq .Priority "critical"}}

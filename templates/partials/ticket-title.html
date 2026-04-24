@@ -1,5 +1,8 @@
 {{define "ticket-title"}}
 <div id="ticket-title-{{.ID}}" x-data="{ editing: false }" @click.outside="editing = false">
+  {{if .ClosedAt}}
+  <h1 class="text-xl font-semibold leading-snug px-1 -mx-1 py-0.5 text-base-content/50">{{.Title}}</h1>
+  {{else}}
   <h1 x-show="!editing"
       @click="editing = true; $nextTick(() => $refs.titleInput.select())"
       class="text-xl font-semibold leading-snug cursor-text hover:bg-base-200 rounded px-1 -mx-1 py-0.5 transition-colors"
@@ -20,5 +23,6 @@
       <button type="button" @click="editing = false" class="px-3 py-1 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
     </div>
   </form>
+  {{end}}
 </div>
 {{end}}

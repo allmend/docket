@@ -42,7 +42,7 @@
     {{if .Links}}
     <div class="flex flex-col gap-1.5">
       <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Links</span>
-      {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links)}}
+      {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links "Closed" .Ticket.ClosedAt)}}
     </div>
     {{else}}
     {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links)}}
@@ -79,45 +79,62 @@
               <div class="text-sm text-base-content/80 leading-relaxed bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto">
                 {{.BodyHTML}}
               </div>
+              {{if not $.Ticket.ClosedAt}}
               <div class="flex items-center gap-3 mt-1.5">
                 <button hx-get="/comments/{{.ID}}/edit" hx-target="#comment-{{.ID}}" hx-swap="outerHTML"
                         class="text-xs text-base-content/30 hover:text-base-content">Edit</button>
                 <button hx-delete="/comments/{{.ID}}" hx-target="#comment-{{.ID}}" hx-swap="outerHTML" hx-confirm="Delete this comment?"
                         class="text-xs text-base-content/30 hover:text-red-400">Delete</button>
               </div>
+              {{end}}
             </div>
           </div>
           {{end}}
         </div>
 
         <!-- New comment form -->
+        {{if not .Ticket.ClosedAt}}
         <div class="flex gap-3 mt-2">
           {{if .CurrentUser}}
           <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .CurrentUser.Name}}</div>
           {{end}}
-          <div x-data="mentionInput()" class="relative flex-1 min-w-0 flex flex-col gap-2">
+          <div x-data="mentionInput()" class="flex-1 min-w-0 flex flex-col gap-2">
             <form hx-post="/tickets/{{.Ticket.ID}}/comments" hx-target=".comments-list" hx-swap="beforeend"
                   hx-on::after-request="if(event.detail.successful){this.reset();this.dispatchEvent(new CustomEvent('comment-added',{bubbles:true}))}">
-              <textarea @input="mentionInput($event)" name="body" rows="3"
-                        placeholder="Write a comment… (@username, #TICKET-ID)"
-                        class="w-full bg-base-200 border border-base-300 text-base-content text-sm rounded-lg px-3 py-2 placeholder:text-base-content/30 focus:outline-none focus:border-primary resize-y font-mono"></textarea>
+              <div class="relative">
+                <textarea @input="mentionInput($event)" name="body" rows="3"
+                          placeholder="Write a comment… (@username, #TICKET-ID)"
+                          class="w-full bg-base-200 border border-base-300 text-base-content text-sm rounded-lg px-3 py-2 placeholder:text-base-content/30 focus:outline-none focus:border-primary resize-y font-mono"></textarea>
+                <!-- @mention dropdown -->
+                <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
+                     class="absolute top-full mt-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+                  <template x-for="u in mentionUsers" :key="u.username">
+                    <button type="button" @mousedown.prevent @click.stop="mentionPick(u.username)"
+                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
+                      <span class="text-xs font-bold text-primary" x-text="'@' + u.username"></span>
+                      <span class="text-xs text-base-content/60" x-text="u.name"></span>
+                    </button>
+                  </template>
+                </div>
+                <!-- #ticket dropdown -->
+                <div x-show="ticketOpen" x-cloak @click.outside="ticketOpen = false"
+                     class="absolute top-full mt-1 left-0 w-80 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+                  <template x-for="t in mentionTickets" :key="t.display_id">
+                    <button type="button" @mousedown.prevent @click.stop="ticketPick(t.display_id)"
+                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
+                      <span class="text-xs font-bold text-primary font-mono shrink-0" x-text="'#' + t.display_id"></span>
+                      <span class="text-xs text-base-content/60 truncate" x-text="t.title"></span>
+                    </button>
+                  </template>
+                </div>
+              </div>
               <div class="mt-2">
                 <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Comment</button>
               </div>
             </form>
-            <!-- @mention dropdown -->
-            <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
-                 class="absolute bottom-full mb-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
-              <template x-for="u in mentionUsers" :key="u.username">
-                <button type="button" @mousedown.prevent="mentionPick(u.username)"
-                        class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
-                  <span class="text-xs font-bold text-primary" x-text="'@' + u.username"></span>
-                  <span class="text-xs text-base-content/60" x-text="u.name"></span>
-                </button>
-              </template>
-            </div>
           </div>
         </div>
+        {{end}}
       </div>
 
       <!-- History tab -->
@@ -132,6 +149,9 @@
             {{else if eq .Field "priority"}} changed <span class="text-base-content">priority</span> from <span class="text-base-content/50">{{.OldValue}}</span> to <span class="text-base-content">{{.NewValue}}</span>
             {{else if eq .Field "description"}} updated <span class="text-base-content">description</span>
             {{else if eq .Field "comment"}} added a <span class="text-base-content">comment</span>
+            {{else if eq .Field "link_added"}} added link <span class="text-base-content">{{.NewValue}}</span>
+            {{else if eq .Field "link_removed"}} removed link <span class="text-base-content">{{.OldValue}}</span>
+            {{else if eq .Field "link_cleared"}} link <span class="text-base-content">{{.OldValue}}</span> cleared at sprint close
             {{else}} updated <span class="text-base-content">{{.Field}}</span>
             {{end}}
           </span>
@@ -157,9 +177,51 @@
 
     <div class="border-t border-base-300"></div>
 
+    <!-- Labels -->
+    <div class="flex flex-col gap-2">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Labels</span>
+      {{template "ticket-tags" (dict "Ticket" .Ticket "Tags" .Tags "BoardTags" .BoardTags)}}
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <!-- Story Points -->
+    <div class="flex flex-col gap-2">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Story Points</span>
+      {{if or .SprintActive .Ticket.ClosedAt}}
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-base-content/60">{{if .Ticket.StoryPoints}}{{deref .Ticket.StoryPoints}}{{else}}—{{end}}</span>
+      </div>
+      {{else}}
+      <select name="story_points"
+              hx-put="/tickets/{{.Ticket.ID}}/points"
+              hx-trigger="change"
+              hx-swap="none"
+              class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
+        <option value=""    {{if not .Ticket.StoryPoints}}selected{{end}}>—</option>
+        <option value="0"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "0")}}selected{{end}}>0</option>
+        <option value="0.5" {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "0.5")}}selected{{end}}>0.5</option>
+        <option value="1"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "1")}}selected{{end}}>1</option>
+        <option value="2"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "2")}}selected{{end}}>2</option>
+        <option value="3"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "3")}}selected{{end}}>3</option>
+        <option value="5"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "5")}}selected{{end}}>5</option>
+        <option value="8"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "8")}}selected{{end}}>8</option>
+        <option value="13"  {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "13")}}selected{{end}}>13</option>
+        <option value="20"  {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "20")}}selected{{end}}>20</option>
+        <option value="40"  {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "40")}}selected{{end}}>40</option>
+        <option value="100" {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "100")}}selected{{end}}>100</option>
+      </select>
+      {{end}}
+    </div>
+
+    <div class="border-t border-base-300"></div>
+
     <!-- Priority -->
     <div class="flex flex-col gap-2">
       <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Priority</span>
+      {{if .Ticket.ClosedAt}}
+      <span class="text-sm text-base-content/60">{{if .Ticket.Priority}}{{.Ticket.Priority}}{{else}}No priority{{end}}</span>
+      {{else}}
       <select name="priority"
               hx-put="/tickets/{{.Ticket.ID}}/priority"
               hx-trigger="change"
@@ -171,6 +233,7 @@
         <option value="high"     {{if eq .Ticket.Priority "high"}}selected{{end}}>High</option>
         <option value="critical" {{if eq .Ticket.Priority "critical"}}selected{{end}}>Critical</option>
       </select>
+      {{end}}
     </div>
 
     <div class="border-t border-base-300"></div>
@@ -178,6 +241,9 @@
     <!-- Status (column) -->
     <div class="flex flex-col gap-2">
       <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Status</span>
+      {{if .Ticket.ClosedAt}}
+      <span class="text-sm text-base-content/60">{{range .Columns}}{{if eq .ID $.Ticket.ColumnID}}{{.Name}}{{end}}{{end}}</span>
+      {{else}}
       <select name="column_id"
               hx-put="/tickets/{{.Ticket.ID}}/column"
               hx-trigger="change"
@@ -187,6 +253,7 @@
         <option value="{{.ID}}" {{if eq .ID $.Ticket.ColumnID}}selected{{end}}>{{.Name}}</option>
         {{end}}
       </select>
+      {{end}}
     </div>
 
     <div class="border-t border-base-300"></div>
@@ -202,6 +269,50 @@
         <span class="font-mono text-xs text-base-content/60">{{.Ticket.UpdatedAt.Format "Jan 2, 2006"}}</span>
       </div>
     </div>
+
+    <div class="border-t border-base-300"></div>
+
+    <!-- Close / Reopen -->
+    {{if .Ticket.ClosedAt}}
+    <div class="flex flex-col gap-2">
+      <div class="flex items-center gap-1.5">
+        <span class="text-xs uppercase tracking-widest text-amber-500/70 font-medium">Closed</span>
+      </div>
+      <p class="text-xs text-base-content/50 italic">{{if .Ticket.CloseReason}}{{derefStr .Ticket.CloseReason}}{{end}}</p>
+      <button hx-post="/tickets/{{.Ticket.ID}}/reopen"
+              hx-swap="none"
+              class="w-full text-left px-3 py-1.5 text-sm text-primary hover:bg-base-300 rounded">
+        Reopen ticket
+      </button>
+    </div>
+    {{else}}
+    <div x-data="{ closing: false }" class="flex flex-col gap-2">
+      <button x-show="!closing" @click="closing = true"
+              class="w-full text-left px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">
+        Close ticket…
+      </button>
+      <form x-show="closing" x-cloak
+            hx-post="/tickets/{{.Ticket.ID}}/close"
+            hx-swap="none"
+            class="flex flex-col gap-2">
+        <select name="reason" x-model="reason"
+                class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
+          <option value="Won't do">Won't do</option>
+          <option value="No longer relevant">No longer relevant</option>
+          <option value="Wrong team">Wrong team</option>
+          <option value="Duplicate">Duplicate</option>
+          <option value="other">Other…</option>
+        </select>
+        <textarea x-show="reason === 'other'" x-cloak name="reason_note" rows="2"
+                  placeholder="Describe the reason…"
+                  class="w-full bg-base-200 border border-base-300 text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary resize-none"></textarea>
+        <div class="flex gap-2">
+          <button type="submit" class="flex-1 px-3 py-1.5 bg-amber-600 text-base-100 text-sm rounded hover:opacity-90">Close ticket</button>
+          <button type="button" @click="closing = false" class="px-3 py-1.5 text-sm text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+        </div>
+      </form>
+    </div>
+    {{end}}
 
     <div class="border-t border-base-300"></div>
 

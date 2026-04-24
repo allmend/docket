@@ -206,13 +206,113 @@ func (s *Store) ListTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model
 	return tags, rows.Err()
 }
 
+func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color string) (*model.Tag, error) {
+	var t model.Tag
+	err := s.primary.QueryRow(ctx,
+		`INSERT INTO tags (org_id, board_id, name, color) VALUES ($1, $2, $3, $4)
+		 RETURNING id, org_id, board_id, name, color`,
+		orgID, boardID, name, color,
+	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color)
+	return &t, err
+}
+
+func (s *Store) UpdateTag(ctx context.Context, orgID, tagID uuid.UUID, name, color string) (*model.Tag, error) {
+	var t model.Tag
+	err := s.primary.QueryRow(ctx,
+		`UPDATE tags SET name = $3, color = $4 WHERE org_id = $1 AND id = $2
+		 RETURNING id, org_id, board_id, name, color`,
+		orgID, tagID, name, color,
+	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color)
+	return &t, err
+}
+
+func (s *Store) DeleteTag(ctx context.Context, orgID, tagID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`DELETE FROM tags WHERE org_id = $1 AND id = $2`,
+		orgID, tagID,
+	)
+	return err
+}
+
+func (s *Store) ListTicketTags(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.Tag, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT t.id, t.org_id, t.board_id, t.name, t.color
+		 FROM tags t JOIN ticket_tags tt ON tt.tag_id = t.id
+		 WHERE t.org_id = $1 AND tt.ticket_id = $2 ORDER BY t.name`,
+		orgID, ticketID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tags []model.Tag
+	for rows.Next() {
+		var t model.Tag
+		if err := rows.Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color); err != nil {
+			return nil, err
+		}
+		tags = append(tags, t)
+	}
+	return tags, rows.Err()
+}
+
+func (s *Store) BulkListTicketTags(ctx context.Context, boardID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT tt.ticket_id, tg.id, tg.org_id, tg.board_id, tg.name, tg.color
+		 FROM ticket_tags tt
+		 JOIN tickets t ON t.id = tt.ticket_id
+		 JOIN tags tg ON tg.id = tt.tag_id
+		 WHERE t.board_id = $1
+		 ORDER BY tg.name`,
+		boardID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[uuid.UUID][]model.Tag)
+	for rows.Next() {
+		var ticketID uuid.UUID
+		var tg model.Tag
+		if err := rows.Scan(&ticketID, &tg.ID, &tg.OrgID, &tg.BoardID, &tg.Name, &tg.Color); err != nil {
+			return nil, err
+		}
+		result[ticketID] = append(result[ticketID], tg)
+	}
+	return result, rows.Err()
+}
+
+func (s *Store) AddTagToTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`INSERT INTO ticket_tags (ticket_id, tag_id)
+		 SELECT $1, $2 FROM tickets WHERE id = $1 AND org_id = $3
+		 ON CONFLICT DO NOTHING`,
+		ticketID, tagID, orgID,
+	)
+	return err
+}
+
+func (s *Store) RemoveTagFromTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`DELETE FROM ticket_tags tt USING tickets t
+		 WHERE tt.ticket_id = t.id AND t.org_id = $1
+		   AND tt.ticket_id = $2 AND tt.tag_id = $3`,
+		orgID, ticketID, tagID,
+	)
+	return err
+}
+
 // --- Sprint store methods ---
 
-const sprintCols = `id, org_id, board_id, name, status, start_date, end_date, created_by, created_at, updated_at`
+const sprintCols = `id, org_id, board_id, name, goal, status, start_date, end_date,
+	committed_tickets, completed_tickets, committed_points, completed_points,
+	created_by, created_at, updated_at`
 
 func scanSprint(row interface{ Scan(dest ...any) error }, s *model.Sprint) error {
-	return row.Scan(&s.ID, &s.OrgID, &s.BoardID, &s.Name, &s.Status,
-		&s.StartDate, &s.EndDate, &s.CreatedBy, &s.CreatedAt, &s.UpdatedAt)
+	return row.Scan(&s.ID, &s.OrgID, &s.BoardID, &s.Name, &s.Goal, &s.Status,
+		&s.StartDate, &s.EndDate,
+		&s.CommittedTickets, &s.CompletedTickets, &s.CommittedPoints, &s.CompletedPoints,
+		&s.CreatedBy, &s.CreatedAt, &s.UpdatedAt)
 }
 
 func (s *Store) ListSprints(ctx context.Context, orgID, boardID uuid.UUID) ([]model.Sprint, error) {
@@ -263,24 +363,24 @@ func (s *Store) GetSprint(ctx context.Context, orgID, sprintID uuid.UUID) (*mode
 	return &sp, nil
 }
 
-func (s *Store) CreateSprint(ctx context.Context, orgID, boardID, createdBy uuid.UUID, name string, startDate, endDate *time.Time) (*model.Sprint, error) {
+func (s *Store) CreateSprint(ctx context.Context, orgID, boardID, createdBy uuid.UUID, name, goal string, startDate, endDate *time.Time) (*model.Sprint, error) {
 	var sp model.Sprint
 	err := scanSprint(s.primary.QueryRow(ctx,
-		`INSERT INTO sprints (org_id, board_id, name, status, start_date, end_date, created_by)
-		 VALUES ($1, $2, $3, 'planning', $4, $5, $6)
+		`INSERT INTO sprints (org_id, board_id, name, goal, status, start_date, end_date, created_by)
+		 VALUES ($1, $2, $3, $4, 'planning', $5, $6, $7)
 		 RETURNING `+sprintCols,
-		orgID, boardID, name, startDate, endDate, createdBy,
+		orgID, boardID, name, goal, startDate, endDate, createdBy,
 	), &sp)
 	return &sp, err
 }
 
-func (s *Store) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UUID, name string, startDate, endDate *time.Time) (*model.Sprint, error) {
+func (s *Store) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*model.Sprint, error) {
 	var sp model.Sprint
 	err := scanSprint(s.primary.QueryRow(ctx,
-		`UPDATE sprints SET name = $3, start_date = $4, end_date = $5, updated_at = NOW()
+		`UPDATE sprints SET name = $3, goal = $4, start_date = $5, end_date = $6, updated_at = NOW()
 		 WHERE org_id = $1 AND id = $2
 		 RETURNING `+sprintCols,
-		orgID, sprintID, name, startDate, endDate,
+		orgID, sprintID, name, goal, startDate, endDate,
 	), &sp)
 	return &sp, err
 }
@@ -363,13 +463,100 @@ func (s *Store) ListSprintTickets(ctx context.Context, orgID, sprintID uuid.UUID
 }
 
 // AssignTicketToSprint sets sprint_id on a ticket (nil = move to backlog).
+// When assigning to a sprint, column_id is set to the first column of the sprint's board
+// so the ticket always lands in "To Do" regardless of where it was in a previous sprint.
+// When moving to backlog, column_id is cleared.
 func (s *Store) AssignTicketToSprint(ctx context.Context, orgID, ticketID uuid.UUID, sprintID *uuid.UUID) error {
+	if sprintID == nil {
+		_, err := s.primary.Exec(ctx,
+			`UPDATE tickets SET sprint_id = NULL, updated_at = NOW()
+			 WHERE org_id = $1 AND id = $2`,
+			orgID, ticketID,
+		)
+		return err
+	}
 	_, err := s.primary.Exec(ctx,
-		`UPDATE tickets SET sprint_id = $3, updated_at = NOW()
+		`UPDATE tickets SET
+		   sprint_id = $3,
+		   column_id = (
+		     SELECT c.id FROM columns c
+		     JOIN sprints sp ON sp.board_id = c.board_id
+		     WHERE sp.org_id = $1 AND sp.id = $3
+		     ORDER BY c.position
+		     LIMIT 1
+		   ),
+		   updated_at = NOW()
 		 WHERE org_id = $1 AND id = $2`,
-		orgID, ticketID, sprintID,
+		orgID, ticketID, *sprintID,
 	)
 	return err
+}
+
+// SnapshotSprintStats captures committed/completed ticket and point counts onto the sprint row.
+// Must be called BEFORE ReturnSprintTicketsToBacklog so the data is still accurate.
+func (s *Store) SnapshotSprintStats(ctx context.Context, orgID, sprintID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`UPDATE sprints SET
+		    committed_tickets = (
+		        SELECT COUNT(*) FROM tickets WHERE org_id = $1 AND sprint_id = $2
+		    ),
+		    completed_tickets = (
+		        SELECT COUNT(*) FROM tickets t
+		        JOIN columns c ON c.id = t.column_id
+		        WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c.name) = 'done'
+		    ),
+		    committed_points = (
+		        SELECT COALESCE(SUM(story_points), 0) FROM tickets
+		        WHERE org_id = $1 AND sprint_id = $2 AND story_points IS NOT NULL
+		    ),
+		    completed_points = (
+		        SELECT COALESCE(SUM(t.story_points), 0) FROM tickets t
+		        JOIN columns c ON c.id = t.column_id
+		        WHERE t.org_id = $1 AND t.sprint_id = $2
+		          AND LOWER(c.name) = 'done' AND t.story_points IS NOT NULL
+		    ),
+		    updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2`,
+		orgID, sprintID,
+	)
+	return err
+}
+
+// ListSprintTicketsForReview returns all tickets in a sprint partitioned into done/not-done.
+func (s *Store) ListSprintTicketsForReview(ctx context.Context, orgID, sprintID uuid.UUID) (completed, returning []model.Ticket, err error) {
+	scan := func(q string) ([]model.Ticket, error) {
+		rows, err := s.replica.Query(ctx, q, orgID, sprintID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []model.Ticket
+		for rows.Next() {
+			var t model.Ticket
+			if err := scanTicket(rows, &t); err != nil {
+				return nil, err
+			}
+			out = append(out, t)
+		}
+		return out, rows.Err()
+	}
+
+	doneQ := `SELECT ` + ticketCols + ticketJoins + `
+		JOIN columns c2 ON c2.id = t.column_id
+		WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c2.name) = 'done'
+		ORDER BY t.position`
+
+	returnQ := `SELECT ` + ticketCols + ticketJoins + `
+		JOIN columns c2 ON c2.id = t.column_id
+		WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c2.name) != 'done'
+		ORDER BY t.position`
+
+	completed, err = scan(doneQ)
+	if err != nil {
+		return nil, nil, err
+	}
+	returning, err = scan(returnQ)
+	return completed, returning, err
 }
 
 // ReturnSprintTicketsToBacklog sets sprint_id = NULL for all non-done tickets in a sprint.
@@ -381,7 +568,8 @@ func (s *Store) ReturnSprintTicketsToBacklog(ctx context.Context, orgID, sprintI
 		 WHERE t.org_id = $1
 		   AND t.sprint_id = $2
 		   AND t.column_id = c.id
-		   AND LOWER(c.name) != 'done'`,
+		   AND LOWER(c.name) != 'done'
+		   AND t.closed_at IS NULL`,
 		orgID, sprintID,
 	)
 	return err

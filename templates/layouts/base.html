@@ -134,6 +134,10 @@
                     <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h7"/></svg>
                     Backlog
                   </a>
+                  <a href="/boards/{{$board.ID}}/retros" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/retros" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
+                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                    Retros
+                  </a>
                   {{end}}
                   {{end}}
                 </div>
@@ -170,10 +174,10 @@
   <!-- Ticket Detail Modal -->
   <div x-show="ticketModal" x-cloak
        @keydown.escape.window="ticketModal = false"
-       class="fixed inset-0 z-50 flex items-center justify-center p-4">
+       class="fixed inset-0 z-50 flex items-center justify-center p-2">
     <div class="absolute inset-0 bg-black/60" @click="ticketModal = false"></div>
-    <div class="relative w-full max-w-5xl bg-base-100 border border-base-300 rounded-lg shadow-2xl flex flex-col"
-         style="height: 82vh;">
+    <div class="relative w-full max-w-7xl bg-base-100 border border-base-300 rounded-lg shadow-2xl flex flex-col"
+         style="height: 90vh;">
       <button @click="ticketModal = false"
               class="absolute top-4 right-4 z-10 text-base-content/30 hover:text-base-content">
         <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -184,79 +188,222 @@
     </div>
   </div>
 
+  <!-- New Ticket Modal data (team→board map for tag loading) -->
+  <script>
+  window._ntTeams = [
+    {{- range .NavTeams}}
+    {id:"{{.Team.ID}}",key:"{{js .Team.Key}}",name:"{{js .Team.Name}}",boardID:"{{if .Board}}{{.Board.ID}}{{end}}"},
+    {{- end}}
+  ];
+  </script>
+
   <!-- New Ticket Modal -->
   <div x-show="newTicket" x-cloak
-       x-data="{ close() { newTicket = false; $refs.newTicketForm.reset(); } }"
+       x-data="{
+         createMore: false, maximized: false,
+         teamOpen: false, assigneeOpen: false, labelOpen: false,
+         teams: window._ntTeams || [],
+         selectedTeamID: (window._ntTeams && window._ntTeams[0]) ? window._ntTeams[0].id : '',
+         get selectedTeam() { return this.teams.find(t => t.id === this.selectedTeamID) || (this.teams[0] || {}); },
+         assignees: [], assigneeQ: '', assigneeResults: [],
+         labels: [], availableTags: [],
+         async loadTags() {
+           const t = this.teams.find(x => x.id === this.selectedTeamID);
+           if (!t || !t.boardID) { this.availableTags = []; return; }
+           const sel = new Set(this.labels.map(l => l.id));
+           try { const r = await fetch('/boards/'+t.boardID+'/tags'); if (r.ok) this.availableTags = (await r.json()||[]).filter(x=>!sel.has(x.id)); } catch(e){}
+         },
+         async searchAssignees() {
+           if (!this.assigneeQ) { this.assigneeResults=[]; this.assigneeOpen=false; return; }
+           const sel = new Set(this.assignees.map(a => a.id));
+           try { const r = await fetch('/users/search?q='+encodeURIComponent(this.assigneeQ)); if(r.ok) this.assigneeResults=(await r.json()||[]).filter(u=>!sel.has(u.id)); } catch(e){}
+           this.assigneeOpen = this.assigneeResults.length > 0;
+         },
+         addAssignee(u) { if(!this.assignees.find(a=>a.id===u.id)) this.assignees.push(u); this.assigneeQ=''; this.assigneeResults=[]; this.assigneeOpen=false; },
+         removeAssignee(id) { this.assignees=this.assignees.filter(a=>a.id!==id); },
+         addLabel(t) { if(!this.labels.find(l=>l.id===t.id)) this.labels.push(t); this.availableTags=this.availableTags.filter(x=>x.id!==t.id); this.labelOpen=false; },
+         removeLabel(id) { const t=this.labels.find(l=>l.id===id); if(t) this.availableTags.push(t); this.labels=this.labels.filter(l=>l.id!==id); },
+         afterCreate() { if(this.createMore){ this.$refs.newTicketForm.reset(); this.assignees=[]; this.labels=[]; this.$refs.titleInput.focus(); document.body.dispatchEvent(new CustomEvent('boardUpdated')); } },
+         resetState() { this.assignees=[]; this.labels=[]; this.assigneeQ=''; this.assigneeResults=[]; this.availableTags=[]; this.assigneeOpen=false; this.labelOpen=false; this.teamOpen=false; this.createMore=false; this.maximized=false; if(this.teams[0]) this.selectedTeamID=this.teams[0].id; },
+         close() { newTicket=false; this.resetState(); this.$nextTick(()=>{ if(this.$refs.newTicketForm) this.$refs.newTicketForm.reset(); }); }
+       }"
        @keydown.escape.window="close()"
-       class="fixed inset-0 z-50 flex items-center justify-center p-4">
+       class="fixed inset-0 z-50 flex items-center justify-center p-6">
     <div class="absolute inset-0 bg-black/60" @click="close()"></div>
-    <div class="relative w-full max-w-3xl bg-base-100 border border-base-300 rounded-xl shadow-2xl flex flex-col max-h-[80vh]">
+    <div class="relative w-full bg-base-100 border border-base-300 rounded-xl shadow-2xl flex flex-col transition-all duration-150"
+         :class="maximized ? 'max-w-6xl h-[92vh]' : 'max-w-2xl'">
 
-      <!-- Header -->
-      <div class="flex items-center justify-between px-6 py-4 border-b border-base-300 shrink-0">
-        <h2 class="text-sm font-medium text-base-content/50">New Ticket</h2>
-        <button @click="close()" class="text-base-content/40 hover:text-base-content">
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
+      <!-- Top bar: team chip + breadcrumb + [maximize] [X] -->
+      <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-300 shrink-0">
+        <div class="flex items-center gap-1.5">
+          <!-- Team chip dropdown -->
+          <div class="relative" @click.outside="teamOpen = false">
+            <button type="button" @click="teamOpen = !teamOpen"
+                    class="flex items-center gap-1.5 bg-base-200 hover:bg-base-300 border border-base-300 rounded px-2 py-1 text-xs font-medium transition-colors">
+              <svg class="h-3 w-3 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span class="font-mono text-primary" x-text="selectedTeam.key || '—'"></span>
+            </button>
+            <div x-show="teamOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-48 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
+              <template x-for="t in teams" :key="t.id">
+                <button type="button" @click="selectedTeamID=t.id; teamOpen=false; labels=[]; availableTags=[]"
+                        class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs"
+                        :class="selectedTeamID===t.id ? 'text-primary' : 'text-base-content/70'">
+                  <span class="font-mono font-medium" x-text="t.key"></span>
+                  <span class="text-base-content/50" x-text="t.name"></span>
+                </button>
+              </template>
+            </div>
+          </div>
+          <svg class="h-3.5 w-3.5 text-base-content/30 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
+          <span class="text-xs text-base-content/40">New ticket</span>
+        </div>
+        <div class="flex items-center gap-0.5">
+          <button type="button" @click="maximized=!maximized"
+                  class="p-1.5 text-base-content/30 hover:text-base-content hover:bg-base-300 rounded transition-colors"
+                  :title="maximized ? 'Collapse' : 'Expand'">
+            <svg x-show="!maximized" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+            <svg x-show="maximized" x-cloak class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+          </button>
+          <button type="button" @click="close()" class="p-1.5 text-base-content/30 hover:text-base-content hover:bg-base-300 rounded transition-colors">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
       </div>
 
-      <!-- Body: two-column like ticket detail -->
-      <form method="POST" action="/tickets/new" x-ref="newTicketForm" class="flex flex-1 min-h-0 overflow-hidden">
+      <form x-ref="newTicketForm"
+            hx-post="/tickets/new"
+            hx-swap="none"
+            @htmx:after-request="if(event.detail.successful) afterCreate()"
+            class="flex flex-col flex-1 min-h-0">
+        <input type="hidden" name="create_more" :value="createMore ? 'true' : 'false'">
+        <input type="hidden" name="team_id" :value="selectedTeamID">
+        <template x-for="a in assignees" :key="a.id">
+          <input type="hidden" name="assignee_id" :value="a.id">
+        </template>
+        <template x-for="l in labels" :key="l.id">
+          <input type="hidden" name="tag_id" :value="l.id">
+        </template>
 
-        <!-- Left: title + description -->
-        <div class="flex-1 min-w-0 overflow-y-auto px-8 py-6 flex flex-col gap-5">
-          <input type="text" name="title" required
+        <!-- Title + description -->
+        <div class="px-6 pt-6 pb-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
+          <input type="text" name="title" required x-ref="titleInput"
                  placeholder="Ticket title"
-                 class="w-full bg-transparent text-xl font-semibold leading-snug placeholder:text-base-content/20 focus:outline-none" />
-          <textarea name="body" rows="8"
+                 class="w-full bg-transparent text-xl font-semibold text-base-content placeholder:text-base-content/20 focus:outline-none shrink-0" />
+          <textarea name="body"
                     placeholder="Add a description…"
-                    class="w-full bg-transparent text-sm text-base-content/80 leading-relaxed placeholder:text-base-content/20 focus:outline-none resize-none font-mono"></textarea>
+                    :rows="maximized ? 1 : 4"
+                    class="w-full bg-transparent text-sm text-base-content/70 placeholder:text-base-content/20 focus:outline-none resize-none font-mono leading-relaxed flex-1 min-h-0"></textarea>
         </div>
 
-        <!-- Right: metadata sidebar -->
-        <div class="w-60 shrink-0 border-l border-base-300 px-5 py-6 flex flex-col gap-5 overflow-y-auto">
+        <!-- Metadata chips row -->
+        <div class="px-4 py-3 border-t border-base-300 flex items-center gap-2 flex-wrap shrink-0">
 
-          <!-- Team -->
-          <div class="flex flex-col gap-2">
-            <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Team</span>
-            <select name="team_id" required
-                    class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
-              {{range .NavTeams}}
-              <option value="{{.Team.ID}}"><span class="font-mono">{{.Team.Key}}</span> — {{.Team.Name}}</option>
-              {{end}}
-            </select>
-          </div>
+          <!-- Priority chip -->
+          <select name="priority"
+                  class="bg-base-200 border border-base-300 text-base-content/60 text-xs rounded-full px-3 py-1.5 focus:outline-none focus:border-primary cursor-pointer hover:bg-base-300">
+            <option value="">No priority</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
 
-          <div class="border-t border-base-300"></div>
+          <!-- Selected assignee chips -->
+          <template x-for="a in assignees" :key="a.id">
+            <span class="flex items-center gap-1 bg-base-200 border border-base-300 rounded-full pl-1 pr-2 py-1 text-xs text-base-content/70">
+              <span class="w-4 h-4 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[9px] font-bold text-primary shrink-0" x-text="(a.name||'?')[0].toUpperCase()"></span>
+              <span x-text="a.name"></span>
+              <button type="button" @click="removeAssignee(a.id)" class="text-base-content/30 hover:text-red-400 ml-0.5">
+                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </span>
+          </template>
 
-          <!-- Priority -->
-          <div class="flex flex-col gap-2">
-            <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Priority</span>
-            <select name="priority"
-                    class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
-              <option value="" selected>No priority</option>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-              <option value="critical">Critical</option>
-            </select>
-          </div>
-
-          <div class="mt-auto pt-4 border-t border-base-300 flex flex-col gap-2">
-            <button type="submit"
-                    class="w-full px-4 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">
-              Create Ticket
+          <!-- Add assignee button + dropdown -->
+          <div class="relative" @click.outside="assigneeOpen=false; assigneeQ=''; assigneeResults=[]">
+            <button type="button"
+                    @click="assigneeOpen=!assigneeOpen; if(assigneeOpen) $nextTick(()=>$refs.assigneeInput&&$refs.assigneeInput.focus())"
+                    class="flex items-center gap-1.5 bg-base-200 border border-base-300 rounded-full px-3 py-1.5 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors">
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              Assignee
             </button>
+            <div x-show="assigneeOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-56 bg-base-200 border border-base-300 rounded-lg shadow-xl flex flex-col">
+              <div class="max-h-40 overflow-y-auto py-1">
+                <template x-for="u in assigneeResults" :key="u.id">
+                  <button type="button" @mousedown.prevent @click="addAssignee(u)"
+                          class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs">
+                    <span class="w-5 h-5 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[9px] font-bold text-primary shrink-0" x-text="(u.name||'?')[0].toUpperCase()"></span>
+                    <span x-text="u.name" class="text-base-content/80 flex-1 min-w-0 truncate"></span>
+                    <span x-text="'@'+u.username" class="text-primary/50 font-mono text-[10px] shrink-0"></span>
+                  </button>
+                </template>
+                <p x-show="assigneeQ && !assigneeResults.length" class="text-xs text-base-content/30 px-3 py-2">No results</p>
+                <p x-show="!assigneeQ" class="text-xs text-base-content/30 px-3 py-2">Type to search…</p>
+              </div>
+              <div class="p-2 border-t border-base-300">
+                <input type="text" x-ref="assigneeInput" x-model="assigneeQ" @input="searchAssignees()"
+                       placeholder="Search people…"
+                       class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Selected label chips -->
+          <template x-for="l in labels" :key="l.id">
+            <span class="flex items-center gap-1 border rounded-full pl-2 pr-1.5 py-1 text-xs"
+                  :style="`background-color:${l.color}18;color:${l.color};border-color:${l.color}40`">
+              <span class="w-1.5 h-1.5 rounded-full shrink-0" :style="`background-color:${l.color}`"></span>
+              <span x-text="l.name"></span>
+              <button type="button" @click="removeLabel(l.id)" class="opacity-50 hover:opacity-100 ml-0.5">
+                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </span>
+          </template>
+
+          <!-- Add label button + dropdown -->
+          <div class="relative" @click.outside="labelOpen=false">
+            <button type="button"
+                    @click="labelOpen=!labelOpen; if(labelOpen) loadTags()"
+                    class="flex items-center gap-1.5 bg-base-200 border border-base-300 rounded-full px-3 py-1.5 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors">
+              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
+              Label
+            </button>
+            <div x-show="labelOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-44 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
+              <template x-for="t in availableTags" :key="t.id">
+                <button type="button" @mousedown.prevent @click="addLabel(t)"
+                        class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs">
+                  <span class="w-2 h-2 rounded-full shrink-0" :style="`background-color:${t.color}`"></span>
+                  <span x-text="t.name" class="text-base-content/70"></span>
+                </button>
+              </template>
+              <p x-show="!availableTags.length" class="text-xs text-base-content/30 px-3 py-2">No labels available</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="px-4 py-2 border-t border-base-300 flex items-center justify-end gap-3 shrink-0">
+          <label class="flex items-center gap-2.5 cursor-pointer select-none">
+            <div class="relative w-8 h-[18px] rounded-full transition-colors" :class="createMore ? 'bg-primary' : 'bg-base-300'" @click="createMore=!createMore">
+              <div class="absolute top-[3px] left-[3px] w-3 h-3 bg-white rounded-full shadow transition-transform" :class="createMore ? 'translate-x-[14px]' : ''"></div>
+            </div>
+            <span class="text-sm text-base-content/50">Create more</span>
+          </label>
+          <div class="w-px h-5 bg-base-300 shrink-0"></div>
+          <div class="flex items-center gap-2">
             <button type="button" @click="close()"
-                    class="w-full px-4 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">
+                    class="px-4 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded-lg">
               Cancel
             </button>
+            <button type="submit"
+                    class="px-4 py-1.5 bg-primary text-base-100 text-sm font-medium rounded-lg hover:opacity-90">
+              Create ticket
+            </button>
           </div>
-
         </div>
 
       </form>
-
     </div>
   </div>
 
@@ -266,15 +413,23 @@
       return {
         mentionOpen: false,
         mentionUsers: [],
+        ticketOpen: false,
+        mentionTickets: [],
         _mentionTa: null,
         mentionInput(e) {
           this._mentionTa = e.target;
           const before = e.target.value.slice(0, e.target.selectionStart);
-          const m = before.match(/@(\w+)$/);
-          if (m && m[1].length >= 1) {
-            this._mentionFetch(m[1]);
+          const mUser = before.match(/@(\w+)$/);
+          const mTicket = before.match(/#([\w-]+)$/);
+          if (mUser && mUser[1].length >= 1) {
+            this.ticketOpen = false;
+            this._mentionFetch(mUser[1]);
+          } else if (mTicket && mTicket[1].length >= 1) {
+            this.mentionOpen = false;
+            this._ticketFetch(mTicket[1]);
           } else {
             this.mentionOpen = false;
+            this.ticketOpen = false;
           }
         },
         async _mentionFetch(q) {
@@ -287,6 +442,16 @@
             }
           } catch (_) { this.mentionOpen = false; }
         },
+        async _ticketFetch(q) {
+          try {
+            const r = await fetch('/tickets/search-mention?q=' + encodeURIComponent(q));
+            if (r.ok) {
+              const data = await r.json();
+              this.mentionTickets = data || [];
+              this.ticketOpen = this.mentionTickets.length > 0;
+            }
+          } catch (_) { this.ticketOpen = false; }
+        },
         mentionPick(username) {
           const ta = this._mentionTa;
           if (!ta) return;
@@ -297,6 +462,17 @@
           ta.setSelectionRange(newBefore.length, newBefore.length);
           ta.focus();
           this.mentionOpen = false;
+        },
+        ticketPick(displayID) {
+          const ta = this._mentionTa;
+          if (!ta) return;
+          const before = ta.value.slice(0, ta.selectionStart);
+          const after = ta.value.slice(ta.selectionStart);
+          const newBefore = before.replace(/#[\w-]+$/, '#' + displayID + ' ');
+          ta.value = newBefore + after;
+          ta.setSelectionRange(newBefore.length, newBefore.length);
+          ta.focus();
+          this.ticketOpen = false;
         }
       };
     }

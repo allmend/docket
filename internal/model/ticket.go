@@ -31,11 +31,14 @@ type Ticket struct {
 	TeamKey     string     `json:"team_key"`   // denormalised for display
 	Title       string     `json:"title"`
 	Body        string     `json:"body"`
-	Priority    Priority   `json:"priority"`
-	Position    float64    `json:"position"`
-	SprintID    *uuid.UUID `json:"sprint_id,omitempty"`
-	ExternalRef *string    `json:"external_ref,omitempty"`
-	Tags        []Tag      `json:"tags,omitempty"`
+	Priority     Priority   `json:"priority"`
+	StoryPoints  *float64   `json:"story_points,omitempty"`
+	Position     float64    `json:"position"`
+	SprintID     *uuid.UUID `json:"sprint_id,omitempty"`
+	ExternalRef  *string    `json:"external_ref,omitempty"`
+	ClosedAt     *time.Time `json:"closed_at,omitempty"`
+	CloseReason  *string    `json:"close_reason,omitempty"`
+	Tags         []Tag      `json:"tags,omitempty"`
 
 	// Denormalised for display — populated by joins
 	AssigneeName *string     `json:"assignee_name,omitempty"`

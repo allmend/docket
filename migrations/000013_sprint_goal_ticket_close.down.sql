@@ -1,0 +1,3 @@
+ALTER TABLE sprints DROP COLUMN IF EXISTS goal;
+ALTER TABLE tickets DROP COLUMN IF EXISTS closed_at;
+ALTER TABLE tickets DROP COLUMN IF EXISTS close_reason;

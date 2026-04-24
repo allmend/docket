@@ -32,7 +32,7 @@
           <span class="text-xs font-medium">Blocked by {{.BlockedBy}}</span>
         </div>
         {{end}}
-        <p class="text-sm font-medium leading-snug">{{.Title}}</p>
+        <p class="text-sm font-medium leading-snug">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</p>
         <div class="flex items-center gap-2">
           <a href="/tickets/{{.DisplayID}}"
              class="font-mono text-xs text-primary hover:underline"
@@ -106,7 +106,7 @@
          data-is-done="{{.IsDone}}">
       {{$isDone := .IsDone}}
       {{range .Tickets}}
-      <div class="bg-base-100 border rounded-xl p-3 flex flex-col gap-2 transition-colors cursor-pointer {{if $isDone}}opacity-50{{end}} {{if .IsBlocked}}border-red-900/50 hover:border-red-800/60{{else}}border-base-300 hover:border-primary/30{{end}}"
+      <div class="bg-base-100 border rounded-xl p-3 flex flex-col gap-2 transition-colors cursor-pointer {{if or $isDone .ClosedAt}}opacity-50{{end}} {{if .IsBlocked}}border-red-900/50 hover:border-red-800/60{{else}}border-base-300 hover:border-primary/30{{end}}"
            data-ticket-id="{{.ID}}"
            data-position="{{.Position}}"
            hx-get="/tickets/{{.ID}}/quick"
@@ -119,9 +119,10 @@
           <span class="text-xs font-medium">Blocked by {{.BlockedBy}}</span>
         </div>
         {{end}}
-        <p class="text-sm font-medium leading-snug">{{.Title}}</p>
+        <p class="text-sm font-medium leading-snug">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</p>
         <div class="flex items-center gap-2">
           <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary hover:underline" @click.stop>{{.DisplayID}}</a>
+          {{if .ClosedAt}}<span class="text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5">closed</span>{{end}}
           {{if eq .Priority "critical"}}
           <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5">critical</span>
           {{else if eq .Priority "high"}}
@@ -139,6 +140,13 @@
           </div>
           {{end}}
         </div>
+        {{if .Tags}}
+        <div class="flex flex-wrap gap-1">
+          {{range .Tags}}
+          <span class="text-xs px-1.5 py-0.5 rounded-md font-medium" style="background-color: {{.Color}}20; color: {{.Color}}; border: 1px solid {{.Color}}40">{{.Name}}</span>
+          {{end}}
+        </div>
+        {{end}}
       </div>
       {{end}}
     </div>

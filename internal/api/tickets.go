@@ -58,7 +58,27 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, "/tickets/"+ticket.DisplayID(), http.StatusSeeOther)
+	for _, raw := range r.Form["assignee_id"] {
+		uid, err := uuid.Parse(raw)
+		if err != nil {
+			continue
+		}
+		_ = h.tickets.AddAssignee(r.Context(), orgID, ticket.ID, uid, userID)
+	}
+	for _, raw := range r.Form["tag_id"] {
+		uid, err := uuid.Parse(raw)
+		if err != nil {
+			continue
+		}
+		_ = h.boards.AddTagToTicket(r.Context(), orgID, ticket.ID, uid)
+	}
+
+	if r.FormValue("create_more") == "true" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("HX-Redirect", "/tickets/"+ticket.DisplayID())
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +126,8 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		"History":   []model.HistoryEntry{},
 		"Assignees": []model.User{},
 		"Columns":   columns,
+		"Tags":      []model.Tag{},
+		"BoardTags": []model.Tag{},
 	})
 }
 
@@ -153,6 +175,8 @@ func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 		"History":   []model.HistoryEntry{},
 		"Assignees": []model.User{},
 		"Columns":   cols,
+		"Tags":      []model.Tag{},
+		"BoardTags": []model.Tag{},
 	})
 }
 
@@ -176,14 +200,26 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 	assignees, _ := h.tickets.ListAssignees(r.Context(), ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)
 	links, _ := h.links.ListLinks(r.Context(), orgID, ticket.ID)
+	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
+	allBoardTags, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
+	boardTags := filterUnusedTags(allBoardTags, tags)
+	sprintActive := false
+	if ticket.SprintID != nil {
+		if sp, err := h.boards.GetSprint(r.Context(), orgID, *ticket.SprintID); err == nil {
+			sprintActive = sp.Status.IsActive()
+		}
+	}
 
 	h.render(w, "ticket-detail.html", map[string]any{
-		"Ticket":    ticket,
-		"Comments":  comments,
-		"History":   history,
-		"Assignees": assignees,
-		"Columns":   columns,
-		"Links":     links,
+		"Ticket":       ticket,
+		"Comments":     comments,
+		"History":      history,
+		"Assignees":    assignees,
+		"Columns":      columns,
+		"Links":        links,
+		"Tags":         tags,
+		"BoardTags":    boardTags,
+		"SprintActive": sprintActive,
 	})
 }
 
@@ -215,16 +251,28 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 	assignees, _ := h.tickets.ListAssignees(r.Context(), ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)
 	links, _ := h.links.ListLinks(r.Context(), orgID, ticket.ID)
+	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
+	allBoardTags, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
+	boardTags := filterUnusedTags(allBoardTags, tags)
+	sprintActive := false
+	if ticket.SprintID != nil {
+		if sp, err := h.boards.GetSprint(r.Context(), orgID, *ticket.SprintID); err == nil {
+			sprintActive = sp.Status.IsActive()
+		}
+	}
 
 	h.render(w, "ticket-page.html", h.pageData(r, map[string]any{
-		"Ticket":    ticket,
-		"Board":     board,
-		"Team":      team,
-		"Comments":  comments,
-		"History":   history,
-		"Assignees": assignees,
-		"Columns":   columns,
-		"Links":     links,
+		"Ticket":       ticket,
+		"Board":        board,
+		"Team":         team,
+		"Comments":     comments,
+		"History":      history,
+		"Assignees":    assignees,
+		"Columns":      columns,
+		"Links":        links,
+		"Tags":         tags,
+		"BoardTags":    boardTags,
+		"SprintActive": sprintActive,
 	}))
 }
 
@@ -321,6 +369,51 @@ func (h *Handler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *Handler) CloseTicket(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	reason := r.FormValue("reason")
+	if r.FormValue("reason") == "other" {
+		reason = r.FormValue("reason_note")
+	}
+	if reason == "" {
+		reason = "Closed"
+	}
+	if _, err := h.tickets.CloseTicket(r.Context(), orgID, ticketID, userID, reason); err != nil {
+		http.Error(w, "failed to close ticket", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) ReopenTicket(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.tickets.ReopenTicket(r.Context(), orgID, ticketID, userID); err != nil {
+		http.Error(w, "failed to reopen ticket", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.Header().Set("HX-Refresh", "true")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) DeleteTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
@@ -399,6 +492,35 @@ func (h *Handler) UpdateTicketPriority(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
 	h.render(w, "ticket-priority-select.html", ticket)
+}
+
+func (h *Handler) UpdateTicketPoints(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var points *float64
+	if v := r.FormValue("story_points"); v != "" {
+		n, err := strconv.ParseFloat(v, 64)
+		if err != nil || n < 0 {
+			http.Error(w, "invalid story points", http.StatusBadRequest)
+			return
+		}
+		points = &n
+	}
+	if _, err := h.tickets.UpdatePoints(r.Context(), orgID, ticketID, userID, points); err != nil {
+		http.Error(w, "failed to update story points", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) SearchTicketAssignees(w http.ResponseWriter, r *http.Request) {

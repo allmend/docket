@@ -13,8 +13,8 @@ const ticketCols = `
 	t.id, t.org_id, t.board_id, t.column_id,
 	t.team_id, t.assignee_id, t.created_by,
 	t.number, COALESCE(tm.key, ''),
-	t.title, t.body, t.priority, t.position,
-	t.sprint_id, t.external_ref, t.created_at, t.updated_at,
+	t.title, t.body, t.priority, t.story_points, t.position,
+	t.sprint_id, t.external_ref, t.closed_at, t.close_reason, t.created_at, t.updated_at,
 	u.name`
 
 const ticketJoins = `
@@ -28,8 +28,8 @@ const ticketColsReturning = `
 	id, org_id, board_id, column_id,
 	team_id, assignee_id, created_by,
 	number, COALESCE((SELECT key FROM teams WHERE id = team_id), ''),
-	title, body, priority, position,
-	sprint_id, external_ref, created_at, updated_at,
+	title, body, priority, story_points, position,
+	sprint_id, external_ref, closed_at, close_reason, created_at, updated_at,
 	NULL::text`
 
 func scanTicket(row interface{ Scan(dest ...any) error }, t *model.Ticket) error {
@@ -37,8 +37,8 @@ func scanTicket(row interface{ Scan(dest ...any) error }, t *model.Ticket) error
 		&t.ID, &t.OrgID, &t.BoardID, &t.ColumnID,
 		&t.TeamID, &t.AssigneeID, &t.CreatedBy,
 		&t.Number, &t.TeamKey,
-		&t.Title, &t.Body, &t.Priority, &t.Position,
-		&t.SprintID, &t.ExternalRef, &t.CreatedAt, &t.UpdatedAt,
+		&t.Title, &t.Body, &t.Priority, &t.StoryPoints, &t.Position,
+		&t.SprintID, &t.ExternalRef, &t.ClosedAt, &t.CloseReason, &t.CreatedAt, &t.UpdatedAt,
 		&t.AssigneeName,
 	)
 }
@@ -194,10 +194,38 @@ func (s *Store) SearchTicketsForLink(ctx context.Context, orgID, excludeID uuid.
 	rows, err := s.replica.Query(ctx,
 		`SELECT `+ticketCols+ticketJoins+`
 		 WHERE t.org_id = $1 AND t.id != $2
+		   AND t.closed_at IS NULL
 		   AND (COALESCE(tm.key || '-' || t.number::text, '') ILIKE $3 OR t.title ILIKE $3)
 		 ORDER BY tm.key, t.number
 		 LIMIT 20`,
 		orgID, excludeID, like,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tickets []model.Ticket
+	for rows.Next() {
+		var t model.Ticket
+		if err := scanTicket(rows, &t); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
+// SearchTicketsForMention returns tickets matching a query string by display ID or title.
+// Used for the #ticket autocomplete in the editor.
+func (s *Store) SearchTicketsForMention(ctx context.Context, orgID uuid.UUID, q string) ([]model.Ticket, error) {
+	like := "%" + q + "%"
+	rows, err := s.replica.Query(ctx,
+		`SELECT `+ticketCols+ticketJoins+`
+		 WHERE t.org_id = $1
+		   AND (COALESCE(tm.key || '-' || t.number::text, '') ILIKE $2 OR t.title ILIKE $2)
+		 ORDER BY tm.key, t.number
+		 LIMIT 10`,
+		orgID, like,
 	)
 	if err != nil {
 		return nil, err
@@ -325,6 +353,39 @@ func (s *Store) UpdateTicketPriority(ctx context.Context, orgID, ticketID uuid.U
 		 WHERE org_id = $1 AND id = $2
 		 RETURNING `+ticketColsReturning,
 		orgID, ticketID, priority,
+	), &t)
+	return &t, err
+}
+
+func (s *Store) CloseTicket(ctx context.Context, orgID, ticketID uuid.UUID, reason string) (*model.Ticket, error) {
+	var t model.Ticket
+	err := scanTicket(s.primary.QueryRow(ctx,
+		`UPDATE tickets SET closed_at = NOW(), close_reason = $3, updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING `+ticketColsReturning,
+		orgID, ticketID, reason,
+	), &t)
+	return &t, err
+}
+
+func (s *Store) ReopenTicket(ctx context.Context, orgID, ticketID uuid.UUID) (*model.Ticket, error) {
+	var t model.Ticket
+	err := scanTicket(s.primary.QueryRow(ctx,
+		`UPDATE tickets SET closed_at = NULL, close_reason = NULL, updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING `+ticketColsReturning,
+		orgID, ticketID,
+	), &t)
+	return &t, err
+}
+
+func (s *Store) UpdateTicketPoints(ctx context.Context, orgID, ticketID uuid.UUID, points *float64) (*model.Ticket, error) {
+	var t model.Ticket
+	err := scanTicket(s.primary.QueryRow(ctx,
+		`UPDATE tickets SET story_points = $3, updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING `+ticketColsReturning,
+		orgID, ticketID, points,
 	), &t)
 	return &t, err
 }

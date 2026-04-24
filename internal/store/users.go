@@ -35,7 +35,9 @@ func (s *Store) GetOrgByID(ctx context.Context, id uuid.UUID) (*model.Org, error
 func (s *Store) CreateOrg(ctx context.Context, name, slug string) (*model.Org, error) {
 	var o model.Org
 	err := s.primary.QueryRow(ctx,
-		`INSERT INTO orgs (name, slug) VALUES ($1, $2) RETURNING id, name, slug, created_at, updated_at`,
+		`INSERT INTO orgs (name, slug) VALUES ($1, $2)
+		 ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+		 RETURNING id, name, slug, created_at, updated_at`,
 		name, slug,
 	).Scan(&o.ID, &o.Name, &o.Slug, &o.CreatedAt, &o.UpdatedAt)
 	if err != nil {
@@ -75,6 +77,7 @@ func (s *Store) CreateUser(ctx context.Context, orgID uuid.UUID, username, name,
 	err := s.primary.QueryRow(ctx,
 		`INSERT INTO users (org_id, username, name, email, role)
 		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (org_id, username) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email
 		 RETURNING id, org_id, username, name, email, role, created_at, updated_at`,
 		orgID, username, name, email, role,
 	).Scan(&u.ID, &u.OrgID, &u.Username, &u.Name, &u.Email, &u.Role, &u.CreatedAt, &u.UpdatedAt)
