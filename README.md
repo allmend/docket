@@ -12,12 +12,19 @@ Part of the [Allmend](https://github.com/allmend) suite of open-source tools.
 
 - Teams, boards, and tickets with display IDs (`ENG-42`)
 - Kanban and Scrum board modes
-- Sprint lifecycle — planning, active, close
-- Product backlog with drag-to-reorder
+- Sprint lifecycle — planning, active, close with Sprint Goal
+- Product backlog with drag-to-reorder and bulk sprint assignment
+- Sprint capacity planning — per-member focus percentage
+- Roadmap — all sprints with progress bars and ticket lists
+- Backlog refinement view — side-by-side ticket list and detail, arrow key navigation, readiness indicator
+- Definition of Done — board-level checklist with per-ticket check state
+- Acceptance criteria with interactive checkboxes
+- Story points
 - Ticket detail with inline editing, Markdown support, and syntax highlighting
-- Assignees, priority, status
-- Comments with `@mention` linking and autocomplete
+- Assignees, priority, status, tags/labels
+- Comments with `@mention` and `#ticket` linking and autocomplete
 - Ticket linking (blocks / relates to)
+- Sprint review and retrospective board
 - Notification inbox
 - Ticket and comment history
 
