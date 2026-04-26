@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS dod_checks;
+DROP TABLE IF EXISTS dod_items;

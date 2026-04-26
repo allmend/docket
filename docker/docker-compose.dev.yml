@@ -34,6 +34,7 @@ services:
       dockerfile: docker/Dockerfile.dev
     ports:
       - "8081:8081"
+      - "9412:9412"
     env_file:
       - ../.env
     environment:

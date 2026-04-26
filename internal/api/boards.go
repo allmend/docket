@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -406,6 +407,34 @@ func (h *Handler) AssignTicketsToSprint(w http.ResponseWriter, r *http.Request) 
 	http.Redirect(w, r, "/boards/"+boardID.String()+"/backlog", http.StatusSeeOther)
 }
 
+func (h *Handler) BoardRoadmap(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	board, err := h.boards.GetBoard(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+	var team *model.Team
+	if board.TeamID != nil {
+		team, _ = h.teams.GetTeam(r.Context(), orgID, *board.TeamID)
+	}
+	sprints, err := h.boards.GetRoadmap(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "roadmap not found", http.StatusInternalServerError)
+		return
+	}
+	h.render(w, "roadmap.html", h.pageData(r, map[string]any{
+		"Board":   board,
+		"Team":    team,
+		"Sprints": sprints,
+	}))
+}
+
 func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
@@ -419,6 +448,23 @@ func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "backlog.html", h.boardViewData(r, view))
+}
+
+func (h *Handler) BoardRefinement(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	view, err := h.boards.GetBacklog(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "backlog not found", http.StatusNotFound)
+		return
+	}
+	data := h.boardViewData(r, view)
+	data["InitRefineMode"] = true
+	h.render(w, "backlog.html", data)
 }
 
 // --- Tag handlers ---
@@ -577,6 +623,206 @@ func (h *Handler) RemoveTagFromTicket(w http.ResponseWriter, r *http.Request) {
 		"Ticket":    ticket,
 		"Tags":      tags,
 		"BoardTags": boardTags,
+	})
+}
+
+// BoardDodPanel renders the DoD management panel for a board.
+func (h *Handler) BoardDodPanel(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)
+	h.render(w, "board-dod-panel.html", map[string]any{
+		"BoardID": boardID,
+		"Items":   items,
+	})
+}
+
+// CreateDodItem adds a new DoD item to a board.
+func (h *Handler) CreateDodItem(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	text := r.FormValue("text")
+	if text == "" {
+		http.Error(w, "text is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.boards.CreateDodItem(r.Context(), orgID, boardID, text); err != nil {
+		http.Error(w, "failed to create item", http.StatusInternalServerError)
+		return
+	}
+	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)
+	h.render(w, "board-dod-panel.html", map[string]any{
+		"BoardID": boardID,
+		"Items":   items,
+	})
+}
+
+// DeleteDodItem removes a DoD item from a board.
+func (h *Handler) DeleteDodItem(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	itemID, err := uuid.Parse(chi.URLParam(r, "itemID"))
+	if err != nil {
+		http.Error(w, "invalid item ID", http.StatusBadRequest)
+		return
+	}
+	_ = h.boards.DeleteDodItem(r.Context(), orgID, itemID)
+	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)
+	h.render(w, "board-dod-panel.html", map[string]any{
+		"BoardID": boardID,
+		"Items":   items,
+	})
+}
+
+// TicketDodPartial renders the DoD checklist for a ticket (HTMX swap target).
+func (h *Handler) TicketDodPartial(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
+	if err != nil {
+		http.Error(w, "ticket not found", http.StatusNotFound)
+		return
+	}
+	items, _ := h.boards.GetTicketDod(r.Context(), orgID, ticket.BoardID, ticketID)
+	h.render(w, "ticket-dod-partial.html", map[string]any{
+		"TicketID": ticketID,
+		"BoardID":  ticket.BoardID,
+		"Items":    items,
+		"IsClosed": ticket.ClosedAt != nil,
+	})
+}
+
+// ToggleDodCheck checks or unchecks a DoD item for a ticket.
+func (h *Handler) ToggleDodCheck(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	itemID, err := uuid.Parse(chi.URLParam(r, "itemID"))
+	if err != nil {
+		http.Error(w, "invalid item ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	checked := r.FormValue("checked") == "true"
+	if err := h.boards.ToggleDodCheck(r.Context(), orgID, ticketID, itemID, checked); err != nil {
+		http.Error(w, "failed to toggle check", http.StatusInternalServerError)
+		return
+	}
+	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
+	if err != nil {
+		http.Error(w, "ticket not found", http.StatusNotFound)
+		return
+	}
+	items, _ := h.boards.GetTicketDod(r.Context(), orgID, ticket.BoardID, ticketID)
+	h.render(w, "ticket-dod-partial.html", map[string]any{
+		"TicketID": ticketID,
+		"BoardID":  ticket.BoardID,
+		"Items":    items,
+		"IsClosed": ticket.ClosedAt != nil,
+	})
+}
+
+// SprintCapacityPartial renders the capacity section for one sprint (HTMX swap target).
+func (h *Handler) SprintCapacityPartial(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	cap, err := h.boards.GetSprintCapacity(r.Context(), orgID, boardID, sprintID)
+	if err != nil {
+		http.Error(w, "capacity not found", http.StatusInternalServerError)
+		return
+	}
+	sprint, err := h.boards.GetSprint(r.Context(), orgID, sprintID)
+	if err != nil {
+		http.Error(w, "sprint not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "sprint-capacity-partial.html", map[string]any{
+		"Capacity": cap,
+		"Sprint":   sprint,
+		"BoardID":  boardID,
+	})
+}
+
+// UpdateMemberCapacity sets one member's focus_pct for a sprint.
+func (h *Handler) UpdateMemberCapacity(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
+	if err != nil {
+		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+		return
+	}
+	userID, err := uuid.Parse(chi.URLParam(r, "userID"))
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	var focusPct int
+	if _, err := fmt.Sscanf(r.FormValue("focus_pct"), "%d", &focusPct); err != nil {
+		http.Error(w, "invalid focus_pct", http.StatusBadRequest)
+		return
+	}
+	if err := h.boards.SetMemberCapacity(r.Context(), orgID, sprintID, userID, focusPct); err != nil {
+		http.Error(w, "failed to update capacity", http.StatusInternalServerError)
+		return
+	}
+	cap, err := h.boards.GetSprintCapacity(r.Context(), orgID, boardID, sprintID)
+	if err != nil {
+		http.Error(w, "capacity not found", http.StatusInternalServerError)
+		return
+	}
+	sprint, err := h.boards.GetSprint(r.Context(), orgID, sprintID)
+	if err != nil {
+		http.Error(w, "sprint not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "sprint-capacity-partial.html", map[string]any{
+		"Capacity": cap,
+		"Sprint":   sprint,
+		"BoardID":  boardID,
 	})
 }
 

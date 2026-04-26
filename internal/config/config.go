@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL string
 	RedisURL    string
 	HTTPPort    string
+	MetricsPort string
 	JWTSecret   string
 	Mode        string
 }
@@ -22,6 +23,7 @@ func Load() (*Config, error) {
 		DatabaseURL: env("DATABASE_URL", "postgres://docket:docket@localhost:5432/docket?sslmode=disable"),
 		RedisURL:    env("REDIS_URL", "redis://localhost:6380"),
 		HTTPPort:    env("HTTP_PORT", "8081"),
+		MetricsPort: env("METRICS_PORT", "9412"),
 		JWTSecret:   env("JWT_SECRET", ""),
 		Mode:        env("MODE", "all"),
 	}

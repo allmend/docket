@@ -1,0 +1,49 @@
+{{define "sprint-capacity-partial"}}
+<div id="capacity-{{.Sprint.ID}}" class="flex flex-col gap-2">
+
+  {{if not .Capacity.Members}}
+  <p class="text-xs text-base-content/30 text-center py-2">No team members found.<br>Add members to the team first.</p>
+  {{else}}
+
+  <!-- Member rows -->
+  {{range .Capacity.Members}}
+  <div class="flex items-center gap-2">
+    <span class="w-5 h-5 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+      {{slice .Name 0 1}}
+    </span>
+    <span class="flex-1 text-xs text-base-content/70 truncate">{{.Name}}</span>
+    <select name="focus_pct"
+            hx-put="/boards/{{$.BoardID}}/sprints/{{$.Sprint.ID}}/capacity/{{.UserID}}"
+            hx-target="#capacity-{{$.Sprint.ID}}"
+            hx-swap="outerHTML"
+            hx-include="this"
+            hx-trigger="change"
+            class="appearance-auto bg-base-200 border border-base-300 rounded px-2 py-1 text-xs text-base-content focus:outline-none focus:border-primary cursor-pointer">
+      <option value="100" {{if eq .FocusPct 100}}selected{{end}}>100%</option>
+      <option value="75"  {{if eq .FocusPct 75}}selected{{end}}>75%</option>
+      <option value="50"  {{if eq .FocusPct 50}}selected{{end}}>50%</option>
+      <option value="25"  {{if eq .FocusPct 25}}selected{{end}}>25%</option>
+      <option value="0"   {{if eq .FocusPct 0}}selected{{end}}>0% — out</option>
+    </select>
+  </div>
+  {{end}}
+
+  <!-- Capacity summary bar -->
+  {{$total := len .Capacity.Members}}
+  {{$focus := .Capacity.TotalFocusPct}}
+  {{$maxPct := mul $total 100}}
+  {{$barPct := 0}}
+  {{if gt $maxPct 0}}{{$barPct = pct $focus $maxPct}}{{end}}
+  <div class="mt-1">
+    <div class="flex justify-between text-xs text-base-content/40 mb-1">
+      <span>Team capacity</span>
+      <span>{{$focus}}/{{$maxPct}}%</span>
+    </div>
+    <div class="h-1.5 bg-base-300 rounded-full overflow-hidden">
+      <div class="h-full bg-primary/60 rounded-full transition-all" style="width: {{$barPct}}%"></div>
+    </div>
+  </div>
+
+  {{end}}
+</div>
+{{end}}

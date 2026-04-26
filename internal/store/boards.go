@@ -146,6 +146,21 @@ func (s *Store) GetColumn(ctx context.Context, orgID, columnID uuid.UUID) (*mode
 	return &c, nil
 }
 
+// GetColumnMeta returns the column name and its team's key in one query.
+// Used for populating metric labels without multiple round-trips.
+// Returns empty strings (not an error) if the column has no board or team.
+func (s *Store) GetColumnMeta(ctx context.Context, columnID uuid.UUID) (colName, teamKey string, err error) {
+	err = s.replica.QueryRow(ctx,
+		`SELECT c.name, COALESCE(te.key, '')
+		 FROM columns c
+		 JOIN boards b ON b.id = c.board_id
+		 LEFT JOIN teams te ON te.id = b.team_id
+		 WHERE c.id = $1`,
+		columnID,
+	).Scan(&colName, &teamKey)
+	return
+}
+
 func (s *Store) CreateColumn(ctx context.Context, orgID, boardID uuid.UUID, name string, position float64) (*model.Column, error) {
 	var c model.Column
 	err := s.primary.QueryRow(ctx,
@@ -557,6 +572,33 @@ func (s *Store) ListSprintTicketsForReview(ctx context.Context, orgID, sprintID 
 	}
 	returning, err = scan(returnQ)
 	return completed, returning, err
+}
+
+// ListSprintTicketsSummary returns lightweight ticket rows for a sprint, used by the roadmap.
+func (s *Store) ListSprintTicketsSummary(ctx context.Context, orgID, sprintID uuid.UUID) ([]model.RoadmapTicket, error) {
+	rows, err := s.replica.Query(ctx, `
+		SELECT t.id, t.title, t.priority, COALESCE(tm.key, ''), t.number,
+		       (t.closed_at IS NOT NULL OR LOWER(c.name) = 'done') AS is_done
+		FROM tickets t
+		LEFT JOIN teams tm ON tm.id = t.team_id
+		LEFT JOIN columns c ON c.id = t.column_id
+		WHERE t.org_id = $1 AND t.sprint_id = $2
+		ORDER BY t.position
+	`, orgID, sprintID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []model.RoadmapTicket
+	for rows.Next() {
+		var t model.RoadmapTicket
+		if err := rows.Scan(&t.ID, &t.Title, &t.Priority, &t.TeamKey, &t.Number, &t.IsDone); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 // ReturnSprintTicketsToBacklog sets sprint_id = NULL for all non-done tickets in a sprint.

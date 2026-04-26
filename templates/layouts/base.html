@@ -64,17 +64,19 @@
                 </a>
               </li>
               <li>
-                <a href="#" class="flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
+                <a href="/settings" class="flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
                   <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                   Settings
                 </a>
               </li>
             </ul>
             <div class="border-t border-base-300 py-1">
-              <a href="/logout" class="flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
-                <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                Sign out
-              </a>
+              <form method="POST" action="/logout">
+                <button type="submit" class="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
+                  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                  Sign out
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -134,6 +136,14 @@
                     <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h7"/></svg>
                     Backlog
                   </a>
+                  <a href="/boards/{{$board.ID}}/backlog/refinement" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/backlog/refinement" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
+                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    Refinement
+                  </a>
+                  <a href="/boards/{{$board.ID}}/roadmap" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/roadmap" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
+                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                    Roadmap
+                  </a>
                   <a href="/boards/{{$board.ID}}/retros" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/retros" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
                     <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
                     Retros
@@ -148,16 +158,20 @@
 
         </nav>
 
-        <!-- Bottom: settings + sign out -->
+        <!-- Bottom: admin settings + sign out -->
         <div class="shrink-0 px-2 py-3 border-t border-base-300 flex flex-col gap-0.5">
-          <a href="#" class="flex items-center gap-2.5 px-3 py-2 rounded text-sm text-base-content/60 hover:bg-base-300 hover:text-base-content">
+          {{if and .CurrentUser (eq .CurrentUser.Role "admin")}}
+          <a href="/settings" class="flex items-center gap-2.5 px-3 py-2 rounded text-sm text-base-content/60 hover:bg-base-300 hover:text-base-content">
             <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             Settings
           </a>
-          <a href="/logout" class="flex items-center gap-2.5 px-3 py-2 rounded text-sm text-base-content/60 hover:bg-base-300 hover:text-base-content">
-            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            Sign out
-          </a>
+          {{end}}
+          <form method="POST" action="/logout">
+            <button type="submit" class="w-full flex items-center gap-2.5 px-3 py-2 rounded text-sm text-base-content/60 hover:bg-base-300 hover:text-base-content">
+              <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+              Sign out
+            </button>
+          </form>
         </div>
       </div>
     </aside>
@@ -205,6 +219,8 @@
          teams: window._ntTeams || [],
          selectedTeamID: (window._ntTeams && window._ntTeams[0]) ? window._ntTeams[0].id : '',
          get selectedTeam() { return this.teams.find(t => t.id === this.selectedTeamID) || (this.teams[0] || {}); },
+         teamQ: '',
+         get filteredTeams() { const q = this.teamQ.toLowerCase(); return (q ? this.teams.filter(t => t.key.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)) : this.teams).slice(0, 10); },
          assignees: [], assigneeQ: '', assigneeResults: [],
          labels: [], availableTags: [],
          async loadTags() {
@@ -224,7 +240,7 @@
          addLabel(t) { if(!this.labels.find(l=>l.id===t.id)) this.labels.push(t); this.availableTags=this.availableTags.filter(x=>x.id!==t.id); this.labelOpen=false; },
          removeLabel(id) { const t=this.labels.find(l=>l.id===id); if(t) this.availableTags.push(t); this.labels=this.labels.filter(l=>l.id!==id); },
          afterCreate() { if(this.createMore){ this.$refs.newTicketForm.reset(); this.assignees=[]; this.labels=[]; this.$refs.titleInput.focus(); document.body.dispatchEvent(new CustomEvent('boardUpdated')); } },
-         resetState() { this.assignees=[]; this.labels=[]; this.assigneeQ=''; this.assigneeResults=[]; this.availableTags=[]; this.assigneeOpen=false; this.labelOpen=false; this.teamOpen=false; this.createMore=false; this.maximized=false; if(this.teams[0]) this.selectedTeamID=this.teams[0].id; },
+         resetState() { this.assignees=[]; this.labels=[]; this.assigneeQ=''; this.assigneeResults=[]; this.availableTags=[]; this.assigneeOpen=false; this.labelOpen=false; this.teamOpen=false; this.teamQ=''; this.createMore=false; this.maximized=false; if(this.teams[0]) this.selectedTeamID=this.teams[0].id; },
          close() { newTicket=false; this.resetState(); this.$nextTick(()=>{ if(this.$refs.newTicketForm) this.$refs.newTicketForm.reset(); }); }
        }"
        @keydown.escape.window="close()"
@@ -238,20 +254,28 @@
         <div class="flex items-center gap-1.5">
           <!-- Team chip dropdown -->
           <div class="relative" @click.outside="teamOpen = false">
-            <button type="button" @click="teamOpen = !teamOpen"
+            <button type="button" @click="teamOpen = !teamOpen; if(teamOpen) $nextTick(()=>$refs.teamSearchInput&&$refs.teamSearchInput.focus())"
                     class="flex items-center gap-1.5 bg-base-200 hover:bg-base-300 border border-base-300 rounded px-2 py-1 text-xs font-medium transition-colors">
               <svg class="h-3 w-3 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               <span class="font-mono text-primary" x-text="selectedTeam.key || '—'"></span>
             </button>
-            <div x-show="teamOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-48 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
-              <template x-for="t in teams" :key="t.id">
-                <button type="button" @click="selectedTeamID=t.id; teamOpen=false; labels=[]; availableTags=[]"
-                        class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs"
-                        :class="selectedTeamID===t.id ? 'text-primary' : 'text-base-content/70'">
-                  <span class="font-mono font-medium" x-text="t.key"></span>
-                  <span class="text-base-content/50" x-text="t.name"></span>
-                </button>
-              </template>
+            <div x-show="teamOpen" x-cloak class="absolute left-0 top-full mt-1 z-30 w-52 bg-base-200 border border-base-300 rounded-lg shadow-xl flex flex-col">
+              <div class="p-2 border-b border-base-300">
+                <input type="text" x-model="teamQ" @input="" placeholder="Search teams…"
+                       x-ref="teamSearchInput"
+                       class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+              </div>
+              <div class="max-h-48 overflow-y-auto py-1">
+                <template x-for="t in filteredTeams" :key="t.id">
+                  <button type="button" @click="selectedTeamID=t.id; teamOpen=false; teamQ=''; labels=[]; availableTags=[]"
+                          class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs"
+                          :class="selectedTeamID===t.id ? 'text-primary' : 'text-base-content/70'">
+                    <span class="font-mono font-medium" x-text="t.key"></span>
+                    <span class="text-base-content/50" x-text="t.name"></span>
+                  </button>
+                </template>
+                <p x-show="!filteredTeams.length" class="text-xs text-base-content/30 px-3 py-2">No teams found</p>
+              </div>
             </div>
           </div>
           <svg class="h-3.5 w-3.5 text-base-content/30 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
@@ -289,6 +313,7 @@
           <input type="text" name="title" required x-ref="titleInput"
                  placeholder="Ticket title"
                  class="w-full bg-transparent text-xl font-semibold text-base-content placeholder:text-base-content/20 focus:outline-none shrink-0" />
+          <hr class="border-base-300 shrink-0" />
           <textarea name="body"
                     placeholder="Add a description…"
                     :rows="maximized ? 1 : 4"

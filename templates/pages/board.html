@@ -55,6 +55,18 @@
         </div>
       </div>
 
+      <!-- Definition of Done button -->
+      <div x-data="{ open: false }" class="relative">
+        <button @click="open = !open; if(open) htmx.ajax('GET', '/boards/{{.Board.ID}}/dod', {target: '#board-dod-panel-target', swap: 'innerHTML'})"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded border border-base-300">
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Done criteria
+        </button>
+        <div id="board-dod-panel-target" x-show="open" x-cloak @click.outside="open = false"
+             class="absolute right-0 top-full mt-1 z-30">
+        </div>
+      </div>
+
       <!-- Add column button — only shown when actively planning (not when no sprint exists, not when sprint is active) -->
       {{if and (not .ActiveSprint) (not $noSprint)}}
       <div x-data="{ addCol: false }">
@@ -113,7 +125,7 @@
   <!-- Planning sprint bar -->
   {{range .Sprints}}{{if .Status.IsPlanning}}
   <div class="flex flex-col gap-2 bg-base-200 border border-base-300 rounded-lg px-4 py-3 shrink-0"
-       x-data="{ editing: false }">
+       x-data="{ editing: false, showCapacity: false }">
     <div class="flex items-center gap-2">
       <span class="font-medium text-sm">{{.Name}}</span>
       {{if and .StartDate .EndDate}}
@@ -121,6 +133,14 @@
       {{end}}
       <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5">Planning</span>
       <div class="ml-auto flex items-center gap-2 shrink-0">
+        <button @click="showCapacity = !showCapacity"
+                :class="showCapacity ? 'text-primary' : 'text-base-content/40'"
+                class="px-3 py-1.5 text-sm hover:text-primary hover:bg-base-300 rounded flex items-center gap-1.5">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          Capacity
+        </button>
         <button @click="editing = !editing"
                 class="px-3 py-1.5 text-sm text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">
           Edit
@@ -160,6 +180,15 @@
         <button type="button" @click="editing = false" class="px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
       </div>
     </form>
+
+    <!-- Capacity panel -->
+    <div x-show="showCapacity" x-cloak class="border-t border-base-300 pt-3">
+      <div hx-get="/boards/{{$.Board.ID}}/sprints/{{.ID}}/capacity"
+           hx-trigger="intersect once"
+           hx-swap="outerHTML">
+        <div class="text-xs text-base-content/30 py-1">Loading capacity…</div>
+      </div>
+    </div>
   </div>
   {{end}}{{end}}
   {{end}}

@@ -428,10 +428,98 @@ func (s *BoardService) ListTicketTags(ctx context.Context, orgID, ticketID uuid.
 	return s.store.ListTicketTags(ctx, orgID, ticketID)
 }
 
+// --- Sprint capacity methods ---
+
+// GetSprintCapacity returns capacity data for a sprint, seeding from team members first.
+func (s *BoardService) GetSprintCapacity(ctx context.Context, orgID, boardID, sprintID uuid.UUID) (*model.SprintCapacity, error) {
+	board, err := s.store.GetBoard(ctx, orgID, boardID)
+	if err != nil {
+		return nil, err
+	}
+	if board.TeamID != nil {
+		_ = s.store.SeedSprintCapacity(ctx, orgID, sprintID, *board.TeamID)
+	}
+
+	members, err := s.store.GetSprintCapacity(ctx, orgID, sprintID)
+	if err != nil {
+		return nil, err
+	}
+
+	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
+	if err != nil {
+		return nil, err
+	}
+
+	totalFocus := 0
+	for _, m := range members {
+		totalFocus += m.FocusPct
+	}
+
+	return &model.SprintCapacity{
+		SprintID:        sprintID,
+		Members:         members,
+		CommittedPoints: sp.CommittedPoints,
+		TotalFocusPct:   totalFocus,
+	}, nil
+}
+
+// SetMemberCapacity updates one member's focus_pct for a sprint.
+func (s *BoardService) SetMemberCapacity(ctx context.Context, orgID, sprintID, userID uuid.UUID, focusPct int) error {
+	if focusPct < 0 {
+		focusPct = 0
+	}
+	if focusPct > 100 {
+		focusPct = 100
+	}
+	return s.store.UpsertSprintCapacity(ctx, orgID, sprintID, userID, focusPct)
+}
+
 func (s *BoardService) AddTagToTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
 	return s.store.AddTagToTicket(ctx, orgID, ticketID, tagID)
 }
 
 func (s *BoardService) RemoveTagFromTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
 	return s.store.RemoveTagFromTicket(ctx, orgID, ticketID, tagID)
+}
+
+// --- Roadmap ---
+
+// GetRoadmap returns all sprints for a board with their ticket summaries, ordered by start date.
+func (s *BoardService) GetRoadmap(ctx context.Context, orgID, boardID uuid.UUID) ([]model.RoadmapSprintView, error) {
+	sprints, err := s.store.ListSprints(ctx, orgID, boardID)
+	if err != nil {
+		return nil, err
+	}
+
+	views := make([]model.RoadmapSprintView, 0, len(sprints))
+	for _, sp := range sprints {
+		tickets, _ := s.store.ListSprintTicketsSummary(ctx, orgID, sp.ID)
+		views = append(views, model.RoadmapSprintView{Sprint: sp, Tickets: tickets})
+	}
+	return views, nil
+}
+
+// --- Definition of Done methods ---
+
+func (s *BoardService) ListDodItems(ctx context.Context, orgID, boardID uuid.UUID) ([]model.DodItem, error) {
+	return s.store.ListDodItems(ctx, orgID, boardID)
+}
+
+func (s *BoardService) CreateDodItem(ctx context.Context, orgID, boardID uuid.UUID, text string) (*model.DodItem, error) {
+	if text == "" {
+		return nil, fmt.Errorf("text is required")
+	}
+	return s.store.CreateDodItem(ctx, orgID, boardID, text)
+}
+
+func (s *BoardService) DeleteDodItem(ctx context.Context, orgID, itemID uuid.UUID) error {
+	return s.store.DeleteDodItem(ctx, orgID, itemID)
+}
+
+func (s *BoardService) GetTicketDod(ctx context.Context, orgID, boardID, ticketID uuid.UUID) ([]model.DodItemWithCheck, error) {
+	return s.store.GetTicketDod(ctx, orgID, boardID, ticketID)
+}
+
+func (s *BoardService) ToggleDodCheck(ctx context.Context, orgID, ticketID, itemID uuid.UUID, checked bool) error {
+	return s.store.ToggleDodCheck(ctx, orgID, ticketID, itemID, checked)
 }

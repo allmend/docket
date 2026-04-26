@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/allmend/docket/internal/middleware"
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -38,6 +39,97 @@ func (h *Handler) V1Routes(r chi.Router) {
 	r.Get("/tickets/{ref}", h.v1GetTicket)
 	r.Put("/tickets/{ref}", h.v1UpdateTicket)
 	r.Delete("/tickets/{ref}", h.v1DeleteTicket)
+
+	// Business metrics — Prometheus text format, scoped to the caller's org.
+	// Requires at least metrics:read scope (API tokens) or a valid JWT session.
+	r.With(middleware.RequireScope(model.ScopeMetricsRead)).Get("/metrics", h.v1Metrics)
+}
+
+// v1Metrics returns business metrics in Prometheus text format scoped to the
+// caller's org. Safe to scrape with a per-org API token — no cross-tenant data.
+func (h *Handler) v1Metrics(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ctx := r.Context()
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+
+	type labelledGauge struct {
+		name   string
+		help   string
+		labels []string
+		value  float64
+	}
+	var series []labelledGauge
+
+	if rows, err := h.metrics.TicketCounts(ctx, orgID); err == nil {
+		for _, r := range rows {
+			series = append(series, labelledGauge{
+				name:   "docket_tickets_total",
+				help:   "Current open ticket count per org/team/column/priority.",
+				labels: []string{"org", r.OrgSlug, "team", r.TeamKey, "column", r.Column, "priority", r.Priority},
+				value:  float64(r.Count),
+			})
+		}
+	}
+
+	if rows, err := h.metrics.BacklogSize(ctx, orgID); err == nil {
+		for _, r := range rows {
+			series = append(series, labelledGauge{
+				name:   "docket_backlog_size",
+				help:   "Open tickets with no sprint assigned per org/team.",
+				labels: []string{"org", r.OrgSlug, "team", r.TeamKey},
+				value:  float64(r.Count),
+			})
+		}
+	}
+
+	if rows, err := h.metrics.BlockedCount(ctx, orgID); err == nil {
+		for _, r := range rows {
+			series = append(series, labelledGauge{
+				name:   "docket_tickets_blocked_total",
+				help:   "Open tickets with the blocked flag set per org/team.",
+				labels: []string{"org", r.OrgSlug, "team", r.TeamKey},
+				value:  float64(r.Count),
+			})
+		}
+	}
+
+	if rows, err := h.metrics.SprintStats(ctx, orgID); err == nil {
+		for _, r := range rows {
+			sl := []string{"org", r.OrgSlug, "team", r.TeamKey, "sprint", r.SprintName}
+			series = append(series,
+				labelledGauge{"docket_sprint_committed_tickets", "Tickets committed at sprint start.", sl, float64(r.CommittedTickets)},
+				labelledGauge{"docket_sprint_completed_tickets", "Tickets completed (Done column) in the sprint.", sl, float64(r.CompletedTickets)},
+				labelledGauge{"docket_sprint_committed_points", "Story points committed at sprint start.", sl, r.CommittedPoints},
+				labelledGauge{"docket_sprint_completed_points", "Story points in Done columns for the sprint.", sl, r.CompletedPoints},
+			)
+		}
+	}
+
+	// Write Prometheus text format. Emit one # HELP / # TYPE per unique metric name.
+	seen := make(map[string]bool)
+	for _, s := range series {
+		if !seen[s.name] {
+			fmt.Fprintf(w, "# HELP %s %s\n# TYPE %s gauge\n", s.name, s.help, s.name)
+			seen[s.name] = true
+		}
+		fmt.Fprintf(w, "%s{", s.name)
+		for i := 0; i < len(s.labels)-1; i += 2 {
+			if i > 0 {
+				fmt.Fprint(w, ",")
+			}
+			fmt.Fprintf(w, `%s="%s"`, s.labels[i], promEscape(s.labels[i+1]))
+		}
+		fmt.Fprintf(w, "} %g\n", s.value)
+	}
+}
+
+// promEscape escapes label values for Prometheus text format.
+func promEscape(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	s = strings.ReplaceAll(s, "\n", `\n`)
+	return s
 }
 
 // --- helpers ---

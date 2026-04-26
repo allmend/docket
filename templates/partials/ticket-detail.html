@@ -38,6 +38,12 @@
     <!-- Description -->
     {{template "ticket-body-section" .Ticket}}
 
+    <!-- Acceptance Criteria -->
+    <div class="flex flex-col gap-1.5">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Acceptance Criteria</span>
+      {{template "ticket-ac-section" .Ticket}}
+    </div>
+
     <!-- Links (between description and tabs) -->
     {{if .Links}}
     <div class="flex flex-col gap-1.5">
@@ -257,6 +263,19 @@
     </div>
 
     <div class="border-t border-base-300"></div>
+
+    <!-- Definition of Done -->
+    {{if .DodItems}}
+    <div class="flex flex-col gap-2">
+      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Definition of Done</span>
+      <div hx-get="/tickets/{{.Ticket.ID}}/dod"
+           hx-trigger="load"
+           hx-swap="outerHTML">
+        <div class="text-xs text-base-content/30">Loading…</div>
+      </div>
+    </div>
+    <div class="border-t border-base-300"></div>
+    {{end}}
 
     <!-- Timestamps -->
     <div class="flex flex-col gap-2.5">

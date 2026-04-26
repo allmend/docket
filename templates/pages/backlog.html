@@ -5,7 +5,38 @@
 {{define "scripts"}}<script src="/static/board.js"></script>{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6" x-data="{ selected: [] }">
+<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6"
+     x-data="{
+       selected: [],
+       refineMode: {{if .InitRefineMode}}true{{else}}false{{end}},
+       refineTicketID: '',
+       init() { window._docketRefineMode = this.refineMode; },
+       selectRefine(id) {
+         this.refineTicketID = id;
+         window._docketRefineTicketID = id;
+         window.dispatchEvent(new CustomEvent('refine-selected', {detail: {id}}));
+         htmx.ajax('GET', '/tickets/' + id + '/quick', {target: '#refine-panel', swap: 'innerHTML'});
+       },
+       ticketClick(id) {
+         if (this.refineMode) {
+           this.selectRefine(id);
+         } else {
+           htmx.ajax('GET', '/tickets/' + id + '/quick', {target: '#modal-body', swap: 'innerHTML'});
+           window.dispatchEvent(new CustomEvent('open-ticket-modal'));
+         }
+       },
+       navigateRefine(dir) {
+         if (!this.refineMode) return;
+         const rows = document.querySelectorAll('[data-ticket-id]');
+         const ids = [...rows].map(r => r.dataset.ticketId);
+         const idx = ids.indexOf(this.refineTicketID);
+         const next = idx + dir;
+         if (next >= 0 && next < ids.length) this.selectRefine(ids[next]);
+       }
+     }"
+     @ticket-click.window="ticketClick($event.detail.ticketID)"
+     @keydown.arrow-down.window.prevent="navigateRefine(1)"
+     @keydown.arrow-up.window.prevent="navigateRefine(-1)">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -23,18 +54,49 @@
         <h1 class="text-2xl font-semibold">Backlog</h1>
       </div>
     </div>
+
+    <!-- Refine toggle -->
+    <button @click="refineMode = !refineMode; window._docketRefineMode = refineMode; window.dispatchEvent(new CustomEvent('refine-mode', {detail: {active: refineMode}})); if (refineMode) { history.pushState({}, '', window.location.pathname + '/refinement'); } else { history.pushState({}, '', window.location.pathname.replace('/refinement', '')); refineTicketID = ''; window._docketRefineTicketID = ''; window.dispatchEvent(new CustomEvent('refine-selected', {detail: {id: ''}})); }"
+            :class="refineMode ? 'bg-primary text-base-100 border-primary' : 'text-base-content/60 border-base-300 hover:border-primary/40 hover:text-primary'"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition-colors">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+      </svg>
+      <span x-text="refineMode ? 'Exit Refinement' : 'Refine'">Refine</span>
+    </button>
   </div>
 
-  <!-- Two-column layout: ticket list + sprint sidebar -->
+  <!-- Refine mode hint -->
+  <div x-show="refineMode" x-cloak class="flex items-center gap-2 text-xs text-base-content/40 -mt-4">
+    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    Click a ticket to refine it. Use ↑ ↓ to navigate.
+  </div>
+
+  <!-- Main layout -->
   <div class="flex gap-6 items-start">
 
     <!-- Left: backlog ticket list -->
-    <div class="flex-1 min-w-0">
+    <div :class="refineMode ? 'w-80 shrink-0' : 'flex-1 min-w-0'">
       {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews)}}
     </div>
 
-    <!-- Right: sprints sidebar -->
-    <div class="w-72 shrink-0 flex flex-col gap-3" x-data="{ newSprint: false }">
+    <!-- Center: refine detail panel (refine mode only) -->
+    <div x-show="refineMode" x-cloak class="flex-1 min-w-0 bg-base-200 border border-base-300 rounded-lg overflow-hidden">
+      <div id="refine-panel" class="h-full">
+        <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
+          <svg class="h-8 w-8 text-base-content/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+          </svg>
+          <p class="text-sm text-base-content/30">Select a ticket to refine</p>
+          <p class="text-xs text-base-content/20">Use ↑ ↓ to navigate between tickets</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: sprints sidebar (hidden in refine mode) -->
+    <div x-show="!refineMode" class="w-72 shrink-0 flex flex-col gap-3" x-data="{ newSprint: false }">
 
       <!-- Section header -->
       <div class="flex items-center justify-between mb-1">
@@ -64,7 +126,8 @@
       <!-- Sprint cards -->
       {{range .Sprints}}
       {{if not (.Status.IsCompleted)}}
-      <div class="bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3">
+      <div class="bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3"
+           x-data="{ showCapacity: false }">
         <div class="flex items-start justify-between">
           <div>
             <div class="flex items-center gap-2 mb-0.5">
@@ -79,7 +142,28 @@
             <span class="font-mono text-xs text-base-content/40">{{.StartDate.Format "Jan 2"}} – {{.EndDate.Format "Jan 2"}}</span>
             {{end}}
           </div>
+          <!-- Capacity toggle -->
+          <button @click="showCapacity = !showCapacity"
+                  class="text-xs text-base-content/40 hover:text-primary transition-colors shrink-0 ml-2"
+                  title="Toggle capacity">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </button>
         </div>
+
+        <!-- Capacity section (lazy-loaded) -->
+        <div x-show="showCapacity" x-cloak>
+          <div class="border-t border-base-300 pt-3 pb-1">
+            <p class="text-xs uppercase tracking-widest text-base-content/30 font-medium mb-2">Capacity</p>
+            <div hx-get="/boards/{{$.Board.ID}}/sprints/{{.ID}}/capacity"
+                 hx-trigger="intersect once"
+                 hx-swap="outerHTML">
+              <div class="text-xs text-base-content/30 text-center py-2">Loading…</div>
+            </div>
+          </div>
+        </div>
+
         <!-- Move selected tickets to this sprint -->
         <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/assign">
           <template x-for="id in selected" :key="id">

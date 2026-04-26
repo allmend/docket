@@ -37,6 +37,10 @@ var policy = func() *bluemonday.Policy {
 	// Allow inline styles produced by chroma syntax highlighting.
 	p.AllowAttrs("style").OnElements("span", "pre", "code")
 	p.AllowAttrs("class").OnElements("pre", "code")
+	// Allow task-list checkboxes (GFM extension renders these).
+	p.AllowAttrs("type").Matching(regexp.MustCompile(`^checkbox$`)).OnElements("input")
+	p.AllowAttrs("checked").OnElements("input")
+	p.AllowAttrs("class").OnElements("input", "li")
 	return p
 }()
 
@@ -78,5 +82,25 @@ func Render(src string) template.HTML {
 		return template.HTML("")
 	}
 	safe := policy.SanitizeBytes(buf.Bytes())
+	return template.HTML(safe)
+}
+
+// disabledRe matches the disabled attribute goldmark emits on task-list checkboxes.
+var disabledRe = regexp.MustCompile(` disabled=""`)
+
+// RenderAC renders Markdown acceptance criteria with interactive checkboxes.
+// The disabled attribute is stripped so Alpine.js can intercept click events.
+func RenderAC(src string) template.HTML {
+	if src == "" {
+		return ""
+	}
+	src = preprocess(src)
+	var buf bytes.Buffer
+	if err := md.Convert([]byte(src), &buf); err != nil {
+		return template.HTML("")
+	}
+	// Remove disabled so checkboxes are clickable (Alpine handles the event).
+	cleaned := disabledRe.ReplaceAll(buf.Bytes(), nil)
+	safe := policy.SanitizeBytes(cleaned)
 	return template.HTML(safe)
 }

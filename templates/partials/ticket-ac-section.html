@@ -1,0 +1,53 @@
+{{define "ticket-ac-section"}}
+<div id="ticket-ac-{{.ID}}"{{if not .ClosedAt}} x-data="{ editing: false }" @click.outside="editing = false"{{end}}>
+  {{if .ClosedAt}}
+  {{if .AcceptanceCriteria}}
+  <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm px-3 py-2 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto opacity-60">
+    {{.ACHTML}}
+  </div>
+  {{else}}
+  <p class="text-sm text-base-content/30 italic px-3 py-2">None specified.</p>
+  {{end}}
+  {{else}}
+  <div x-show="!editing">
+    {{if .AcceptanceCriteria}}
+    <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm [&_a]:text-primary [&_a]:hover:underline overflow-x-auto [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]]:accent-primary"
+         x-data
+         @change="if($event.target.type==='checkbox'){
+           const boxes=[...$el.querySelectorAll('input[type=checkbox]')];
+           const idx=boxes.indexOf($event.target);
+           htmx.ajax('POST','/tickets/{{.ID}}/ac/toggle/'+idx,{target:'#ticket-ac-{{.ID}}',swap:'outerHTML'});
+           $event.target.disabled=true;
+         }"
+         @click="if($event.target.type!=='checkbox'){ editing=true; $nextTick(()=>$refs.acInput.focus()); }"
+         title="Click to edit">
+      {{.ACHTML}}
+    </div>
+    {{else}}
+    <p class="text-sm text-base-content/30 italic cursor-text hover:bg-base-200 rounded px-3 py-2 -mx-3 transition-colors"
+       @click="editing = true; $nextTick(() => $refs.acInput.focus())"
+       title="Click to add acceptance criteria">
+      Add acceptance criteria…
+    </p>
+    {{end}}
+  </div>
+  <form x-show="editing" x-cloak
+        x-effect="if (editing) setTimeout(() => { let el = $refs.acInput; if (el) { el.style.height = 'auto'; el.style.height = Math.max(96, el.scrollHeight) + 'px' } }, 0)"
+        hx-put="/tickets/{{.ID}}/ac"
+        hx-target="#ticket-ac-{{.ID}}"
+        hx-swap="outerHTML"
+        @keydown.escape="editing = false"
+        class="flex flex-col gap-2">
+    <textarea x-ref="acInput"
+              name="ac"
+              rows="4"
+              placeholder="e.g. - User can reset password via email link&#10;- Email arrives within 30s&#10;- Works on mobile"
+              class="w-full bg-base-100 border border-primary text-base-content text-sm rounded-lg px-3 py-2 focus:outline-none resize-y font-mono">{{.AcceptanceCriteria}}</textarea>
+    <div class="flex gap-2">
+      <button type="submit" class="px-3 py-1 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
+      <button type="button" @click="editing = false" class="px-3 py-1 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+    </div>
+  </form>
+  {{end}}
+</div>
+{{end}}

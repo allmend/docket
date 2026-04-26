@@ -30,7 +30,8 @@ type Ticket struct {
 	Number      int        `json:"number"`     // sequential per team
 	TeamKey     string     `json:"team_key"`   // denormalised for display
 	Title       string     `json:"title"`
-	Body        string     `json:"body"`
+	Body                string     `json:"body"`
+	AcceptanceCriteria  string     `json:"acceptance_criteria"`
 	Priority     Priority   `json:"priority"`
 	StoryPoints  *float64   `json:"story_points,omitempty"`
 	Position     float64    `json:"position"`
@@ -62,6 +63,11 @@ func (t *Ticket) DisplayID() string {
 // BodyHTML renders the ticket body as sanitised HTML.
 func (t *Ticket) BodyHTML() template.HTML {
 	return markdown.Render(t.Body)
+}
+
+// ACHTML renders the acceptance criteria as sanitised HTML with interactive checkboxes.
+func (t *Ticket) ACHTML() template.HTML {
+	return markdown.RenderAC(t.AcceptanceCriteria)
 }
 
 func (p Priority) String() string { return string(p) }

@@ -1,0 +1,102 @@
+{{define "settings-members-partial"}}
+<div id="members-section">
+
+  {{if eq .CurrentUser.Role "admin"}}
+  <!-- Create user form -->
+  <form hx-post="/settings/members"
+        hx-target="#members-section"
+        hx-swap="outerHTML"
+        hx-on::after-request="if(event.detail.successful) this.reset()"
+        class="grid grid-cols-2 gap-3 mb-6 p-4 bg-base-200/50 border border-base-300 rounded-lg">
+    <div class="col-span-2">
+      <p class="text-xs font-medium text-base-content/60 mb-3">Add local user</p>
+    </div>
+    <div>
+      <label class="block text-xs text-base-content/50 mb-1">Full name</label>
+      <input type="text" name="name" required placeholder="Jane Smith"
+             class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary" />
+    </div>
+    <div>
+      <label class="block text-xs text-base-content/50 mb-1">Username</label>
+      <input type="text" name="username" required placeholder="jsmith"
+             class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary" />
+    </div>
+    <div>
+      <label class="block text-xs text-base-content/50 mb-1">Email</label>
+      <input type="email" name="email" required placeholder="jane@example.com"
+             class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary" />
+    </div>
+    <div>
+      <label class="block text-xs text-base-content/50 mb-1">Temporary password</label>
+      <input type="password" name="password" required placeholder="••••••••"
+             class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary" />
+    </div>
+    <div>
+      <label class="block text-xs text-base-content/50 mb-1">Role</label>
+      <select name="role"
+              class="appearance-auto w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm text-base-content focus:outline-none focus:border-primary cursor-pointer">
+        <option value="member">member</option>
+        <option value="admin">admin</option>
+      </select>
+    </div>
+    <div class="flex items-end">
+      <button type="submit"
+              class="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded transition-colors">
+        Add user
+      </button>
+    </div>
+  </form>
+  {{end}}
+
+  <!-- Member list -->
+  {{if .Members}}
+  <div class="rounded-lg border border-base-300 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-base-300 bg-base-200/50">
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Member</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Username</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Email</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Role</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-base-300">
+        {{range .Members}}
+        <tr>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2.5">
+              <span class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                {{slice .Name 0 1}}
+              </span>
+              <span class="font-medium text-base-content">{{.Name}}</span>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-base-content/50 font-mono text-xs">@{{.Username}}</td>
+          <td class="px-4 py-3 text-base-content/50 text-xs">{{.Email}}</td>
+          <td class="px-4 py-3">
+            {{if eq $.CurrentUser.Role "admin"}}
+            <select name="role"
+                    hx-put="/settings/members/{{.ID}}/role"
+                    hx-target="#members-section"
+                    hx-swap="outerHTML"
+                    hx-include="this"
+                    hx-trigger="change"
+                    class="appearance-auto bg-base-200 border border-base-300 rounded px-2 py-1 text-xs text-base-content focus:outline-none focus:border-primary cursor-pointer">
+              <option value="member" {{if eq .Role "member"}}selected{{end}}>member</option>
+              <option value="admin"  {{if eq .Role "admin"}}selected{{end}}>admin</option>
+            </select>
+            {{else}}
+            <span class="text-xs text-base-content/50">{{.Role}}</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="text-sm text-base-content/40">No members found.</p>
+  {{end}}
+
+</div>
+{{end}}

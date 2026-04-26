@@ -1,0 +1,37 @@
+{{define "ticket-dod-partial"}}
+<div id="ticket-dod" class="flex flex-col gap-1.5">
+  {{$closed := .IsClosed}}
+  {{range .Items}}
+  <div class="flex items-start gap-2.5">
+    {{if $closed}}
+    <input type="checkbox" disabled
+           {{if .Checked}}checked{{end}}
+           class="mt-0.5 shrink-0 accent-primary cursor-not-allowed opacity-50" />
+    {{else}}
+    <input type="checkbox"
+           {{if .Checked}}checked{{end}}
+           hx-post="/tickets/{{$.TicketID}}/dod/{{.ID}}/toggle"
+           hx-vals='{"checked": "{{if .Checked}}false{{else}}true{{end}}"}'
+           hx-target="#ticket-dod"
+           hx-swap="outerHTML"
+           hx-trigger="change"
+           class="mt-0.5 shrink-0 accent-primary cursor-pointer" />
+    {{end}}
+    <span class="text-sm {{if .Checked}}line-through text-base-content/40{{else}}text-base-content/80{{end}}">{{.Text}}</span>
+  </div>
+  {{end}}
+
+  {{/* Progress summary */}}
+  {{$total := len .Items}}
+  {{if gt $total 0}}
+  {{$checked := 0}}
+  {{range .Items}}{{if .Checked}}{{$checked = add $checked 1}}{{end}}{{end}}
+  <div class="mt-1 flex items-center gap-2">
+    <div class="flex-1 h-1 bg-base-300 rounded-full overflow-hidden">
+      <div class="h-full bg-primary rounded-full transition-all" style="width: {{pct $checked $total}}%"></div>
+    </div>
+    <span class="text-xs text-base-content/40 font-mono shrink-0">{{$checked}}/{{$total}}</span>
+  </div>
+  {{end}}
+</div>
+{{end}}

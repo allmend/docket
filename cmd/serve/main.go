@@ -74,6 +74,8 @@ func main() {
 	commentSvc    := service.NewCommentService(st)
 	linkSvc       := service.NewLinkService(st)
 	retroSvc      := service.NewRetroService(st, ticketSvc, boardSvc)
+	metricsSvc    := service.NewMetricsService(st)
+	tokenSvc      := service.NewTokenService(st)
 
 	// Auto-seed: create default org + admin user on first run.
 	// Silently skips if org already exists (idempotent).
@@ -81,7 +83,7 @@ func main() {
 
 	switch *mode {
 	case "api", "all":
-		if err := startAPI(ctx, cfg, authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc); err != nil {
+		if err := startAPI(ctx, cfg, authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc); err != nil {
 			slog.Error("api server", "err", err)
 			os.Exit(1)
 		}
@@ -105,11 +107,33 @@ func startAPI(
 	linkSvc    *service.LinkService,
 	notifSvc   *service.NotificationService,
 	retroSvc   *service.RetroService,
+	metricsSvc *service.MetricsService,
+	tokenSvc   *service.TokenService,
 ) error {
-	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, "templates")
+	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc, "templates")
 	if err != nil {
 		return fmt.Errorf("init handler: %w", err)
 	}
+
+	// Metrics server — separate port, not exposed through the app reverse proxy.
+	metricsSrv := &http.Server{
+		Addr:        ":" + cfg.MetricsPort,
+		Handler:     promhttp.Handler(),
+		ReadTimeout: 5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+	go func() {
+		slog.Info("metrics listening", "addr", metricsSrv.Addr)
+		if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			slog.Error("metrics server", "err", err)
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = metricsSrv.Shutdown(shutCtx)
+	}()
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
@@ -119,9 +143,6 @@ func startAPI(
 	// Static assets
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static/dist"))))
 
-	// Prometheus metrics
-	r.Handle("/metrics", promhttp.Handler())
-
 	// Public routes (no auth)
 	r.Get("/login", h.LoginPage)
 	r.Post("/login", h.Login)
@@ -130,13 +151,13 @@ func startAPI(
 
 	// Authenticated routes — HTMX UI (HTML responses)
 	r.Group(func(r chi.Router) {
-		r.Use(appMiddleware.Authenticate(authSvc))
+		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc))
 		h.Routes(r)
 	})
 
 	// Public API v1 — JSON responses, human-readable identifiers
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(appMiddleware.Authenticate(authSvc))
+		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc))
 		h.V1Routes(r)
 	})
 

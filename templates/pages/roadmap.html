@@ -1,0 +1,152 @@
+{{template "base" .}}
+
+{{define "title"}}Roadmap{{if .Team}} — {{.Team.Name}}{{end}} — Docket{{end}}
+
+{{define "content"}}
+<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <nav class="text-sm text-base-content/50 mb-1">
+        <a href="/teams" class="hover:text-primary">Teams</a>
+        {{if .Team}}
+        <span class="mx-1">/</span>
+        <a href="/teams/{{.Team.ID}}" class="hover:text-primary"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
+        {{end}}
+        <span class="mx-1">/</span>
+        <a href="/boards/{{.Board.ID}}" class="hover:text-primary">{{.Board.Name}}</a>
+        <span class="mx-1">/</span>
+        <span class="text-base-content/70">Roadmap</span>
+      </nav>
+      <h1 class="text-2xl font-semibold">Roadmap</h1>
+    </div>
+  </div>
+
+  {{if not .Sprints}}
+  <div class="flex-1 flex items-center justify-center">
+    <div class="text-center flex flex-col gap-2">
+      <p class="text-base-content/30 text-sm">No sprints yet.</p>
+      <a href="/boards/{{.Board.ID}}" class="text-primary text-sm hover:underline">Go to board to create one</a>
+    </div>
+  </div>
+  {{else}}
+
+  <!-- Sprint rows -->
+  <div class="flex flex-col gap-4">
+    {{range .Sprints}}
+    {{$sp := .Sprint}}
+    {{$tickets := .Tickets}}
+    {{$total := len $tickets}}
+    {{$done := 0}}
+    {{range $tickets}}{{if .IsDone}}{{$done = add $done 1}}{{end}}{{end}}
+
+    <div class="bg-base-200 border border-base-300 rounded-lg overflow-hidden"
+         x-data="{ open: false }">
+
+      <!-- Sprint header row -->
+      <div class="flex items-start gap-4 p-4 cursor-pointer hover:bg-base-300/30 transition-colors"
+           @click="open = !open">
+
+        <!-- Chevron -->
+        <svg class="h-4 w-4 text-base-content/30 mt-0.5 shrink-0 transition-transform"
+             :class="open ? 'rotate-90' : ''"
+             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+        </svg>
+
+        <!-- Sprint info -->
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1 flex-wrap">
+            <span class="font-medium text-sm">{{$sp.Name}}</span>
+
+            {{if $sp.Status.IsActive}}
+            <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5">Active</span>
+            {{else if $sp.Status.IsPlanning}}
+            <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5">Planning</span>
+            {{else if $sp.Status.IsCompleted}}
+            <span class="text-xs bg-base-300 text-base-content/50 border border-base-300 rounded px-1.5 py-0.5">Completed</span>
+            {{end}}
+
+            {{if and $sp.StartDate $sp.EndDate}}
+            <span class="font-mono text-xs text-base-content/40">
+              {{$sp.StartDate.Format "Jan 2"}} – {{$sp.EndDate.Format "Jan 2, 2006"}}
+              ({{daysBetween $sp.StartDate $sp.EndDate}}d)
+            </span>
+            {{end}}
+
+            <span class="text-xs text-base-content/40 ml-auto shrink-0">
+              {{$total}} ticket{{if ne $total 1}}s{{end}}
+              {{if gt $sp.CommittedPoints 0.0}}· {{printf "%.0f" $sp.CommittedPoints}}pts{{end}}
+            </span>
+          </div>
+
+          {{if $sp.Goal}}
+          <p class="text-xs text-base-content/50 italic mb-2">{{$sp.Goal}}</p>
+          {{end}}
+
+          <!-- Progress bar -->
+          {{if gt $total 0}}
+          <div class="flex items-center gap-2">
+            <div class="flex-1 h-1.5 bg-base-300 rounded-full overflow-hidden">
+              <div class="h-full rounded-full transition-all
+                {{if $sp.Status.IsCompleted}}bg-base-content/30{{else}}bg-primary{{end}}"
+                   style="width: {{pct $done $total}}%"></div>
+            </div>
+            <span class="text-xs text-base-content/40 font-mono shrink-0">{{$done}}/{{$total}}</span>
+          </div>
+          {{end}}
+        </div>
+      </div>
+
+      <!-- Ticket list (collapsible) -->
+      <div x-show="open" x-cloak class="border-t border-base-300">
+        {{if $tickets}}
+        <ul class="divide-y divide-base-300/50">
+          {{range $tickets}}
+          <li class="flex items-center gap-3 px-4 py-2.5 hover:bg-base-300/20 transition-colors">
+            <!-- Done indicator -->
+            <div class="shrink-0 w-4 h-4 flex items-center justify-center">
+              {{if .IsDone}}
+              <svg class="h-4 w-4 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              {{else}}
+              <div class="w-3 h-3 rounded-full border border-base-content/20"></div>
+              {{end}}
+            </div>
+
+            <!-- Display ID -->
+            <span class="font-mono text-xs text-primary/70 shrink-0">{{.DisplayID}}</span>
+
+            <!-- Title -->
+            <a href="/tickets/{{.DisplayID}}"
+               class="flex-1 text-sm {{if .IsDone}}text-base-content/40 line-through{{else}}text-base-content/80 hover:text-primary{{end}} truncate">
+              {{.Title}}
+            </a>
+
+            <!-- Priority badge -->
+            {{if .Priority}}
+            <span class="text-xs font-mono shrink-0
+              {{if eq (print .Priority) "critical"}}text-red-400
+              {{else if eq (print .Priority) "high"}}text-orange-400
+              {{else if eq (print .Priority) "medium"}}text-yellow-400
+              {{else}}text-base-content/30{{end}}">
+              {{.Priority}}
+            </span>
+            {{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{else}}
+        <p class="text-sm text-base-content/30 px-4 py-3">No tickets in this sprint.</p>
+        {{end}}
+      </div>
+
+    </div>
+    {{end}}
+  </div>
+
+  {{end}}
+</div>
+{{end}}

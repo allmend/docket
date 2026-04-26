@@ -13,7 +13,7 @@ const ticketCols = `
 	t.id, t.org_id, t.board_id, t.column_id,
 	t.team_id, t.assignee_id, t.created_by,
 	t.number, COALESCE(tm.key, ''),
-	t.title, t.body, t.priority, t.story_points, t.position,
+	t.title, t.body, t.acceptance_criteria, t.priority, t.story_points, t.position,
 	t.sprint_id, t.external_ref, t.closed_at, t.close_reason, t.created_at, t.updated_at,
 	u.name`
 
@@ -28,7 +28,7 @@ const ticketColsReturning = `
 	id, org_id, board_id, column_id,
 	team_id, assignee_id, created_by,
 	number, COALESCE((SELECT key FROM teams WHERE id = team_id), ''),
-	title, body, priority, story_points, position,
+	title, body, acceptance_criteria, priority, story_points, position,
 	sprint_id, external_ref, closed_at, close_reason, created_at, updated_at,
 	NULL::text`
 
@@ -37,7 +37,7 @@ func scanTicket(row interface{ Scan(dest ...any) error }, t *model.Ticket) error
 		&t.ID, &t.OrgID, &t.BoardID, &t.ColumnID,
 		&t.TeamID, &t.AssigneeID, &t.CreatedBy,
 		&t.Number, &t.TeamKey,
-		&t.Title, &t.Body, &t.Priority, &t.StoryPoints, &t.Position,
+		&t.Title, &t.Body, &t.AcceptanceCriteria, &t.Priority, &t.StoryPoints, &t.Position,
 		&t.SprintID, &t.ExternalRef, &t.ClosedAt, &t.CloseReason, &t.CreatedAt, &t.UpdatedAt,
 		&t.AssigneeName,
 	)
@@ -183,6 +183,26 @@ func (s *Store) UpdateTicketBody(ctx context.Context, orgID, ticketID uuid.UUID,
 		 WHERE org_id = $1 AND id = $2
 		 RETURNING `+ticketColsReturning,
 		orgID, ticketID, body,
+	), &t)
+	return &t, err
+}
+
+func (s *Store) GetTicketAC(ctx context.Context, orgID, ticketID uuid.UUID) (string, error) {
+	var ac string
+	err := s.replica.QueryRow(ctx,
+		`SELECT acceptance_criteria FROM tickets WHERE org_id = $1 AND id = $2`,
+		orgID, ticketID,
+	).Scan(&ac)
+	return ac, err
+}
+
+func (s *Store) UpdateTicketAC(ctx context.Context, orgID, ticketID uuid.UUID, ac string) (*model.Ticket, error) {
+	var t model.Ticket
+	err := scanTicket(s.primary.QueryRow(ctx,
+		`UPDATE tickets SET acceptance_criteria = $3, updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING `+ticketColsReturning,
+		orgID, ticketID, ac,
 	), &t)
 	return &t, err
 }

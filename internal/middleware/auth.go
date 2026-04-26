@@ -4,39 +4,55 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/google/uuid"
 )
 
-// Authenticate validates the JWT from the Authorization header or access_token cookie.
-// On success it puts org/user/role on context. On failure it redirects to /login.
-func Authenticate(authSvc *service.AuthService) func(http.Handler) http.Handler {
+// Authenticate validates the JWT from the Authorization header or access_token cookie,
+// or an API token (dkt_ prefix) from the Authorization: Bearer header.
+// On success it puts org/user/role/scope on context. On failure it redirects to /login
+// for browser requests or returns 401 for API token requests.
+func Authenticate(authSvc *service.AuthService, tokenSvc *service.TokenService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token := tokenFromRequest(r)
-			if token == "" {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+			raw := tokenFromRequest(r)
+			if raw == "" {
+				redirectOrUnauthorized(w, r)
 				return
 			}
 
-			claims, err := authSvc.ValidateAccessToken(token)
+			// API token path — dkt_ prefix
+			if strings.HasPrefix(raw, "dkt_") {
+				t, err := tokenSvc.Validate(r.Context(), raw)
+				if err != nil {
+					http.Error(w, "invalid or revoked token", http.StatusUnauthorized)
+					return
+				}
+				ctx := service.WithIdentity(r.Context(), t.OrgID, t.CreatedBy, "member")
+				ctx = service.WithScope(ctx, t.Scope)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
+			// JWT path
+			claims, err := authSvc.ValidateAccessToken(raw)
 			if err != nil {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				redirectOrUnauthorized(w, r)
 				return
 			}
-
 			orgID, err := uuid.Parse(claims.OrgID)
 			if err != nil {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				redirectOrUnauthorized(w, r)
 				return
 			}
 			userID, err := uuid.Parse(claims.UserID)
 			if err != nil {
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
+				redirectOrUnauthorized(w, r)
 				return
 			}
-
 			ctx := service.WithIdentity(r.Context(), orgID, userID, claims.Role)
+			ctx = service.WithScope(ctx, model.ScopeAPIWrite) // JWT users have full access
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -53,12 +69,39 @@ func RequireAdmin(next http.Handler) http.Handler {
 	})
 }
 
+// RequireScope returns 403 if the request's token scope does not permit the
+// required scope. JWT users are always granted full access.
+func RequireScope(required model.TokenScope) func(http.Handler) http.Handler {
+	order := map[model.TokenScope]int{
+		model.ScopeMetricsRead: 1,
+		model.ScopeAPIRead:     2,
+		model.ScopeAPIWrite:    3,
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			scope := service.ScopeFromContext(r.Context())
+			if order[scope] < order[required] {
+				http.Error(w, "insufficient token scope", http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func redirectOrUnauthorized(w http.ResponseWriter, r *http.Request) {
+	// API token requests use Authorization header — return 401, not a redirect.
+	if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	http.Redirect(w, r, "/login", http.StatusSeeOther)
+}
+
 func tokenFromRequest(r *http.Request) string {
-	// Prefer Authorization: Bearer <token>
 	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
 		return strings.TrimPrefix(h, "Bearer ")
 	}
-	// Fall back to httpOnly cookie
 	if c, err := r.Cookie("access_token"); err == nil {
 		return c.Value
 	}

@@ -1,0 +1,102 @@
+{{define "settings-tokens-partial"}}
+<div id="tokens-section">
+
+  {{if .Plaintext}}
+  <!-- One-time token reveal — shown only immediately after creation -->
+  <div class="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-lg">
+    <p class="text-sm font-medium text-primary mb-1">Token created — copy it now, it won't be shown again.</p>
+    <div class="flex items-center gap-2 mt-2">
+      <code class="flex-1 font-mono text-xs bg-base-100 border border-base-300 rounded px-3 py-2 text-base-content break-all select-all">{{.Plaintext}}</code>
+      <button type="button"
+              onclick="navigator.clipboard.writeText('{{.Plaintext}}')"
+              class="shrink-0 px-3 py-2 text-xs bg-base-200 hover:bg-base-300 border border-base-300 rounded text-base-content/70 hover:text-base-content transition-colors">
+        Copy
+      </button>
+    </div>
+  </div>
+  {{end}}
+
+  <!-- Create token form -->
+  <form hx-post="/settings/tokens"
+        hx-target="#tokens-section"
+        hx-swap="outerHTML"
+        class="flex items-end gap-3 mb-6">
+    <div class="flex-1">
+      <label class="block text-xs text-base-content/50 mb-1">Token name</label>
+      <input type="text" name="name" required placeholder="e.g. Prometheus scraper"
+             class="w-full bg-base-200 border border-base-300 rounded px-3 py-2 text-sm text-base-content placeholder:text-base-content/30 focus:outline-none focus:border-primary" />
+    </div>
+    <div>
+      <label class="block text-xs text-base-content/50 mb-1">Scope</label>
+      <select name="scope"
+              class="appearance-auto bg-base-200 border border-base-300 rounded px-3 py-2 text-sm text-base-content focus:outline-none focus:border-primary cursor-pointer">
+        <option value="metrics:read">metrics:read</option>
+        <option value="api:read">api:read</option>
+        <option value="api:write">api:write</option>
+      </select>
+    </div>
+    <button type="submit"
+            class="px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-medium rounded transition-colors">
+      Create token
+    </button>
+  </form>
+
+  <!-- Token list -->
+  {{if .Tokens}}
+  <div class="rounded-lg border border-base-300 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-base-300 bg-base-200/50">
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Name</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Scope</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Created</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Last used</th>
+          <th class="text-left px-4 py-2.5 text-xs font-medium text-base-content/50">Status</th>
+          <th class="px-4 py-2.5"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-base-300">
+        {{range .Tokens}}
+        <tr class="{{if .IsRevoked}}opacity-40{{end}}">
+          <td class="px-4 py-3 font-medium text-base-content">{{.Name}}</td>
+          <td class="px-4 py-3">
+            <span class="font-mono text-xs px-2 py-0.5 rounded-full
+              {{if eq (print .Scope) "metrics:read"}}bg-blue-500/10 text-blue-400 border border-blue-500/20
+              {{else if eq (print .Scope) "api:read"}}bg-amber-500/10 text-amber-400 border border-amber-500/20
+              {{else}}bg-primary/10 text-primary border border-primary/20{{end}}">
+              {{.Scope}}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-xs text-base-content/50 font-mono">{{.CreatedAt.Format "2006-01-02"}}</td>
+          <td class="px-4 py-3 text-xs text-base-content/50 font-mono">
+            {{if .LastUsedAt}}{{.LastUsedAt.Format "2006-01-02"}}{{else}}Never{{end}}
+          </td>
+          <td class="px-4 py-3">
+            {{if .IsRevoked}}
+              <span class="text-xs px-2 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/20">Revoked</span>
+            {{else}}
+              <span class="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">Active</span>
+            {{end}}
+          </td>
+          <td class="px-4 py-3 text-right">
+            {{if not .IsRevoked}}
+            <button hx-delete="/settings/tokens/{{.ID}}"
+                    hx-target="#tokens-section"
+                    hx-swap="outerHTML"
+                    hx-confirm="Revoke token '{{.Name}}'? This cannot be undone."
+                    class="px-2.5 py-1 text-xs font-medium bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded transition-colors">
+              Revoke
+            </button>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="text-sm text-base-content/40">No tokens yet. Create one above.</p>
+  {{end}}
+
+</div>
+{{end}}

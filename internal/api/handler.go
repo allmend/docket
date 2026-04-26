@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/allmend/docket/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -22,6 +23,8 @@ type Handler struct {
 	links         *service.LinkService
 	notifications *service.NotificationService
 	retro         *service.RetroService
+	metrics       *service.MetricsService
+	tokens        *service.TokenService
 	tmpls         map[string]*template.Template
 }
 
@@ -34,13 +37,15 @@ func NewHandler(
 	links *service.LinkService,
 	notifications *service.NotificationService,
 	retro *service.RetroService,
+	metrics *service.MetricsService,
+	tokens *service.TokenService,
 	tmplDir string,
 ) (*Handler, error) {
 	tmpls, err := parseTemplates(tmplDir)
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{auth: auth, teams: teams, boards: boards, tickets: tickets, comments: comments, links: links, notifications: notifications, retro: retro, tmpls: tmpls}, nil
+	return &Handler{auth: auth, teams: teams, boards: boards, tickets: tickets, comments: comments, links: links, notifications: notifications, retro: retro, metrics: metrics, tokens: tokens, tmpls: tmpls}, nil
 }
 
 var authPages = map[string]bool{
@@ -87,6 +92,12 @@ func parseTemplates(root string) (map[string]*template.Template, error) {
 				return ""
 			}
 			return *p
+		},
+		"daysBetween": func(a, b *time.Time) int {
+			if a == nil || b == nil {
+				return 0
+			}
+			return int(b.Sub(*a).Hours() / 24)
 		},
 		"dict": func(pairs ...any) (map[string]any, error) {
 			if len(pairs)%2 != 0 {
@@ -207,11 +218,20 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Delete("/boards/{boardID}/columns/{columnID}", h.DeleteColumn)
 
 	r.Get("/boards/{boardID}/backlog", h.BoardBacklog)
+	r.Get("/boards/{boardID}/backlog/refinement", h.BoardRefinement)
+	r.Get("/boards/{boardID}/roadmap", h.BoardRoadmap)
 	r.Get("/boards/{boardID}/backlog/tickets", h.BacklogTicketList)
 	r.Get("/boards/{boardID}/tags", h.BoardTagsJSON)
 	r.Get("/boards/{boardID}/tags/manage", h.BoardTagsPanel)
 	r.Post("/boards/{boardID}/tags", h.CreateTag)
 	r.Delete("/boards/{boardID}/tags/{tagID}", h.DeleteTag)
+
+	r.Get("/boards/{boardID}/dod", h.BoardDodPanel)
+	r.Post("/boards/{boardID}/dod", h.CreateDodItem)
+	r.Delete("/boards/{boardID}/dod/{itemID}", h.DeleteDodItem)
+
+	r.Get("/tickets/{ticketID}/dod", h.TicketDodPartial)
+	r.Post("/tickets/{ticketID}/dod/{itemID}/toggle", h.ToggleDodCheck)
 
 	r.Post("/boards/{boardID}/sprints", h.CreateSprint)
 	r.Post("/boards/{boardID}/sprints/{sprintID}/assign", h.AssignTicketsToSprint)
@@ -220,6 +240,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/boards/{boardID}/sprints/{sprintID}/close", h.CloseSprint)
 	r.Delete("/boards/{boardID}/sprints/{sprintID}", h.DeleteSprint)
 	r.Post("/boards/{boardID}/sprints/{sprintID}/delete", h.DeleteSprint)
+	r.Get("/boards/{boardID}/sprints/{sprintID}/capacity", h.SprintCapacityPartial)
+	r.Put("/boards/{boardID}/sprints/{sprintID}/capacity/{userID}", h.UpdateMemberCapacity)
 
 	r.Post("/tickets/{ticketID}/sprint", h.AssignTicketToSprint)
 
@@ -232,6 +254,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/tickets/{ticketID}", h.UpdateTicket)
 	r.Put("/tickets/{ticketID}/title", h.UpdateTicketTitle)
 	r.Put("/tickets/{ticketID}/body", h.UpdateTicketBody)
+	r.Put("/tickets/{ticketID}/ac", h.UpdateTicketAC)
+	r.Post("/tickets/{ticketID}/ac/toggle/{index}", h.ToggleACCheckbox)
 	r.Put("/tickets/{ticketID}/priority", h.UpdateTicketPriority)
 	r.Put("/tickets/{ticketID}/points", h.UpdateTicketPoints)
 	r.Put("/tickets/{ticketID}/column", h.UpdateTicketColumn)
@@ -270,4 +294,9 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Delete("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}", h.DeleteRetroCard)
 	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}/assign", h.AssignRetroCardOwner)
 
+	r.Get("/settings", h.SettingsPage)
+	r.Post("/settings/tokens", h.CreateToken)
+	r.Delete("/settings/tokens/{tokenID}", h.RevokeToken)
+	r.Post("/settings/members", h.CreateMember)
+	r.Put("/settings/members/{userID}/role", h.UpdateMemberRole)
 }

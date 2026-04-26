@@ -203,6 +203,7 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
 	allBoardTags, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
 	boardTags := filterUnusedTags(allBoardTags, tags)
+	dodItems, _ := h.boards.ListDodItems(r.Context(), orgID, ticket.BoardID)
 	sprintActive := false
 	if ticket.SprintID != nil {
 		if sp, err := h.boards.GetSprint(r.Context(), orgID, *ticket.SprintID); err == nil {
@@ -219,6 +220,7 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 		"Links":        links,
 		"Tags":         tags,
 		"BoardTags":    boardTags,
+		"DodItems":     dodItems,
 		"SprintActive": sprintActive,
 	})
 }
@@ -254,6 +256,7 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
 	allBoardTags, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
 	boardTags := filterUnusedTags(allBoardTags, tags)
+	dodItems, _ := h.boards.ListDodItems(r.Context(), orgID, ticket.BoardID)
 	sprintActive := false
 	if ticket.SprintID != nil {
 		if sp, err := h.boards.GetSprint(r.Context(), orgID, *ticket.SprintID); err == nil {
@@ -272,6 +275,7 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 		"Links":        links,
 		"Tags":         tags,
 		"BoardTags":    boardTags,
+		"DodItems":     dodItems,
 		"SprintActive": sprintActive,
 	}))
 }
@@ -789,6 +793,47 @@ func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
 	h.render(w, "ticket-body-section.html", ticket)
+}
+
+func (h *Handler) ToggleACCheckbox(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	var index int
+	if _, err := fmt.Sscanf(chi.URLParam(r, "index"), "%d", &index); err != nil {
+		http.Error(w, "invalid index", http.StatusBadRequest)
+		return
+	}
+	ticket, err := h.tickets.ToggleACCheckbox(r.Context(), orgID, ticketID, index)
+	if err != nil {
+		http.Error(w, "failed to toggle checkbox", http.StatusInternalServerError)
+		return
+	}
+	h.render(w, "ticket-ac-section.html", ticket)
+}
+
+func (h *Handler) UpdateTicketAC(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	ticket, err := h.tickets.UpdateTicketAC(r.Context(), orgID, ticketID, userID, r.FormValue("ac"))
+	if err != nil {
+		http.Error(w, "failed to update acceptance criteria", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	h.render(w, "ticket-ac-section.html", ticket)
 }
 
 func (h *Handler) SearchTicketsForLink(w http.ResponseWriter, r *http.Request) {

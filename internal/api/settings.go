@@ -1,0 +1,147 @@
+package api
+
+import (
+	"net/http"
+
+	"github.com/allmend/docket/internal/model"
+	"github.com/allmend/docket/internal/service"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+)
+
+func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	tab := r.URL.Query().Get("tab")
+	if tab == "" {
+		tab = "tokens"
+	}
+
+	members, _ := h.tokens.ListMembers(r.Context(), orgID)
+	tokenList, _ := h.tokens.List(r.Context(), orgID)
+
+	h.render(w, "settings.html", h.pageData(r, map[string]any{
+		"Members": members,
+		"Tokens":  tokenList,
+		"Tab":     tab,
+	}))
+}
+
+func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	name := r.FormValue("name")
+	scope := model.TokenScope(r.FormValue("scope"))
+	if name == "" {
+		http.Error(w, "name is required", http.StatusBadRequest)
+		return
+	}
+	if scope != model.ScopeMetricsRead && scope != model.ScopeAPIRead && scope != model.ScopeAPIWrite {
+		http.Error(w, "invalid scope", http.StatusBadRequest)
+		return
+	}
+
+	plaintext, token, err := h.tokens.Create(r.Context(), orgID, userID, name, scope)
+	if err != nil {
+		http.Error(w, "failed to create token", http.StatusInternalServerError)
+		return
+	}
+
+	tokenList, _ := h.tokens.List(r.Context(), orgID)
+	h.render(w, "settings-tokens-partial.html", map[string]any{
+		"Tokens":    tokenList,
+		"NewToken":  token,
+		"Plaintext": plaintext,
+	})
+}
+
+func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	tokenID, err := uuid.Parse(chi.URLParam(r, "tokenID"))
+	if err != nil {
+		http.Error(w, "invalid token ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.tokens.Revoke(r.Context(), orgID, tokenID); err != nil {
+		http.Error(w, "failed to revoke token", http.StatusInternalServerError)
+		return
+	}
+
+	tokenList, _ := h.tokens.List(r.Context(), orgID)
+	h.render(w, "settings-tokens-partial.html", map[string]any{
+		"Tokens": tokenList,
+	})
+}
+
+func (h *Handler) CreateMember(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	if service.RoleFromContext(r.Context()) != "admin" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	username := r.FormValue("username")
+	name := r.FormValue("name")
+	email := r.FormValue("email")
+	password := r.FormValue("password")
+	role := r.FormValue("role")
+	if role != "admin" && role != "member" {
+		role = "member"
+	}
+
+	if username == "" || name == "" || email == "" || password == "" {
+		http.Error(w, "all fields are required", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.auth.CreateLocalUser(r.Context(), orgID, username, name, email, password, role); err != nil {
+		http.Error(w, "failed to create user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	members, _ := h.tokens.ListMembers(r.Context(), orgID)
+	h.render(w, "settings-members-partial.html", map[string]any{
+		"Members":     members,
+		"CurrentUser": h.auth.GetCurrentUser(r.Context()),
+	})
+}
+
+func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	if service.RoleFromContext(r.Context()) != "admin" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	targetID, err := uuid.Parse(chi.URLParam(r, "userID"))
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.tokens.UpdateRole(r.Context(), orgID, targetID, r.FormValue("role")); err != nil {
+		http.Error(w, "failed to update role", http.StatusInternalServerError)
+		return
+	}
+
+	members, _ := h.tokens.ListMembers(r.Context(), orgID)
+	h.render(w, "settings-members-partial.html", map[string]any{
+		"Members":     members,
+		"CurrentUser": h.auth.GetCurrentUser(r.Context()),
+	})
+}

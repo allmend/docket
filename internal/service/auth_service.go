@@ -125,6 +125,26 @@ func (s *AuthService) CreateOrgWithAdmin(ctx context.Context, orgName, orgSlug, 
 	return user, nil
 }
 
+// CreateLocalUser adds a new user to an existing org with a hashed password.
+// Only admins should be able to call the handler that invokes this.
+func (s *AuthService) CreateLocalUser(ctx context.Context, orgID uuid.UUID, username, name, email, password, role string) (*model.User, error) {
+	user, err := s.store.CreateUser(ctx, orgID, username, name, email, role)
+	if err != nil {
+		return nil, fmt.Errorf("create user: %w", err)
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash password: %w", err)
+	}
+
+	if err := s.store.UpsertPassword(ctx, user.ID, string(hash)); err != nil {
+		return nil, fmt.Errorf("upsert password: %w", err)
+	}
+
+	return user, nil
+}
+
 // ValidateAccessToken parses and validates a JWT, returning the claims.
 func (s *AuthService) ValidateAccessToken(tokenStr string) (*model.Claims, error) {
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
@@ -196,6 +216,7 @@ func hashToken(raw string) string {
 type ctxKeyOrgID  struct{}
 type ctxKeyUserID struct{}
 type ctxKeyRole   struct{}
+type ctxKeyScope  struct{}
 
 // WithIdentity stores identity information on context (called by middleware).
 func WithIdentity(ctx context.Context, orgID, userID uuid.UUID, role string) context.Context {
@@ -220,6 +241,17 @@ func UserIDFromContext(ctx context.Context) uuid.UUID {
 // RoleFromContext returns the role string from context.
 func RoleFromContext(ctx context.Context) string {
 	v, _ := ctx.Value(ctxKeyRole{}).(string)
+	return v
+}
+
+// WithScope stores the token scope on context.
+func WithScope(ctx context.Context, scope model.TokenScope) context.Context {
+	return context.WithValue(ctx, ctxKeyScope{}, scope)
+}
+
+// ScopeFromContext returns the token scope from context.
+func ScopeFromContext(ctx context.Context) model.TokenScope {
+	v, _ := ctx.Value(ctxKeyScope{}).(model.TokenScope)
 	return v
 }
 

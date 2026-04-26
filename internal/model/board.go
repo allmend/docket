@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -143,4 +144,72 @@ type ColumnView struct {
 	Tickets   []Ticket
 	IsBacklog bool // true for the virtual backlog column shown on scrum sprint boards
 	IsDone    bool // true if column name matches "done" (case-insensitive)
+}
+
+// RoadmapTicket is a lightweight ticket summary for the roadmap view.
+type RoadmapTicket struct {
+	ID       uuid.UUID
+	Title    string
+	Priority Priority
+	TeamKey  string
+	Number   int
+	IsDone   bool
+}
+
+func (t RoadmapTicket) DisplayID() string {
+	if t.TeamKey != "" && t.Number > 0 {
+		return fmt.Sprintf("%s-%d", t.TeamKey, t.Number)
+	}
+	return t.ID.String()[:8]
+}
+
+// RoadmapSprintView is one sprint row in the roadmap, with its tickets.
+type RoadmapSprintView struct {
+	Sprint  Sprint
+	Tickets []RoadmapTicket
+}
+
+// DodItem is one checklist item in a board's Definition of Done.
+type DodItem struct {
+	ID        uuid.UUID `json:"id"`
+	OrgID     uuid.UUID `json:"org_id"`
+	BoardID   uuid.UUID `json:"board_id"`
+	Text      string    `json:"text"`
+	Position  float64   `json:"position"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// DodItemWithCheck is a DoD item annotated with its checked state for a specific ticket.
+type DodItemWithCheck struct {
+	DodItem
+	Checked bool
+}
+
+// SprintCapacityMember is one member's availability entry for a sprint.
+type SprintCapacityMember struct {
+	UserID   uuid.UUID
+	Name     string
+	Username string
+	FocusPct int // 0–100
+}
+
+// SprintCapacity holds all member availability rows for one sprint plus summary fields.
+type SprintCapacity struct {
+	SprintID        uuid.UUID
+	Members         []SprintCapacityMember
+	CommittedPoints float64
+	TotalFocusPct   int // sum of all member focus_pct values
+}
+
+// TeamDays returns total available team-days given sprint length in calendar days.
+// Returns -1 if sprint has no dates set.
+func (c SprintCapacity) TeamDays(sprintDays int) float64 {
+	if sprintDays <= 0 || len(c.Members) == 0 {
+		return -1
+	}
+	var sum float64
+	for _, m := range c.Members {
+		sum += float64(m.FocusPct) / 100.0
+	}
+	return sum * float64(sprintDays)
 }

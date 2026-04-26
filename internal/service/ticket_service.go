@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
+	"github.com/allmend/docket/internal/metrics"
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
@@ -165,6 +167,12 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		return s.MoveTicket(ctx, orgID, ticketID, targetColumnID, prevPos, nextPos)
 	}
 
+	// Capture from-column info before the move for the transition counter.
+	var fromCol, fromTeam string
+	if old, err := s.store.GetTicket(ctx, orgID, ticketID); err == nil && old.ColumnID != uuid.Nil {
+		fromCol, fromTeam, _ = s.store.GetColumnMeta(ctx, old.ColumnID)
+	}
+
 	if err := s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos); err != nil {
 		return err
 	}
@@ -178,6 +186,13 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		} else if !isDone && ticket.ClosedAt != nil {
 			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 		}
+
+		toCol, toTeam, _ := s.store.GetColumnMeta(ctx, targetColumnID)
+		team := fromTeam
+		if team == "" {
+			team = toTeam
+		}
+		metrics.TicketTransitions.WithLabelValues(orgID.String(), team, fromCol, toCol).Inc()
 	}
 
 	return nil
@@ -383,6 +398,38 @@ func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, a
 	}
 	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "description", "(previous)", "(updated)")
 	return t, nil
+}
+
+func (s *TicketService) UpdateTicketAC(ctx context.Context, orgID, ticketID, actorID uuid.UUID, ac string) (*model.Ticket, error) {
+	return s.store.UpdateTicketAC(ctx, orgID, ticketID, ac)
+}
+
+// ToggleACCheckbox flips the Nth task-list checkbox in the acceptance_criteria field.
+func (s *TicketService) ToggleACCheckbox(ctx context.Context, orgID, ticketID uuid.UUID, index int) (*model.Ticket, error) {
+	ac, err := s.store.GetTicketAC(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	ac = toggleNthCheckbox(ac, index)
+	return s.store.UpdateTicketAC(ctx, orgID, ticketID, ac)
+}
+
+// checkboxRe matches GFM task-list markers: [ ] or [x] (case-insensitive).
+var checkboxRe = regexp.MustCompile(`\[([ xX])\]`)
+
+func toggleNthCheckbox(src string, n int) string {
+	count := 0
+	return checkboxRe.ReplaceAllStringFunc(src, func(match string) string {
+		if count == n {
+			count++
+			if match == "[ ]" {
+				return "[x]"
+			}
+			return "[ ]"
+		}
+		count++
+		return match
+	})
 }
 
 func (s *TicketService) SearchTicketsForLink(ctx context.Context, orgID, excludeID uuid.UUID, q string) ([]model.Ticket, error) {
