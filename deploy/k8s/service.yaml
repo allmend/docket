@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: docket
+  namespace: docket
+  labels:
+    app: docket
+spec:
+  selector:
+    app: docket
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9412
+      targetPort: metrics
+      protocol: TCP
+---
+# Optional: ServiceMonitor for Prometheus Operator.
+# Remove if you are not using the Prometheus Operator.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: docket
+  namespace: docket
+  labels:
+    app: docket
+spec:
+  selector:
+    matchLabels:
+      app: docket
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

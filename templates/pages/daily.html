@@ -1,0 +1,155 @@
+{{define "title"}}Daily Scrum{{if .ActiveSprint}} · {{.ActiveSprint.Name}}{{end}}{{end}}
+{{define "content"}}
+<div class="flex flex-col h-full">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between px-6 py-4 border-b border-base-300 shrink-0">
+    <div class="flex flex-col gap-0.5">
+      <div class="flex items-center gap-2">
+        <h1 class="text-lg font-semibold">Daily Scrum</h1>
+        {{if .ActiveSprint}}
+        <span class="text-base-content/30">·</span>
+        <span class="text-sm text-base-content/60">{{.ActiveSprint.Name}}</span>
+        {{end}}
+      </div>
+      {{if .Team}}
+      <p class="text-xs text-base-content/40 font-mono">{{.Team.Key}} · {{.Team.Name}}</p>
+      {{end}}
+    </div>
+    <a href="/boards/{{.Board.ID}}"
+       class="flex items-center gap-1.5 text-sm text-base-content/50 hover:text-base-content transition-colors">
+      <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
+      </svg>
+      Sprint Board
+    </a>
+  </div>
+
+  {{if .ActiveSprint}}
+
+  <!-- Filter bar -->
+  <div class="px-6 py-3 border-b border-base-300 shrink-0"
+       x-data="{
+         q: '{{.Filters.Q}}',
+         assignees: [],
+         tags: [],
+         priorities: [],
+         init() {
+           {{range .Filters.AssigneeIDs}}this.assignees.push('{{.}}');{{end}}
+           {{range .Filters.TagIDs}}this.tags.push('{{.}}');{{end}}
+           {{range .Filters.Priorities}}this.priorities.push('{{.}}');{{end}}
+         },
+         hasAssignee(id) { return this.assignees.includes(id); },
+         hasTag(id) { return this.tags.includes(id); },
+         hasPriority(p) { return this.priorities.includes(p); },
+         toggle(arr, val) { const i = arr.indexOf(val); if (i >= 0) arr.splice(i, 1); else arr.push(val); },
+         fetch() {
+           const p = new URLSearchParams();
+           if (this.q) p.set('q', this.q);
+           this.assignees.forEach(id => p.append('assignee_id', id));
+           this.tags.forEach(id => p.append('tag_id', id));
+           this.priorities.forEach(pr => p.append('priority', pr));
+           const qs = p.toString();
+           htmx.ajax('GET', '/boards/{{.Board.ID}}/daily/tickets' + (qs ? '?' + qs : ''), {target: '#daily-tickets', swap: 'innerHTML'});
+           history.replaceState(null, '', '/boards/{{.Board.ID}}/daily' + (qs ? '?' + qs : ''));
+         }
+       }">
+    <div class="flex items-center gap-2 flex-wrap">
+
+      <!-- Search -->
+      <div class="relative">
+        <input type="text" x-model="q" @input.debounce.300ms="fetch()"
+               placeholder="Search tickets…"
+               class="w-52 bg-base-100 border border-base-300 text-sm text-base-content rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:border-primary placeholder:text-base-content/30" />
+        <svg class="absolute left-2.5 top-2 h-4 w-4 text-base-content/30 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+      </div>
+
+      {{if .AllAssignees}}
+      <div class="w-px h-5 bg-base-300 shrink-0"></div>
+      <div class="flex items-center gap-1 flex-wrap">
+        {{range .AllAssignees}}
+        <button type="button"
+                @click="toggle(assignees, '{{.ID}}'); fetch()"
+                :class="hasAssignee('{{.ID}}') ? 'bg-primary/15 border-primary/40 text-primary' : 'bg-base-200 border-base-300 text-base-content/50 hover:text-base-content hover:bg-base-300'"
+                class="flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-xs transition-colors">
+          <span class="w-4 h-4 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">{{initials .Name}}</span>
+          {{.Name}}
+        </button>
+        {{end}}
+      </div>
+      {{end}}
+
+      {{if .AllTags}}
+      <div class="w-px h-5 bg-base-300 shrink-0"></div>
+      <div class="flex items-center gap-1 flex-wrap">
+        {{range .AllTags}}
+        <button type="button"
+                @click="toggle(tags, '{{.ID}}'); fetch()"
+                :class="hasTag('{{.ID}}') ? '' : 'opacity-40 hover:opacity-70'"
+                class="text-xs border rounded-full px-2.5 py-1 transition-opacity"
+                style="border-color: {{.Color}}50; background-color: {{.Color}}15; color: {{.Color}}">
+          {{.Name}}
+        </button>
+        {{end}}
+      </div>
+      {{end}}
+
+      <div class="w-px h-5 bg-base-300 shrink-0"></div>
+
+      <!-- Priority pills -->
+      <div class="flex items-center gap-1">
+        <button type="button" @click="toggle(priorities, 'critical'); fetch()"
+                :class="hasPriority('critical') ? 'opacity-100' : 'opacity-40 hover:opacity-70'"
+                class="text-xs border border-red-700 text-red-400 rounded-full px-2.5 py-1 transition-opacity">critical</button>
+        <button type="button" @click="toggle(priorities, 'high'); fetch()"
+                :class="hasPriority('high') ? 'opacity-100' : 'opacity-40 hover:opacity-70'"
+                class="text-xs border border-amber-700 text-amber-400 rounded-full px-2.5 py-1 transition-opacity">high</button>
+        <button type="button" @click="toggle(priorities, 'medium'); fetch()"
+                :class="hasPriority('medium') ? 'opacity-100' : 'opacity-40 hover:opacity-70'"
+                class="text-xs border border-blue-700 text-blue-400 rounded-full px-2.5 py-1 transition-opacity">medium</button>
+        <button type="button" @click="toggle(priorities, 'low'); fetch()"
+                :class="hasPriority('low') ? 'opacity-100' : 'opacity-40 hover:opacity-70'"
+                class="text-xs border border-base-300 text-base-content/50 rounded-full px-2.5 py-1 transition-opacity">low</button>
+      </div>
+
+      <!-- Clear filters -->
+      <button type="button"
+              x-show="q || assignees.length || tags.length || priorities.length"
+              x-cloak
+              @click="q = ''; assignees = []; tags = []; priorities = []; fetch()"
+              class="text-xs text-base-content/30 hover:text-base-content transition-colors ml-1">
+        Clear
+      </button>
+
+    </div>
+  </div>
+
+  <!-- Ticket list -->
+  <div class="flex-1 overflow-y-auto px-6 py-5">
+    <div id="daily-tickets">
+      {{template "daily-tickets" .}}
+    </div>
+  </div>
+
+  {{else}}
+
+  <!-- No active sprint -->
+  <div class="flex-1 flex items-center justify-center">
+    <div class="text-center">
+      <svg class="h-10 w-10 text-base-content/10 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5"/>
+      </svg>
+      <p class="text-sm text-base-content/40">No active sprint</p>
+      <p class="text-xs text-base-content/25 mt-1">Start a sprint to use the Daily Scrum view.</p>
+      <a href="/boards/{{.Board.ID}}" class="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+        Go to Sprint Board
+      </a>
+    </div>
+  </div>
+
+  {{end}}
+
+</div>
+{{end}}

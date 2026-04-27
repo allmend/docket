@@ -1,0 +1,26 @@
+# Requires an ingress controller (nginx, Traefik, etc.) and cert-manager for TLS.
+# Adjust ingressClassName and the cert-manager annotation to match your cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docket
+  namespace: docket
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - docket.example.com
+      secretName: docket-tls
+  rules:
+    - host: docket.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docket
+                port:
+                  name: http

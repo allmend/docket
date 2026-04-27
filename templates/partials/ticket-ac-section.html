@@ -1,52 +1,55 @@
 {{define "ticket-ac-section"}}
-<div id="ticket-ac-{{.ID}}"{{if not .ClosedAt}} x-data="{ editing: false }" @click.outside="editing = false"{{end}}>
-  {{if .ClosedAt}}
-  {{if .AcceptanceCriteria}}
-  <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm px-3 py-2 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto opacity-60">
-    {{.ACHTML}}
-  </div>
-  {{else}}
-  <p class="text-sm text-base-content/30 italic px-3 py-2">None specified.</p>
-  {{end}}
-  {{else}}
-  <div x-show="!editing">
-    {{if .AcceptanceCriteria}}
-    <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm [&_a]:text-primary [&_a]:hover:underline overflow-x-auto [&_input[type=checkbox]]:cursor-pointer [&_input[type=checkbox]]:accent-primary"
-         x-data
-         @change="if($event.target.type==='checkbox'){
-           const boxes=[...$el.querySelectorAll('input[type=checkbox]')];
-           const idx=boxes.indexOf($event.target);
-           htmx.ajax('POST','/tickets/{{.ID}}/ac/toggle/'+idx,{target:'#ticket-ac-{{.ID}}',swap:'outerHTML'});
-           $event.target.disabled=true;
-         }"
-         @click="if($event.target.type!=='checkbox'){ editing=true; $nextTick(()=>$refs.acInput.focus()); }"
-         title="Click to edit">
-      {{.ACHTML}}
-    </div>
-    {{else}}
-    <p class="text-sm text-base-content/30 italic cursor-text hover:bg-base-200 rounded px-3 py-2 -mx-3 transition-colors"
-       @click="editing = true; $nextTick(() => $refs.acInput.focus())"
-       title="Click to add acceptance criteria">
-      Add acceptance criteria…
-    </p>
+<div id="ticket-ac-{{.ID}}">
+  {{$items := .ACItems}}
+  {{if $items}}
+  <ul class="flex flex-col gap-0.5">
+    {{range $i, $item := $items}}
+    <li class="flex items-center gap-2 group py-0.5">
+      {{if not $.ClosedAt}}
+      <input type="checkbox" {{if $item.Checked}}checked{{end}}
+             hx-post="/tickets/{{$.ID}}/ac/toggle/{{$i}}"
+             hx-target="#ticket-ac-{{$.ID}}"
+             hx-swap="outerHTML"
+             class="accent-primary cursor-pointer shrink-0" />
+      {{else}}
+      <input type="checkbox" {{if $item.Checked}}checked{{end}} disabled
+             class="accent-primary shrink-0 opacity-60" />
+      {{end}}
+      <span class="text-sm flex-1 {{if $item.Checked}}line-through text-base-content/40{{else}}text-base-content/80{{end}}">{{$item.Text}}</span>
+      {{if not $.ClosedAt}}
+      <button hx-post="/tickets/{{$.ID}}/ac/delete/{{$i}}"
+              hx-target="#ticket-ac-{{$.ID}}"
+              hx-swap="outerHTML"
+              hx-confirm="Remove this criterion?"
+              class="opacity-0 group-hover:opacity-100 transition-opacity text-base-content/30 hover:text-red-400 shrink-0">
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+      {{end}}
+    </li>
     {{end}}
-  </div>
-  <form x-show="editing" x-cloak
-        x-effect="if (editing) setTimeout(() => { let el = $refs.acInput; if (el) { el.style.height = 'auto'; el.style.height = Math.max(96, el.scrollHeight) + 'px' } }, 0)"
-        hx-put="/tickets/{{.ID}}/ac"
+  </ul>
+  {{else if not .ClosedAt}}
+  <p class="text-xs text-base-content/30 italic px-0.5">No criteria yet.</p>
+  {{else}}
+  <p class="text-xs text-base-content/30 italic px-0.5">None specified.</p>
+  {{end}}
+
+  {{if not .ClosedAt}}
+  <form hx-post="/tickets/{{.ID}}/ac/add"
         hx-target="#ticket-ac-{{.ID}}"
         hx-swap="outerHTML"
-        @keydown.escape="editing = false"
-        class="flex flex-col gap-2">
-    <textarea x-ref="acInput"
-              name="ac"
-              rows="4"
-              placeholder="e.g. - User can reset password via email link&#10;- Email arrives within 30s&#10;- Works on mobile"
-              class="w-full bg-base-100 border border-primary text-base-content text-sm rounded-lg px-3 py-2 focus:outline-none resize-y font-mono">{{.AcceptanceCriteria}}</textarea>
-    <div class="flex gap-2">
-      <button type="submit" class="px-3 py-1 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
-      <button type="button" @click="editing = false" class="px-3 py-1 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-    </div>
+        hx-on::after-request="if(event.detail.successful){this.reset()}"
+        class="flex items-center gap-2 mt-2">
+    <input type="text" name="text" placeholder="Add criterion…" required autocomplete="off"
+           class="flex-1 min-w-0 bg-transparent border-b border-base-300 focus:border-primary text-sm py-0.5 focus:outline-none placeholder:text-base-content/30" />
+    <button type="submit"
+            class="text-primary hover:opacity-70 shrink-0 transition-opacity">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+      </svg>
+    </button>
   </form>
   {{end}}
 </div>

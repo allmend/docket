@@ -222,6 +222,7 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 		"BoardTags":    boardTags,
 		"DodItems":     dodItems,
 		"SprintActive": sprintActive,
+		"CurrentUser":  h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -578,8 +579,9 @@ func (h *Handler) AddTicketAssignee(w http.ResponseWriter, r *http.Request) {
 	assignees, _ := h.tickets.ListAssignees(r.Context(), ticketID)
 	w.Header().Set("HX-Trigger", "boardUpdated")
 	h.render(w, "ticket-assignees.html", map[string]any{
-		"Ticket":    ticket,
-		"Assignees": assignees,
+		"Ticket":      ticket,
+		"Assignees":   assignees,
+		"CurrentUser": h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -604,8 +606,9 @@ func (h *Handler) RemoveTicketAssignee(w http.ResponseWriter, r *http.Request) {
 	assignees, _ := h.tickets.ListAssignees(r.Context(), ticketID)
 	w.Header().Set("HX-Trigger", "boardUpdated")
 	h.render(w, "ticket-assignees.html", map[string]any{
-		"Ticket":    ticket,
-		"Assignees": assignees,
+		"Ticket":      ticket,
+		"Assignees":   assignees,
+		"CurrentUser": h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -830,6 +833,52 @@ func (h *Handler) UpdateTicketAC(w http.ResponseWriter, r *http.Request) {
 	ticket, err := h.tickets.UpdateTicketAC(r.Context(), orgID, ticketID, userID, r.FormValue("ac"))
 	if err != nil {
 		http.Error(w, "failed to update acceptance criteria", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	h.render(w, "ticket-ac-section.html", ticket)
+}
+
+func (h *Handler) AddACItem(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	text := r.FormValue("text")
+	if text == "" {
+		http.Error(w, "text required", http.StatusBadRequest)
+		return
+	}
+	ticket, err := h.tickets.AddACItem(r.Context(), orgID, ticketID, text)
+	if err != nil {
+		http.Error(w, "failed to add item", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	h.render(w, "ticket-ac-section.html", ticket)
+}
+
+func (h *Handler) DeleteACItem(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
+	if err != nil {
+		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+		return
+	}
+	var index int
+	if _, err := fmt.Sscanf(chi.URLParam(r, "index"), "%d", &index); err != nil {
+		http.Error(w, "invalid index", http.StatusBadRequest)
+		return
+	}
+	ticket, err := h.tickets.DeleteACItem(r.Context(), orgID, ticketID, index)
+	if err != nil {
+		http.Error(w, "failed to delete item", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")

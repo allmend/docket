@@ -185,6 +185,42 @@ type DodItemWithCheck struct {
 	Checked bool
 }
 
+// DailyScrumFilters holds active filter state for the Daily Scrum view.
+type DailyScrumFilters struct {
+	Q           string
+	AssigneeIDs []string
+	TagIDs      []string
+	Priorities  []string
+}
+
+func (f DailyScrumFilters) HasFilters() bool {
+	return f.Q != "" || len(f.AssigneeIDs) > 0 || len(f.TagIDs) > 0 || len(f.Priorities) > 0
+}
+
+// DailyScrumTicket is a ticket annotated with its column name for the Daily Scrum view.
+type DailyScrumTicket struct {
+	Ticket     Ticket
+	ColumnName string
+}
+
+// DailyScrumGroup is one assignee and their sprint tickets.
+type DailyScrumGroup struct {
+	User    User
+	Tickets []DailyScrumTicket
+}
+
+// DailyScrumView is the full data for the Daily Scrum page.
+type DailyScrumView struct {
+	Board        Board
+	Team         *Team
+	ActiveSprint *Sprint
+	Groups       []DailyScrumGroup
+	Unassigned   []DailyScrumTicket
+	AllAssignees []User
+	AllTags      []Tag
+	Filters      DailyScrumFilters
+}
+
 // SprintCapacityMember is one member's availability entry for a sprint.
 type SprintCapacityMember struct {
 	UserID   uuid.UUID

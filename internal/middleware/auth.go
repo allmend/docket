@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
@@ -38,8 +39,18 @@ func Authenticate(authSvc *service.AuthService, tokenSvc *service.TokenService) 
 			// JWT path
 			claims, err := authSvc.ValidateAccessToken(raw)
 			if err != nil {
-				redirectOrUnauthorized(w, r)
-				return
+				// Access token invalid — attempt transparent refresh.
+				if rc, cerr := r.Cookie("refresh_token"); cerr == nil {
+					_, pair, rerr := authSvc.Refresh(r.Context(), rc.Value)
+					if rerr == nil {
+						setSessionCookies(w, pair.AccessToken, pair.RefreshToken)
+						claims, err = authSvc.ValidateAccessToken(pair.AccessToken)
+					}
+				}
+				if err != nil {
+					redirectOrUnauthorized(w, r)
+					return
+				}
 			}
 			orgID, err := uuid.Parse(claims.OrgID)
 			if err != nil {
@@ -106,4 +117,26 @@ func tokenFromRequest(r *http.Request) string {
 		return c.Value
 	}
 	return ""
+}
+
+func setSessionCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+	ttl := int((5 * 24 * time.Hour).Seconds())
+	http.SetCookie(w, &http.Cookie{
+		Name:     "access_token",
+		Value:    accessToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   ttl,
+	})
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   ttl,
+	})
 }

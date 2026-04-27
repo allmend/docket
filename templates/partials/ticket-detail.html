@@ -1,5 +1,5 @@
 {{define "ticket-detail"}}
-<div class="flex flex-1 min-h-0 h-full min-w-0">
+<div class="flex flex-1 min-h-0 h-full min-w-0 bg-base-100">
 
   <!-- Left: main content -->
   <div class="flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-8 py-6 flex flex-col gap-5">
@@ -113,7 +113,7 @@
                           class="w-full bg-base-200 border border-base-300 text-base-content text-sm rounded-lg px-3 py-2 placeholder:text-base-content/30 focus:outline-none focus:border-primary resize-y font-mono"></textarea>
                 <!-- @mention dropdown -->
                 <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
-                     class="absolute top-full mt-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+                     class="absolute top-full mt-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup overflow-hidden z-50">
                   <template x-for="u in mentionUsers" :key="u.username">
                     <button type="button" @mousedown.prevent @click.stop="mentionPick(u.username)"
                             class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
@@ -124,7 +124,7 @@
                 </div>
                 <!-- #ticket dropdown -->
                 <div x-show="ticketOpen" x-cloak @click.outside="ticketOpen = false"
-                     class="absolute top-full mt-1 left-0 w-80 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+                     class="absolute top-full mt-1 left-0 w-80 bg-base-200 border border-base-300 rounded-lg shadow-popup overflow-hidden z-50">
                   <template x-for="t in mentionTickets" :key="t.display_id">
                     <button type="button" @mousedown.prevent @click.stop="ticketPick(t.display_id)"
                             class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
@@ -178,7 +178,7 @@
     <!-- Assignees -->
     <div class="flex flex-col gap-2">
       <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Assignees</span>
-      {{template "ticket-assignees" (dict "Ticket" .Ticket "Assignees" .Assignees)}}
+      {{template "ticket-assignees" (dict "Ticket" .Ticket "Assignees" .Assignees "CurrentUser" .CurrentUser)}}
     </div>
 
     <div class="border-t border-base-300"></div>

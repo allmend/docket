@@ -13,6 +13,9 @@ module.exports = {
         "base-300":     "#21262d",  // border / divider
         "base-content": "#e6edf3",  // primary text
       },
+      boxShadow: {
+        popup: "0 4px 24px 0 rgb(0 0 0 / 0.55), 0 2px 6px 0 rgb(0 0 0 / 0.35)",
+      },
     },
   },
   plugins: [

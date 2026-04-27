@@ -29,7 +29,7 @@
       <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
       Add label
     </button>
-    <div x-show="open" x-cloak class="absolute left-0 top-6 z-30 w-48 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
+    <div x-show="open" x-cloak class="absolute left-0 top-6 z-30 w-48 bg-base-200 border border-base-300 rounded-lg shadow-popup py-1">
       {{range .BoardTags}}
       <button type="button"
               hx-post="/tickets/{{$.Ticket.ID}}/tags"

@@ -38,7 +38,7 @@
                 placeholder="Write a description… (Markdown supported, @username, #TICKET-ID)"
                 class="w-full bg-base-100 border border-primary text-base-content text-sm rounded-lg px-3 py-2 focus:outline-none resize-y font-mono">{{.Body}}</textarea>
       <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
-           class="absolute top-full mt-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+           class="absolute top-full mt-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup overflow-hidden z-50">
         <template x-for="u in mentionUsers" :key="u.username">
           <button type="button" @mousedown.prevent @click.stop="mentionPick(u.username)"
                   class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
@@ -48,7 +48,7 @@
         </template>
       </div>
       <div x-show="ticketOpen" x-cloak @click.outside="ticketOpen = false"
-           class="absolute top-full mt-1 left-0 w-80 bg-base-200 border border-base-300 rounded-lg shadow-lg overflow-hidden z-50">
+           class="absolute top-full mt-1 left-0 w-80 bg-base-200 border border-base-300 rounded-lg shadow-popup overflow-hidden z-50">
         <template x-for="t in mentionTickets" :key="t.display_id">
           <button type="button" @mousedown.prevent @click.stop="ticketPick(t.display_id)"
                   class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">

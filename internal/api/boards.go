@@ -467,6 +467,62 @@ func (h *Handler) BoardRefinement(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "backlog.html", data)
 }
 
+func (h *Handler) BoardDailyScrum(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	filters := model.DailyScrumFilters{
+		Q:           r.URL.Query().Get("q"),
+		AssigneeIDs: r.URL.Query()["assignee_id"],
+		TagIDs:      r.URL.Query()["tag_id"],
+		Priorities:  r.URL.Query()["priority"],
+	}
+	view, err := h.boards.GetDailyScrumView(r.Context(), orgID, boardID, filters)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "daily.html", h.pageData(r, map[string]any{
+		"Board":        view.Board,
+		"Team":         view.Team,
+		"ActiveSprint": view.ActiveSprint,
+		"Groups":       view.Groups,
+		"Unassigned":   view.Unassigned,
+		"AllAssignees": view.AllAssignees,
+		"AllTags":      view.AllTags,
+		"Filters":      view.Filters,
+	}))
+}
+
+func (h *Handler) BoardDailyScrumTickets(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	filters := model.DailyScrumFilters{
+		Q:           r.URL.Query().Get("q"),
+		AssigneeIDs: r.URL.Query()["assignee_id"],
+		TagIDs:      r.URL.Query()["tag_id"],
+		Priorities:  r.URL.Query()["priority"],
+	}
+	view, err := h.boards.GetDailyScrumView(r.Context(), orgID, boardID, filters)
+	if err != nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "daily-tickets.html", map[string]any{
+		"Board":      view.Board,
+		"Groups":     view.Groups,
+		"Unassigned": view.Unassigned,
+		"Filters":    view.Filters,
+	})
+}
+
 // --- Tag handlers ---
 
 func filterUnusedTags(all, applied []model.Tag) []model.Tag {

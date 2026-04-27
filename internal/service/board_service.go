@@ -523,3 +523,163 @@ func (s *BoardService) GetTicketDod(ctx context.Context, orgID, boardID, ticketI
 func (s *BoardService) ToggleDodCheck(ctx context.Context, orgID, ticketID, itemID uuid.UUID, checked bool) error {
 	return s.store.ToggleDodCheck(ctx, orgID, ticketID, itemID, checked)
 }
+
+// GetDailyScrumView returns filtered sprint tickets grouped by assignee for the Daily Scrum page.
+func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uuid.UUID, filters model.DailyScrumFilters) (*model.DailyScrumView, error) {
+	board, err := s.store.GetBoard(ctx, orgID, boardID)
+	if err != nil {
+		return nil, fmt.Errorf("get board: %w", err)
+	}
+
+	var team *model.Team
+	if board.TeamID != nil {
+		if t, err := s.store.GetTeam(ctx, orgID, *board.TeamID); err == nil {
+			team = t
+		}
+	}
+
+	allTags, _ := s.store.ListTags(ctx, orgID, boardID)
+	var allAssignees []model.User
+	if team != nil {
+		allAssignees, _ = s.store.ListTeamMembers(ctx, orgID, team.ID)
+	}
+
+	activeSprint, _ := s.store.GetActiveSprint(ctx, orgID, boardID)
+	if activeSprint == nil {
+		return &model.DailyScrumView{
+			Board:        *board,
+			Team:         team,
+			AllAssignees: allAssignees,
+			AllTags:      allTags,
+			Filters:      filters,
+		}, nil
+	}
+
+	cols, err := s.store.ListColumns(ctx, orgID, boardID)
+	if err != nil {
+		return nil, fmt.Errorf("list columns: %w", err)
+	}
+	colNames := make(map[uuid.UUID]string, len(cols))
+	for _, c := range cols {
+		colNames[c.ID] = c.Name
+	}
+
+	tickets, err := s.store.ListSprintTickets(ctx, orgID, activeSprint.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list sprint tickets: %w", err)
+	}
+	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
+	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, boardID)
+	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
+	for i := range tickets {
+		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
+		tickets[i].Tags = tagsByTicket[tickets[i].ID]
+		if blocker, ok := blockedBy[tickets[i].ID]; ok {
+			tickets[i].IsBlocked = true
+			tickets[i].BlockedBy = blocker
+		}
+	}
+
+	filtered := filterDailyScrumTickets(tickets, filters)
+
+	type entry struct {
+		user    model.User
+		tickets []model.DailyScrumTicket
+	}
+	groups := make(map[uuid.UUID]*entry)
+	var order []uuid.UUID
+	var unassigned []model.DailyScrumTicket
+
+	for _, t := range filtered {
+		dt := model.DailyScrumTicket{Ticket: t, ColumnName: colNames[t.ColumnID]}
+		if len(t.Assignees) == 0 {
+			unassigned = append(unassigned, dt)
+			continue
+		}
+		for _, u := range t.Assignees {
+			if _, exists := groups[u.ID]; !exists {
+				groups[u.ID] = &entry{user: u}
+				order = append(order, u.ID)
+			}
+			groups[u.ID].tickets = append(groups[u.ID].tickets, dt)
+		}
+	}
+
+	result := make([]model.DailyScrumGroup, 0, len(order))
+	for _, id := range order {
+		g := groups[id]
+		result = append(result, model.DailyScrumGroup{User: g.user, Tickets: g.tickets})
+	}
+
+	return &model.DailyScrumView{
+		Board:        *board,
+		Team:         team,
+		ActiveSprint: activeSprint,
+		Groups:       result,
+		Unassigned:   unassigned,
+		AllAssignees: allAssignees,
+		AllTags:      allTags,
+		Filters:      filters,
+	}, nil
+}
+
+func filterDailyScrumTickets(tickets []model.Ticket, f model.DailyScrumFilters) []model.Ticket {
+	if !f.HasFilters() {
+		return tickets
+	}
+	q := strings.ToLower(f.Q)
+	out := make([]model.Ticket, 0, len(tickets))
+	for _, t := range tickets {
+		if q != "" && !strings.Contains(strings.ToLower(t.Title), q) {
+			continue
+		}
+		if len(f.Priorities) > 0 && !containsStr(f.Priorities, string(t.Priority)) {
+			continue
+		}
+		if len(f.AssigneeIDs) > 0 {
+			matched := false
+			for _, aid := range f.AssigneeIDs {
+				for _, a := range t.Assignees {
+					if a.ID.String() == aid {
+						matched = true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+		if len(f.TagIDs) > 0 {
+			matched := false
+			for _, tid := range f.TagIDs {
+				for _, tag := range t.Tags {
+					if tag.ID.String() == tid {
+						matched = true
+						break
+					}
+				}
+				if matched {
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+		out = append(out, t)
+	}
+	return out
+}
+
+func containsStr(slice []string, val string) bool {
+	for _, s := range slice {
+		if s == val {
+			return true
+		}
+	}
+	return false
+}

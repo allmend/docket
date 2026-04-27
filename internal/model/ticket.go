@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"html/template"
+	"strings"
 	"time"
 
 	"github.com/allmend/docket/internal/markdown"
@@ -65,9 +66,25 @@ func (t *Ticket) BodyHTML() template.HTML {
 	return markdown.Render(t.Body)
 }
 
-// ACHTML renders the acceptance criteria as sanitised HTML with interactive checkboxes.
-func (t *Ticket) ACHTML() template.HTML {
-	return markdown.RenderAC(t.AcceptanceCriteria)
+// ACItem represents a single acceptance criterion.
+type ACItem struct {
+	Text    string
+	Checked bool
+}
+
+// ACItems parses the acceptance_criteria field into a slice of checklist items.
+// Each non-empty line is expected in "- [ ] text" or "- [x] text" format.
+func (t *Ticket) ACItems() []ACItem {
+	var items []ACItem
+	for _, line := range strings.Split(t.AcceptanceCriteria, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "- [x] ") || strings.HasPrefix(line, "- [X] ") {
+			items = append(items, ACItem{Text: line[6:], Checked: true})
+		} else if strings.HasPrefix(line, "- [ ] ") {
+			items = append(items, ACItem{Text: line[6:], Checked: false})
+		}
+	}
+	return items
 }
 
 func (p Priority) String() string { return string(p) }

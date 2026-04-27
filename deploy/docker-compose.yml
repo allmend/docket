@@ -1,0 +1,78 @@
+# Docket — self-hosted deployment
+#
+# Copy this file somewhere, create a .env file next to it (see below), then:
+#   docker compose up -d
+#
+# Minimum .env:
+#   JWT_SECRET=replace-with-a-long-random-string
+#   SEED_PASSWORD=changeme
+#
+# Optional overrides (defaults shown):
+#   HTTP_PORT=8081
+#   SEED_ORG_NAME=My Team
+#   SEED_ORG_SLUG=myteam
+#   SEED_USERNAME=admin
+#   SEED_NAME=Admin
+#   SEED_EMAIL=admin@example.com
+
+services:
+  app:
+    image: ghcr.io/allmend/docket:latest
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+      - "9412:9412"   # Prometheus metrics — restrict this port in production
+    environment:
+      DATABASE_URL: postgres://docket:docket@postgres:5432/docket?sslmode=disable
+      REDIS_URL: redis://valkey:6379
+      HTTP_PORT: "8081"
+      METRICS_PORT: "9412"
+      MODE: all
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      SEED_ORG_NAME: ${SEED_ORG_NAME:-My Team}
+      SEED_ORG_SLUG: ${SEED_ORG_SLUG:-myteam}
+      SEED_USERNAME: ${SEED_USERNAME:-admin}
+      SEED_NAME: ${SEED_NAME:-Admin}
+      SEED_EMAIL: ${SEED_EMAIL:-admin@example.com}
+      SEED_PASSWORD: ${SEED_PASSWORD:-changeme}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/login || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: docket
+      POSTGRES_PASSWORD: docket
+      POSTGRES_DB: docket
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docket"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  valkey_data:

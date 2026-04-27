@@ -414,6 +414,44 @@ func (s *TicketService) ToggleACCheckbox(ctx context.Context, orgID, ticketID uu
 	return s.store.UpdateTicketAC(ctx, orgID, ticketID, ac)
 }
 
+// AddACItem appends a new unchecked item to the acceptance criteria.
+func (s *TicketService) AddACItem(ctx context.Context, orgID, ticketID uuid.UUID, text string) (*model.Ticket, error) {
+	ac, err := s.store.GetTicketAC(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	line := "- [ ] " + strings.TrimSpace(text)
+	if ac == "" {
+		ac = line
+	} else {
+		ac = strings.TrimRight(ac, "\n") + "\n" + line
+	}
+	return s.store.UpdateTicketAC(ctx, orgID, ticketID, ac)
+}
+
+// DeleteACItem removes the Nth checklist item from the acceptance criteria.
+func (s *TicketService) DeleteACItem(ctx context.Context, orgID, ticketID uuid.UUID, index int) (*model.Ticket, error) {
+	ac, err := s.store.GetTicketAC(ctx, orgID, ticketID)
+	if err != nil {
+		return nil, err
+	}
+	var kept []string
+	itemIdx := 0
+	for _, line := range strings.Split(ac, "\n") {
+		trimmed := strings.TrimSpace(line)
+		isItem := strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] ")
+		if isItem {
+			if itemIdx != index {
+				kept = append(kept, line)
+			}
+			itemIdx++
+		} else if trimmed != "" {
+			kept = append(kept, line)
+		}
+	}
+	return s.store.UpdateTicketAC(ctx, orgID, ticketID, strings.Join(kept, "\n"))
+}
+
 // checkboxRe matches GFM task-list markers: [ ] or [x] (case-insensitive).
 var checkboxRe = regexp.MustCompile(`\[([ xX])\]`)
 

@@ -22,8 +22,8 @@ var (
 )
 
 const (
-	accessTokenTTL  = 15 * time.Minute
-	refreshTokenTTL = 7 * 24 * time.Hour
+	accessTokenTTL  = 5 * 24 * time.Hour
+	refreshTokenTTL = 5 * 24 * time.Hour
 )
 
 type AuthService struct {

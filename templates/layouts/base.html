@@ -9,7 +9,21 @@
   <link rel="stylesheet" href="/static/app.css" />
   <style>[x-cloak]{display:none!important}</style>
 </head>
-<body class="bg-base-100 text-base-content" x-data="{ newTicket: false, ticketModal: false }" @open-ticket-modal.window="ticketModal = true">
+<body class="bg-base-100 text-base-content"
+      x-data="{
+        newTicket: false,
+        ticketModal: false,
+        shortcutsOpen: false,
+        handleKey(e) {
+          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
+          if (e.metaKey || e.ctrlKey || e.altKey) return;
+          if (e.key === 'n') { e.preventDefault(); this.newTicket = true; this.$nextTick(() => document.getElementById('new-ticket-title')?.focus()); }
+          if (e.key === '/') { e.preventDefault(); document.querySelector('input[name=\'q\']')?.focus(); }
+          if (e.key === '?') { e.preventDefault(); this.shortcutsOpen = !this.shortcutsOpen; }
+        }
+      }"
+      @open-ticket-modal.window="ticketModal = true"
+      @keydown.window="handleKey($event)">
 
   <!-- Top navbar -->
   <nav class="fixed top-0 z-50 w-full bg-base-200 border-b border-base-300">
@@ -27,7 +41,7 @@
           Docket
         </a>
         <div class="w-px h-5 bg-base-300 shrink-0"></div>
-        <button @click="newTicket = true" class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded shrink-0 hover:opacity-90">
+        <button @click="newTicket = true; $nextTick(() => document.getElementById('new-ticket-title')?.focus())" class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded shrink-0 hover:opacity-90">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
           New Ticket
         </button>
@@ -41,15 +55,22 @@
                class="w-96 bg-base-100 border border-base-300 text-base-content text-sm font-mono rounded-lg px-4 py-1.5 placeholder:text-base-content/40 focus:outline-none focus:border-primary" />
       </div>
 
-      <!-- Right: avatar dropdown -->
+      <!-- Right: shortcuts hint + avatar dropdown -->
       <div class="flex items-center gap-3 shrink-0">
+        <button @click="shortcutsOpen = true"
+                class="text-base-content/20 hover:text-base-content/50 transition-colors"
+                title="Keyboard shortcuts (?)">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+          </svg>
+        </button>
         <div class="relative" x-data="{ open: false }">
           <button @click="open = !open"
                   class="w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-medium flex items-center justify-center cursor-pointer hover:bg-primary/30 transition-colors">
             {{if .CurrentUser}}{{initials .CurrentUser.Name}}{{else}}?{{end}}
           </button>
           <div x-show="open" x-cloak @click.outside="open = false"
-               class="absolute right-0 top-10 z-50 w-56 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
+               class="absolute right-0 top-10 z-50 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup py-1">
             {{if .CurrentUser}}
             <div class="px-4 py-3 border-b border-base-300">
               <p class="text-sm font-medium text-base-content">{{.CurrentUser.Name}}</p>
@@ -119,12 +140,19 @@
               {{range .NavTeams}}
               {{$team := .Team}}
               {{$board := .Board}}
-              <div x-data="{ open: true }" class="flex flex-col">
-                <button @click="open = !open" class="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium text-base-content/70 hover:bg-base-300 hover:text-base-content w-full">
-                  <svg class="h-3 w-3 text-base-content/30 shrink-0 transition-transform" :class="open ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                  <span class="font-mono text-primary text-xs opacity-70">{{$team.Key}}</span>
-                  {{$team.Name}}
-                </button>
+              <div x-data="{
+                open: localStorage.getItem('team-{{$team.ID}}') !== 'false',
+                toggle() { this.open = !this.open; localStorage.setItem('team-{{$team.ID}}', this.open ? 'true' : 'false'); }
+              }" class="flex flex-col">
+                <div class="flex items-center rounded text-sm font-medium text-base-content/70 hover:bg-base-300 hover:text-base-content">
+                  <button @click="toggle()" class="p-1.5 shrink-0">
+                    <svg class="h-3 w-3 text-base-content/30 transition-transform" :class="open ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                  </button>
+                  <a href="/teams/{{$team.ID}}" class="flex items-center gap-1.5 flex-1 min-w-0 py-1.5 pr-2">
+                    <span class="font-mono text-primary text-xs opacity-70">{{$team.Key}}</span>
+                    <span class="truncate">{{$team.Name}}</span>
+                  </a>
+                </div>
                 <div x-show="open" class="ml-3 flex flex-col gap-0.5 mt-0.5 mb-1">
                   {{if $board}}
                   <a href="/boards/{{$board.ID}}" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
@@ -132,6 +160,10 @@
                     Board
                   </a>
                   {{if $board.Mode.IsScrum}}
+                  <a href="/boards/{{$board.ID}}/daily" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/daily" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
+                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Daily Scrum
+                  </a>
                   <a href="/boards/{{$board.ID}}/backlog" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/backlog" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
                     <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h7"/></svg>
                     Backlog
@@ -151,6 +183,7 @@
                   {{end}}
                   {{end}}
                 </div>
+                <script>(function(){var el=document.currentScript.parentElement;var exp=localStorage.getItem('team-{{$team.ID}}')!=='false';if(!exp)el.querySelector('[x-show]').style.display='none';el.querySelector('button svg').classList.toggle('rotate-90',exp);})();</script>
               </div>
               {{end}}
             </div>
@@ -202,6 +235,39 @@
     </div>
   </div>
 
+  <!-- Keyboard shortcuts overlay -->
+  <div x-show="shortcutsOpen" x-cloak
+       @keydown.escape.window="shortcutsOpen = false"
+       class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60" @click="shortcutsOpen = false"></div>
+    <div class="relative bg-base-200 border border-base-300 rounded-xl shadow-2xl w-80 p-5 flex flex-col gap-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-base-content">Keyboard shortcuts</h2>
+        <button @click="shortcutsOpen = false" class="text-base-content/30 hover:text-base-content">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="flex flex-col gap-2">
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-base-content/60">New ticket</span>
+          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">N</kbd>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-base-content/60">Focus search</span>
+          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">/</kbd>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-base-content/60">Close / cancel</span>
+          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">Esc</kbd>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-sm text-base-content/60">This dialog</span>
+          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">?</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- New Ticket Modal data (team→board map for tag loading) -->
   <script>
   window._ntTeams = [
@@ -217,7 +283,7 @@
          createMore: false, maximized: false,
          teamOpen: false, assigneeOpen: false, labelOpen: false,
          teams: window._ntTeams || [],
-         selectedTeamID: (window._ntTeams && window._ntTeams[0]) ? window._ntTeams[0].id : '',
+         selectedTeamID: (function(){ var t=window._ntTeams||[]; if(!t.length) return ''; var last=localStorage.getItem('docket-last-team'); return (last && t.find(x=>x.id===last)) ? last : t[0].id; })(),
          get selectedTeam() { return this.teams.find(t => t.id === this.selectedTeamID) || (this.teams[0] || {}); },
          teamQ: '',
          get filteredTeams() { const q = this.teamQ.toLowerCase(); return (q ? this.teams.filter(t => t.key.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)) : this.teams).slice(0, 10); },
@@ -239,11 +305,13 @@
          removeAssignee(id) { this.assignees=this.assignees.filter(a=>a.id!==id); },
          addLabel(t) { if(!this.labels.find(l=>l.id===t.id)) this.labels.push(t); this.availableTags=this.availableTags.filter(x=>x.id!==t.id); this.labelOpen=false; },
          removeLabel(id) { const t=this.labels.find(l=>l.id===id); if(t) this.availableTags.push(t); this.labels=this.labels.filter(l=>l.id!==id); },
-         afterCreate() { if(this.createMore){ this.$refs.newTicketForm.reset(); this.assignees=[]; this.labels=[]; this.$refs.titleInput.focus(); document.body.dispatchEvent(new CustomEvent('boardUpdated')); } },
+         afterCreate() { localStorage.setItem('docket-last-team', this.selectedTeamID); if(this.createMore){ this.$refs.newTicketForm.reset(); this.assignees=[]; this.labels=[]; this.$refs.titleInput.focus(); document.body.dispatchEvent(new CustomEvent('boardUpdated')); } },
          resetState() { this.assignees=[]; this.labels=[]; this.assigneeQ=''; this.assigneeResults=[]; this.availableTags=[]; this.assigneeOpen=false; this.labelOpen=false; this.teamOpen=false; this.teamQ=''; this.createMore=false; this.maximized=false; if(this.teams[0]) this.selectedTeamID=this.teams[0].id; },
          close() { newTicket=false; this.resetState(); this.$nextTick(()=>{ if(this.$refs.newTicketForm) this.$refs.newTicketForm.reset(); }); }
        }"
        @keydown.escape.window="close()"
+       @keydown.meta.enter.window="$event.preventDefault(); $refs.newTicketForm.requestSubmit()"
+       @keydown.ctrl.enter.window="$event.preventDefault(); $refs.newTicketForm.requestSubmit()"
        class="fixed inset-0 z-50 flex items-center justify-center p-6">
     <div class="absolute inset-0 bg-black/60" @click="close()"></div>
     <div class="relative w-full bg-base-100 border border-base-300 rounded-xl shadow-2xl flex flex-col transition-all duration-150"
@@ -259,7 +327,7 @@
               <svg class="h-3 w-3 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
               <span class="font-mono text-primary" x-text="selectedTeam.key || '—'"></span>
             </button>
-            <div x-show="teamOpen" x-cloak class="absolute left-0 top-full mt-1 z-30 w-52 bg-base-200 border border-base-300 rounded-lg shadow-xl flex flex-col">
+            <div x-show="teamOpen" x-cloak class="absolute left-0 top-full mt-1 z-30 w-52 bg-base-200 border border-base-300 rounded-lg shadow-popup flex flex-col">
               <div class="p-2 border-b border-base-300">
                 <input type="text" x-model="teamQ" @input="" placeholder="Search teams…"
                        x-ref="teamSearchInput"
@@ -310,11 +378,12 @@
 
         <!-- Title + description -->
         <div class="px-6 pt-6 pb-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
-          <input type="text" name="title" required x-ref="titleInput"
+          <input type="text" name="title" required x-ref="titleInput" id="new-ticket-title"
                  placeholder="Ticket title"
+                 @keydown.enter.prevent="$refs.bodyTextarea?.focus()"
                  class="w-full bg-transparent text-xl font-semibold text-base-content placeholder:text-base-content/20 focus:outline-none shrink-0" />
           <hr class="border-base-300 shrink-0" />
-          <textarea name="body"
+          <textarea name="body" x-ref="bodyTextarea"
                     placeholder="Add a description…"
                     :rows="maximized ? 1 : 4"
                     class="w-full bg-transparent text-sm text-base-content/70 placeholder:text-base-content/20 focus:outline-none resize-none font-mono leading-relaxed flex-1 min-h-0"></textarea>
@@ -352,7 +421,7 @@
               <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
               Assignee
             </button>
-            <div x-show="assigneeOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-56 bg-base-200 border border-base-300 rounded-lg shadow-xl flex flex-col">
+            <div x-show="assigneeOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup flex flex-col">
               <div class="max-h-40 overflow-y-auto py-1">
                 <template x-for="u in assigneeResults" :key="u.id">
                   <button type="button" @mousedown.prevent @click="addAssignee(u)"
@@ -393,7 +462,7 @@
               <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
               Label
             </button>
-            <div x-show="labelOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-44 bg-base-200 border border-base-300 rounded-lg shadow-xl py-1">
+            <div x-show="labelOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-44 bg-base-200 border border-base-300 rounded-lg shadow-popup py-1">
               <template x-for="t in availableTags" :key="t.id">
                 <button type="button" @mousedown.prevent @click="addLabel(t)"
                         class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs">

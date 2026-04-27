@@ -1,0 +1,94 @@
+{{define "daily-tickets"}}
+<div class="flex flex-col gap-8">
+
+  {{range .Groups}}
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 mb-0.5">
+      <div class="w-6 h-6 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">{{initials .User.Name}}</div>
+      <span class="text-sm font-semibold text-base-content">{{.User.Name}}</span>
+      <span class="text-xs text-base-content/30 font-mono">@{{.User.Username}}</span>
+      <div class="flex-1 h-px bg-base-300 ml-1"></div>
+      <span class="text-xs text-base-content/30">{{len .Tickets}}</span>
+    </div>
+    <div class="flex flex-col gap-1.5 ml-8">
+      {{range .Tickets}}
+      {{template "ds-row" .}}
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  {{if .Unassigned}}
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center gap-2 mb-0.5">
+      <div class="w-6 h-6 rounded-full bg-base-300 border border-base-300 flex items-center justify-center shrink-0">
+        <svg class="h-3 w-3 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+      </div>
+      <span class="text-sm font-semibold text-base-content/50">Unassigned</span>
+      <div class="flex-1 h-px bg-base-300 ml-1"></div>
+      <span class="text-xs text-base-content/30">{{len .Unassigned}}</span>
+    </div>
+    <div class="flex flex-col gap-1.5 ml-8">
+      {{range .Unassigned}}
+      {{template "ds-row" .}}
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  {{if and (not .Groups) (not .Unassigned)}}
+  <div class="py-16 text-center">
+    <p class="text-sm text-base-content/30 italic">No tickets match the current filters.</p>
+  </div>
+  {{end}}
+
+</div>
+{{end}}
+
+{{define "ds-row"}}
+<div class="flex items-center gap-3 px-3 py-2 rounded-lg bg-base-200 border border-base-300 hover:border-primary/30 transition-colors cursor-pointer"
+     hx-get="/tickets/{{.Ticket.ID}}/quick"
+     hx-target="#modal-body"
+     hx-swap="innerHTML"
+     hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
+  <a href="/tickets/{{.Ticket.DisplayID}}"
+     class="font-mono text-xs text-primary hover:underline shrink-0"
+     onclick="event.stopPropagation()">{{.Ticket.DisplayID}}</a>
+  <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{.Ticket.Title}}</span>
+  <!-- Column / status chip -->
+  {{if .Ticket.ClosedAt}}
+  <span class="text-xs px-2 py-0.5 rounded-full shrink-0 text-primary bg-primary/10 border border-primary/20 flex items-center gap-1">
+    <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    {{.ColumnName}}
+  </span>
+  {{else}}
+  <span class="text-xs px-2 py-0.5 rounded-full shrink-0 text-base-content/50 bg-base-100 border border-base-300">{{.ColumnName}}</span>
+  {{end}}
+  <!-- Priority badge -->
+  {{if eq .Ticket.Priority "critical"}}
+  <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5 shrink-0">critical</span>
+  {{else if eq .Ticket.Priority "high"}}
+  <span class="text-xs border border-amber-700 text-amber-400 rounded-md px-1.5 py-0.5 shrink-0">high</span>
+  {{else if eq .Ticket.Priority "medium"}}
+  <span class="text-xs border border-blue-700 text-blue-400 rounded-md px-1.5 py-0.5 shrink-0">medium</span>
+  {{else if eq .Ticket.Priority "low"}}
+  <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5 shrink-0">low</span>
+  {{end}}
+  <!-- Tags -->
+  {{range .Ticket.Tags}}
+  <span class="text-xs rounded-full px-2 py-0.5 shrink-0 border"
+        style="background-color: {{.Color}}20; border-color: {{.Color}}40; color: {{.Color}}">{{.Name}}</span>
+  {{end}}
+  <!-- Story points -->
+  {{if .Ticket.StoryPoints}}
+  <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 px-1">{{deref .Ticket.StoryPoints}}</span>
+  {{end}}
+  <!-- Blocked indicator -->
+  {{if .Ticket.IsBlocked}}
+  <span class="flex items-center gap-1 text-xs text-red-400 shrink-0 border border-red-800/40 bg-red-900/20 rounded-md px-1.5 py-0.5">
+    <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+    blocked
+  </span>
+  {{end}}
+</div>
+{{end}}
