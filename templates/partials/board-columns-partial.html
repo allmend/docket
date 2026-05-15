@@ -47,10 +47,13 @@
           <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5">low</span>
           {{end}}
           {{if .Assignees}}
-          <div class="ml-auto flex">
-            {{range $i, $a := .Assignees}}{{if lt $i 3}}
-            <div class="w-5 h-5 rounded-full bg-primary/20 border border-base-300 flex items-center justify-center text-[10px] font-bold text-primary {{if gt $i 0}}-ml-1{{end}}">{{initials $a.Name}}</div>
+          <div class="ml-auto flex -space-x-1 overflow-hidden">
+            {{range $i, $a := .Assignees}}{{if lt $i 2}}
+            <div class="w-5 h-5 rounded-full bg-primary/20 ring-2 ring-base-200 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
             {{end}}{{end}}
+            {{if gt (len .Assignees) 2}}
+            <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-200 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
+            {{end}}
           </div>
           {{end}}
         </div>
@@ -133,10 +136,13 @@
           <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5">low</span>
           {{end}}
           {{if .Assignees}}
-          <div class="ml-auto flex">
-            {{range $i, $a := .Assignees}}{{if lt $i 3}}
-            <div class="w-5 h-5 rounded-full bg-primary/20 border border-base-300 flex items-center justify-center text-[10px] font-bold text-primary {{if gt $i 0}}-ml-1{{end}}">{{initials $a.Name}}</div>
+          <div class="ml-auto flex -space-x-1 overflow-hidden">
+            {{range $i, $a := .Assignees}}{{if lt $i 2}}
+            <div class="w-5 h-5 rounded-full bg-primary/20 ring-2 ring-base-200 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
             {{end}}{{end}}
+            {{if gt (len .Assignees) 2}}
+            <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-200 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
+            {{end}}
           </div>
           {{end}}
         </div>
