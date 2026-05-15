@@ -146,7 +146,7 @@
               }" class="flex flex-col">
                 <div class="flex items-center rounded text-sm font-medium text-base-content/70 hover:bg-base-300 hover:text-base-content">
                   <button @click="toggle()" class="p-1.5 shrink-0">
-                    <svg class="h-3 w-3 text-base-content/30 transition-transform" :class="open ? 'rotate-90' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                    <svg class="h-3 w-3 text-base-content/30 transition-transform" :style="open ? 'transform:rotate(90deg)' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
                   </button>
                   <a href="/teams/{{$team.ID}}" class="flex items-center gap-1.5 flex-1 min-w-0 py-1.5 pr-2">
                     <span class="font-mono text-primary text-xs opacity-70">{{$team.Key}}</span>
@@ -183,7 +183,7 @@
                   {{end}}
                   {{end}}
                 </div>
-                <script>(function(){var el=document.currentScript.parentElement;var exp=localStorage.getItem('team-{{$team.ID}}')!=='false';if(!exp)el.querySelector('[x-show]').style.display='none';el.querySelector('button svg').classList.toggle('rotate-90',exp);})();</script>
+                <script>(function(){var el=document.currentScript.parentElement;var exp=localStorage.getItem('team-{{$team.ID}}')!=='false';if(!exp){el.querySelector('[x-show]').style.display='none';}else{el.querySelector('button svg').style.transform='rotate(90deg)';}})();</script>
               </div>
               {{end}}
             </div>
