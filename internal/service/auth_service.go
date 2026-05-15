@@ -41,15 +41,28 @@ type TokenPair struct {
 	RefreshToken string
 }
 
+// LoginSingleOrg validates username/password against the only org in the database.
+// Used in single-tenant deployments where org selection is not exposed in the UI.
+func (s *AuthService) LoginSingleOrg(ctx context.Context, username, password string) (*model.User, *TokenPair, error) {
+	org, err := s.store.GetFirstOrg(ctx)
+	if err != nil {
+		bcrypt.CompareHashAndPassword([]byte("$2a$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), []byte(password)) //nolint
+		return nil, nil, ErrInvalidCredentials
+	}
+	return s.loginWithOrg(ctx, org, username, password)
+}
+
 // LoginLocal validates username/password for the given org slug.
 func (s *AuthService) LoginLocal(ctx context.Context, orgSlug, username, password string) (*model.User, *TokenPair, error) {
 	org, err := s.store.GetOrgBySlug(ctx, orgSlug)
 	if err != nil {
-		// Constant-time: still run bcrypt even on miss.
 		bcrypt.CompareHashAndPassword([]byte("$2a$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), []byte(password)) //nolint
 		return nil, nil, ErrInvalidCredentials
 	}
+	return s.loginWithOrg(ctx, org, username, password)
+}
 
+func (s *AuthService) loginWithOrg(ctx context.Context, org *model.Org, username, password string) (*model.User, *TokenPair, error) {
 	user, err := s.store.GetUserByUsername(ctx, org.ID, username)
 	if err != nil {
 		bcrypt.CompareHashAndPassword([]byte("$2a$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), []byte(password)) //nolint

@@ -20,6 +20,17 @@ func (s *Store) GetOrgBySlug(ctx context.Context, slug string) (*model.Org, erro
 	return &o, nil
 }
 
+func (s *Store) GetFirstOrg(ctx context.Context) (*model.Org, error) {
+	var o model.Org
+	err := s.replica.QueryRow(ctx,
+		`SELECT id, name, slug, created_at, updated_at FROM orgs LIMIT 1`,
+	).Scan(&o.ID, &o.Name, &o.Slug, &o.CreatedAt, &o.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
 func (s *Store) GetOrgByID(ctx context.Context, id uuid.UUID) (*model.Org, error) {
 	var o model.Org
 	err := s.replica.QueryRow(ctx,

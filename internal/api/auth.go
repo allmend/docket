@@ -15,13 +15,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orgSlug := r.FormValue("org")
 	username := r.FormValue("username")
 	password := r.FormValue("password")
 
-	_, pair, err := h.auth.LoginLocal(r.Context(), orgSlug, username, password)
+	_, pair, err := h.auth.LoginSingleOrg(r.Context(), username, password)
 	if err != nil {
-		h.render(w, "login.html", map[string]string{"Error": "Invalid organisation, username, or password."})
+		h.render(w, "login.html", map[string]string{"Error": "Invalid username or password."})
 		return
 	}
 
