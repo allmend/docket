@@ -292,7 +292,7 @@
             <a href="/tickets/{{.DisplayID}}"
                class="font-mono text-xs text-primary hover:underline"
                @click.stop>{{.DisplayID}}</a>
-            {{if .ClosedAt}}<span class="text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5">closed</span>{{end}}
+            {{if .ClosedAt}}<span data-closed-chip class="text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5">closed</span>{{end}}
             {{if eq .Priority "critical"}}
             <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5">critical</span>
             {{else if eq .Priority "high"}}
@@ -391,7 +391,7 @@
           <p class="text-sm font-medium leading-snug">{{if .StoryPoints}}<span class="inline-flex items-center justify-center align-middle min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</p>
           <div class="flex items-center gap-2">
             <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary hover:underline" @click.stop>{{.DisplayID}}</a>
-            {{if .ClosedAt}}<span class="text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5">closed</span>{{end}}
+            {{if .ClosedAt}}<span data-closed-chip class="text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5">closed</span>{{end}}
             {{if eq .Priority "critical"}}
             <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5">critical</span>
             {{else if eq .Priority "high"}}

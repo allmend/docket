@@ -14,6 +14,18 @@
 
 import Sortable from "sortablejs";
 
+// SortableJS sets this.el = null on destroy(), but stale dragover listeners can
+// still fire afterward. Patch the prototype so _onDragOver is a no-op when the
+// instance has been destroyed, preventing "lastElementChild of null" crashes.
+{
+  const orig = Sortable.prototype._onDragOver;
+  if (orig) {
+    Sortable.prototype._onDragOver = function (evt) {
+      if (this.el) orig.call(this, evt);
+    };
+  }
+}
+
 function board(boardID, sprintID) {
   return {
     boardID,
@@ -22,36 +34,56 @@ function board(boardID, sprintID) {
 
     init() {
       this.initSortables();
-      document.addEventListener("htmx:afterSwap", () => this.initSortables());
+      // Only reinitialize when the board columns container is swapped.
+      // Firing on every htmx:afterSwap (modal loads, comment posts, etc.) destroys
+      // and recreates Sortables unnecessarily, and if that happens mid-drag,
+      // SortableJS's _onDragOver accesses a null parentNode and crashes.
+      document.addEventListener("htmx:afterSwap", (e) => {
+        const t = e.detail.target;
+        if (!(t && (t.id === "board-columns" || t.querySelector?.(".ticket-list, .backlog-ticket-list")))) return;
+        if (Sortable.dragged) {
+          // Board swapped while a drag is active — defer until drag ends.
+          document.addEventListener("dragend", () => this.initSortables(), { once: true });
+        } else {
+          this.initSortables();
+        }
+      });
     },
 
     initSortables() {
-      this.sortables.forEach((s) => s.destroy());
+      // Calling Sortable.create while a drag is in progress corrupts SortableJS's
+      // internal state: the global _onDragOver handler fires during construction
+      // and tries to access a parentNode that the ongoing drag has set to null.
+      if (Sortable.dragged) return;
+
+      this.sortables.forEach((s) => { try { s.destroy(); } catch (_) {} });
       this.sortables = [];
 
       // Backlog column — source-only: can drag out, cannot drop in.
       const backlogEl = document.querySelector(".backlog-ticket-list");
       if (backlogEl) {
-        const s = Sortable.create(backlogEl, {
-          group: { name: "tickets", pull: true, put: true },
-          animation: 150,
-          ghostClass: "opacity-30",
-          dragClass: "shadow-2xl",
-          onEnd: (evt) => this.onDrop(evt),
-        });
-        this.sortables.push(s);
+        try {
+          this.sortables.push(Sortable.create(backlogEl, {
+            group: { name: "tickets", pull: true, put: true },
+            animation: 150,
+            ghostClass: "opacity-30",
+            dragClass: "shadow-2xl",
+            onEnd: (evt) => this.onDrop(evt),
+          }));
+        } catch (_) {}
       }
 
       // Sprint / kanban columns — normal drag targets.
       document.querySelectorAll(".ticket-list").forEach((el) => {
-        const s = Sortable.create(el, {
-          group: "tickets",
-          animation: 150,
-          ghostClass: "opacity-30",
-          dragClass: "shadow-2xl",
-          onEnd: (evt) => this.onDrop(evt),
-        });
-        this.sortables.push(s);
+        try {
+          this.sortables.push(Sortable.create(el, {
+            group: "tickets",
+            animation: 150,
+            ghostClass: "opacity-30",
+            dragClass: "shadow-2xl",
+            onEnd: (evt) => this.onDrop(evt),
+          }));
+        } catch (_) {}
       });
     },
 
@@ -134,6 +166,24 @@ function board(boardID, sprintID) {
     updateDoneClass(ticketEl, toEl) {
       const isDone = toEl.dataset.isDone === "true";
       ticketEl.classList.toggle("opacity-50", isDone);
+
+      // Sync the "closed" chip. The server sets/clears closed_at on column moves,
+      // but the card DOM isn't re-rendered — we mirror the change client-side.
+      const metaRow = ticketEl.querySelector(".flex.items-center.gap-2");
+      if (!metaRow) return;
+      const existing = metaRow.querySelector("[data-closed-chip]");
+      if (isDone && !existing) {
+        const link = metaRow.querySelector("a");
+        if (link) {
+          const chip = document.createElement("span");
+          chip.setAttribute("data-closed-chip", "");
+          chip.className = "text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5";
+          chip.textContent = "closed";
+          link.insertAdjacentElement("afterend", chip);
+        }
+      } else if (!isDone && existing) {
+        existing.remove();
+      }
     },
   };
 }
