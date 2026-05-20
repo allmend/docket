@@ -2,7 +2,7 @@
 
 assets:
 	npx tailwindcss -i static/src/app.css -o static/dist/app.css --minify
-	npx esbuild static/src/board.js --bundle --outdir=static/dist --minify
+	npx esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --minify
 
 rebuild: assets vet build
 
@@ -22,10 +22,10 @@ sqlc:
 	sqlc generate
 
 js:
-	npx esbuild static/src/board.js --bundle --outdir=static/dist --minify
+	npx esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --minify
 
 js-watch:
-	npx esbuild static/src/board.js --bundle --outdir=static/dist --watch
+	npx esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --watch
 
 css:
 	npx tailwindcss -i static/src/app.css -o static/dist/app.css --minify

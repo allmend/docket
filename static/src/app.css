@@ -2,9 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+html { font-size: 110%; }
+
 /* Hide Alpine x-cloak elements until Alpine initialises */
 [x-cloak] { display: none !important; }
 
 /* Syntax-highlighted code blocks: scroll internally, never expand container.
    min-width:0 prevents pre from sizing to max-content in flex/grid contexts. */
 pre { min-width: 0; overflow-x: auto !important; }
+
+/* Inline code: Slack-style — orange-400 text, dark bg, monospace, no bold, rounded. */
+.prose :not(pre) > code {
+  @apply text-orange-400 bg-orange-400/10 font-mono font-normal rounded px-1 py-0.5 text-[0.85em];
+}
+.prose :not(pre) > code::before,
+.prose :not(pre) > code::after { content: none !important; }

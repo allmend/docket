@@ -5,12 +5,14 @@
     "build": "npm run css && npm run js",
     "css": "tailwindcss -i static/src/app.css -o static/dist/app.css --minify",
     "css:watch": "tailwindcss -i static/src/app.css -o static/dist/app.css --watch",
-    "js": "esbuild static/src/board.js --bundle --minify --outdir=static/dist",
-    "js:watch": "esbuild static/src/board.js --bundle --outdir=static/dist --watch",
+    "js": "esbuild static/src/board.js static/src/editor.js --bundle --minify --outdir=static/dist",
+    "js:watch": "esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --watch",
     "vendor": "node scripts/vendor.js"
   },
   "dependencies": {
-    "sortablejs": "^1.15.3"
+    "marked": "^18.0.4",
+    "sortablejs": "^1.15.3",
+    "turndown": "^7.2.4"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",

@@ -104,37 +104,12 @@
           {{if .CurrentUser}}
           <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .CurrentUser.Name}}</div>
           {{end}}
-          <div x-data="mentionInput()" class="flex-1 min-w-0 flex flex-col gap-2">
+          <div class="flex-1 min-w-0">
             <form hx-post="/tickets/{{.Ticket.ID}}/comments" hx-target=".comments-list" hx-swap="beforeend"
-                  hx-on::after-request="if(event.detail.successful){this.reset();this.dispatchEvent(new CustomEvent('comment-added',{bubbles:true}))}">
-              <div class="relative">
-                <textarea @input="mentionInput($event)" name="body" rows="3"
-                          placeholder="Write a comment… (@username, #TICKET-ID)"
-                          class="w-full bg-base-200 border border-base-300 text-base-content text-sm rounded-lg px-3 py-2 placeholder:text-base-content/30 focus:outline-none focus:border-primary resize-y font-mono"></textarea>
-                <!-- @mention dropdown -->
-                <div x-show="mentionOpen" x-cloak @click.outside="mentionOpen = false"
-                     class="absolute top-full mt-1 left-0 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup overflow-hidden z-50">
-                  <template x-for="u in mentionUsers" :key="u.username">
-                    <button type="button" @mousedown.prevent @click.stop="mentionPick(u.username)"
-                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
-                      <span class="text-xs font-bold text-primary" x-text="'@' + u.username"></span>
-                      <span class="text-xs text-base-content/60" x-text="u.name"></span>
-                    </button>
-                  </template>
-                </div>
-                <!-- #ticket dropdown -->
-                <div x-show="ticketOpen" x-cloak @click.outside="ticketOpen = false"
-                     class="absolute top-full mt-1 left-0 w-80 bg-base-200 border border-base-300 rounded-lg shadow-popup overflow-hidden z-50">
-                  <template x-for="t in mentionTickets" :key="t.display_id">
-                    <button type="button" @mousedown.prevent @click.stop="ticketPick(t.display_id)"
-                            class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left">
-                      <span class="text-xs font-bold text-primary font-mono shrink-0" x-text="'#' + t.display_id"></span>
-                      <span class="text-xs text-base-content/60 truncate" x-text="t.title"></span>
-                    </button>
-                  </template>
-                </div>
-              </div>
-              <div class="mt-2">
+                  hx-on::after-request="if(event.detail.successful){this.reset();this.dispatchEvent(new CustomEvent('comment-added',{bubbles:true}))}"
+                  class="flex flex-col gap-2">
+              {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Write a comment… (@username, #TICKET-ID)" "Rows" "3")}}
+              <div>
                 <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Comment</button>
               </div>
             </form>
