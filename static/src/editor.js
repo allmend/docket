@@ -24,12 +24,14 @@ td.addRule("fenced-code-block", {
     node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE",
   replacement: (_content, node) => {
     const code = node.firstChild;
+    // marked sets class="language-javascript" — preserve the lang identifier.
+    const lang = (code.className || "").replace(/\blanguage-/, "").trim();
     let text = "";
     code.childNodes.forEach((child) => {
       if (child.nodeType === 3) text += child.textContent;
       else if (child.nodeName === "BR") text += "\n";
     });
-    return "\n\n```\n" + text.replace(/\n$/, "") + "\n```\n\n";
+    return "\n\n```" + lang + "\n" + text.replace(/\n$/, "") + "\n```\n\n";
   },
 });
 
@@ -304,6 +306,10 @@ function richEditor(fieldName) {
           return;
         }
 
+        // List item: let the browser create the next <li> natively.
+        const li = this._ancestor(anchor, visual, (n) => n.tagName === "LI");
+        if (li) return;
+
         // All other blocks: split at cursor into two paragraphs.
         e.preventDefault();
         const range = sel.getRangeAt(0);
@@ -558,9 +564,13 @@ function richEditor(fieldName) {
       const cn = range.startContainer;
       if (cn.nodeType === Node.TEXT_NODE && cn.textContent.includes("​")) {
         const offset = range.startOffset;
+        const zwsIdx = cn.textContent.indexOf("​");
         cn.textContent = cn.textContent.replace("​", "");
+        // Only shift the cursor left if the ZWS was strictly before it;
+        // if ZWS was at or after the cursor, the position is already correct.
+        const newOffset = zwsIdx < offset ? Math.max(0, offset - 1) : offset;
         const r = document.createRange();
-        r.setStart(cn, Math.max(0, offset - 1));
+        r.setStart(cn, newOffset);
         r.collapse(true);
         sel.removeAllRanges();
         sel.addRange(r);

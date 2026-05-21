@@ -43,6 +43,69 @@
     <!-- Right-side header actions (Labels + Add column) always grouped together -->
     <div class="flex items-center gap-2 shrink-0">
 
+      <!-- Filter button + popover -->
+      <div x-data="{ filterOpen: false }" class="relative">
+        <button @click="filterOpen = !filterOpen"
+                :class="activeFilterCount() > 0 ? 'border-primary text-primary' : 'border-base-300 text-base-content/50 hover:text-base-content'"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm hover:bg-base-300 rounded border transition-colors">
+          <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
+          Filter
+          <span x-show="activeFilterCount() > 0"
+                x-text="activeFilterCount()"
+                class="min-w-[1rem] h-4 px-1 bg-primary text-base-100 text-[10px] font-bold rounded-full flex items-center justify-center"></span>
+        </button>
+        <div x-show="filterOpen" x-cloak @click.outside="filterOpen = false"
+             class="absolute right-0 top-full mt-1 w-72 bg-base-200 border border-base-300 rounded-lg shadow-popup z-30 p-4 flex flex-col gap-4">
+
+          <!-- Priority -->
+          <div>
+            <p class="text-xs font-medium text-base-content/40 uppercase tracking-wider mb-2">Severity</p>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-for="p in ['critical','high','medium','low']" :key="p">
+                <button type="button" @click="togglePriority(p)"
+                        :class="filterPriorities.includes(p) ? 'bg-primary/20 border-primary text-primary' : 'border-base-300 text-base-content/50 hover:border-base-content/30 hover:text-base-content'"
+                        class="px-2.5 py-0.5 text-xs rounded border capitalize transition-colors"
+                        x-text="p"></button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Assignee -->
+          <div>
+            <p class="text-xs font-medium text-base-content/40 uppercase tracking-wider mb-2">Assignee</p>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-if="boardAssignees().length === 0">
+                <p class="text-xs text-base-content/30 italic">No assignees on this board</p>
+              </template>
+              <template x-for="name in boardAssignees()" :key="name">
+                <button type="button" @click="toggleAssignee(name)"
+                        :class="filterAssignees.includes(name) ? 'bg-primary/20 border-primary text-primary' : 'border-base-300 text-base-content/50 hover:border-base-content/30 hover:text-base-content'"
+                        class="px-2.5 py-0.5 text-xs rounded border transition-colors"
+                        x-text="name"></button>
+              </template>
+            </div>
+          </div>
+
+          <!-- Age -->
+          <div>
+            <p class="text-xs font-medium text-base-content/40 uppercase tracking-wider mb-2">Ticket age</p>
+            <select x-model.number="filterMaxAgeDays" @change="applyFilters()"
+                    class="w-full bg-base-300 text-sm text-base-content rounded px-2 py-1.5 focus:outline-none border-0">
+              <option value="0">Any age</option>
+              <option value="30">Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+
+          <!-- Clear -->
+          <button x-show="activeFilterCount() > 0" type="button" @click="clearFilters()"
+                  class="text-xs text-base-content/40 hover:text-red-400 text-left transition-colors">
+            Clear all filters
+          </button>
+        </div>
+      </div>
+
       <!-- Labels button -->
       <div x-data="{ open: false }" class="relative">
         <button @click="open = !open; if(open) htmx.ajax('GET', '/boards/{{.Board.ID}}/tags/manage', {target: '#board-tags-panel-target', swap: 'innerHTML'})"
@@ -276,6 +339,9 @@
         <div class="bg-base-100 border rounded-xl p-3 flex flex-col gap-2 transition-colors cursor-pointer {{if .IsBlocked}}border-red-900/50 hover:border-red-800/60{{else}}border-base-300 hover:border-primary/30{{end}}"
              data-ticket-id="{{.ID}}"
              data-position="{{.Position}}"
+             data-priority="{{.Priority}}"
+             data-created-unix="{{.CreatedAt.Unix}}"
+             data-assignees="{{range $i, $a := .Assignees}}{{if $i}}|{{end}}{{$a.Name}}{{end}}"
              data-ticket-column-id="{{.ColumnID}}"
              hx-get="/tickets/{{.ID}}/quick"
              hx-target="#modal-body"
@@ -378,6 +444,9 @@
         <div class="bg-base-100 border rounded-xl p-3 flex flex-col gap-2 transition-colors cursor-pointer {{if or $isDone .ClosedAt}}opacity-50{{end}} {{if .IsBlocked}}border-red-900/50 hover:border-red-800/60{{else}}border-base-300 hover:border-primary/30{{end}}"
              data-ticket-id="{{.ID}}"
              data-position="{{.Position}}"
+             data-priority="{{.Priority}}"
+             data-created-unix="{{.CreatedAt.Unix}}"
+             data-assignees="{{range $i, $a := .Assignees}}{{if $i}}|{{end}}{{$a.Name}}{{end}}"
              hx-get="/tickets/{{.ID}}/quick"
              hx-target="#modal-body"
              hx-swap="innerHTML"

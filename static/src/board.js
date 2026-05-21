@@ -32,8 +32,14 @@ function board(boardID, sprintID) {
     sprintID,
     sortables: [],
 
+    filterPriorities: [],
+    filterAssignees: [],
+    filterMaxAgeDays: 0,
+
     init() {
+      this._loadFromURL();
       this.initSortables();
+      if (this.activeFilterCount() > 0) this.applyFilters();
       // Only reinitialize when the board columns container is swapped.
       // Firing on every htmx:afterSwap (modal loads, comment posts, etc.) destroys
       // and recreates Sortables unnecessarily, and if that happens mid-drag,
@@ -43,11 +49,98 @@ function board(boardID, sprintID) {
         if (!(t && (t.id === "board-columns" || t.querySelector?.(".ticket-list, .backlog-ticket-list")))) return;
         if (Sortable.dragged) {
           // Board swapped while a drag is active — defer until drag ends.
-          document.addEventListener("dragend", () => this.initSortables(), { once: true });
+          document.addEventListener("dragend", () => { this.initSortables(); this.applyFilters(); }, { once: true });
         } else {
           this.initSortables();
+          this.applyFilters();
         }
       });
+    },
+
+    // Return sorted unique assignee names from all ticket cards on the board.
+    boardAssignees() {
+      const seen = new Set();
+      document.querySelectorAll("[data-assignees]").forEach((el) => {
+        (el.dataset.assignees || "").split("|").filter(Boolean).forEach((n) => seen.add(n));
+      });
+      return [...seen].sort();
+    },
+
+    activeFilterCount() {
+      return this.filterPriorities.length + this.filterAssignees.length + (this.filterMaxAgeDays > 0 ? 1 : 0);
+    },
+
+    togglePriority(p) {
+      const idx = this.filterPriorities.indexOf(p);
+      if (idx === -1) this.filterPriorities.push(p);
+      else this.filterPriorities.splice(idx, 1);
+      this.applyFilters();
+    },
+
+    toggleAssignee(name) {
+      const idx = this.filterAssignees.indexOf(name);
+      if (idx === -1) this.filterAssignees.push(name);
+      else this.filterAssignees.splice(idx, 1);
+      this.applyFilters();
+    },
+
+    clearFilters() {
+      this.filterPriorities = [];
+      this.filterAssignees = [];
+      this.filterMaxAgeDays = 0;
+      this.applyFilters();
+    },
+
+    // Persist filter state in the URL so filters survive reload and are shareable.
+    _syncURL() {
+      const url = new URL(window.location.href);
+      if (this.filterPriorities.length) url.searchParams.set("priority", this.filterPriorities.join(","));
+      else url.searchParams.delete("priority");
+      if (this.filterAssignees.length) url.searchParams.set("assignees", this.filterAssignees.join("|"));
+      else url.searchParams.delete("assignees");
+      if (this.filterMaxAgeDays > 0) url.searchParams.set("age", this.filterMaxAgeDays);
+      else url.searchParams.delete("age");
+      history.replaceState(null, "", url.toString());
+    },
+
+    _loadFromURL() {
+      const p = new URLSearchParams(window.location.search);
+      const priority = p.get("priority");
+      if (priority) this.filterPriorities = priority.split(",").filter(Boolean);
+      const assignees = p.get("assignees");
+      if (assignees) this.filterAssignees = assignees.split("|").filter(Boolean);
+      const age = p.get("age");
+      if (age) this.filterMaxAgeDays = parseInt(age) || 0;
+    },
+
+    applyFilters() {
+      const now = Date.now() / 1000;
+      const hasPriority = this.filterPriorities.length > 0;
+      const hasAssignee = this.filterAssignees.length > 0;
+      const hasAge = this.filterMaxAgeDays > 0;
+
+      document.querySelectorAll(".ticket-list, .backlog-ticket-list").forEach((list) => {
+        let visibleCount = 0;
+        list.querySelectorAll("[data-ticket-id]").forEach((card) => {
+          let show = true;
+          if (hasPriority && !this.filterPriorities.includes(card.dataset.priority || "")) show = false;
+          if (show && hasAssignee) {
+            const cardNames = (card.dataset.assignees || "").split("|").filter(Boolean);
+            if (!this.filterAssignees.some((n) => cardNames.includes(n))) show = false;
+          }
+          if (show && hasAge) {
+            const ageDays = (now - parseInt(card.dataset.createdUnix || 0)) / 86400;
+            // Age filter = max age: hide tickets OLDER than N days.
+            if (ageDays > this.filterMaxAgeDays) show = false;
+          }
+          card.classList.toggle("hidden", !show);
+          if (show) visibleCount++;
+        });
+        const badge = list.parentElement?.querySelector("[data-column-count]");
+        if (badge) badge.textContent = visibleCount;
+      });
+
+      this._syncURL();
     },
 
     initSortables() {
