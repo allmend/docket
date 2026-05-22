@@ -238,6 +238,65 @@ func (h *Handler) AssignRetroCardOwner(w http.ResponseWriter, r *http.Request) {
 	h.renderRetroColumns(w, r, orgID, boardID, retroBoardID, userID)
 }
 
+func (h *Handler) StackRetroCard(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
+	if err != nil {
+		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+		return
+	}
+	cardID, err := uuid.Parse(chi.URLParam(r, "cardID"))
+	if err != nil {
+		http.Error(w, "invalid card ID", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	parentID, err := uuid.Parse(r.FormValue("parent_id"))
+	if err != nil {
+		http.Error(w, "invalid parent_id", http.StatusBadRequest)
+		return
+	}
+	if err := h.retro.StackCard(r.Context(), orgID, cardID, parentID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	h.renderRetroColumns(w, r, orgID, boardID, retroBoardID, userID)
+}
+
+func (h *Handler) UnstackRetroCard(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	if err != nil {
+		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		return
+	}
+	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
+	if err != nil {
+		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+		return
+	}
+	cardID, err := uuid.Parse(chi.URLParam(r, "cardID"))
+	if err != nil {
+		http.Error(w, "invalid card ID", http.StatusBadRequest)
+		return
+	}
+	if err := h.retro.UnstackCard(r.Context(), orgID, cardID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.renderRetroColumns(w, r, orgID, boardID, retroBoardID, userID)
+}
+
 func (h *Handler) renderRetroColumns(w http.ResponseWriter, r *http.Request, orgID, boardID, retroBoardID, userID uuid.UUID) {
 	rb, err := h.retro.GetRetroBoard(r.Context(), orgID, retroBoardID)
 	if err != nil {

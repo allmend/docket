@@ -1,10 +1,63 @@
 {{define "backlog-ticket-list"}}
 <div id="backlog-ticket-list"
-     hx-get="/boards/{{.Board.ID}}/backlog/tickets"
-     hx-trigger="boardUpdated from:body"
+     hx-get="/boards/{{.Board.ID}}/backlog"
+     hx-select="#backlog-ticket-list"
+     hx-trigger="boardUpdated from:body, every 30s"
      hx-swap="outerHTML"
      x-data="{ ...backlogList(), refineMode: window._docketRefineMode || false }"
      @refine-mode.window="refineMode = $event.detail.active">
+
+  {{if and .ActiveSprintSection (not .InitRefineMode)}}
+  {{$s := .ActiveSprintSection}}
+  <div class="mb-4 rounded-lg border border-base-300 bg-base-200 overflow-hidden"
+       x-data="{ open: JSON.parse(localStorage.getItem('sprint-section-open') ?? 'true') }"
+       x-effect="localStorage.setItem('sprint-section-open', JSON.stringify(open))">
+
+    <!-- Header row -->
+    <div class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none" @click="open = !open">
+      <svg class="h-3 w-3 text-base-content/30 shrink-0 transition-transform duration-150"
+           :class="open ? 'rotate-90' : ''"
+           fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" clip-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"/>
+      </svg>
+      <span class="text-xs font-medium text-base-content/70 flex-1 min-w-0 truncate">{{$s.Sprint.Name}}</span>
+      <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5 shrink-0">Active</span>
+      <span class="text-xs font-mono text-base-content/30 shrink-0">{{$s.Done}}/{{$s.Total}}</span>
+      <a href="/boards/{{.Board.ID}}" @click.stop
+         class="text-xs text-primary/60 hover:text-primary transition-colors shrink-0">Board →</a>
+    </div>
+
+    <!-- Column groups (collapsible) -->
+    <div x-show="open" x-cloak class="border-t border-base-300">
+      {{range $s.Columns}}
+      <div class="px-3 pt-2 pb-1 {{if not .IsDone}}border-b border-base-300/50{{end}}">
+        <p class="text-[10px] uppercase tracking-widest font-medium mb-1.5 {{if .IsDone}}text-primary/50{{else}}text-base-content/30{{end}}">{{.Name}}</p>
+        <div class="flex flex-col gap-0.5">
+          {{range .Tickets}}
+          <div class="flex items-center gap-2 px-1 py-1 rounded hover:bg-base-300/40 cursor-pointer {{if .ClosedAt}}opacity-50{{end}}"
+               @click="$dispatch('ticket-click', {ticketID: '{{.ID}}'})">
+            <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary hover:underline shrink-0" @click.stop>{{.DisplayID}}</a>
+            <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-4 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</span>
+            {{if eq .Priority "critical"}}
+            <span class="text-xs border border-red-700 text-red-400 rounded px-1 py-0.5 shrink-0">!</span>
+            {{else if eq .Priority "high"}}
+            <span class="text-xs border border-amber-700 text-amber-400 rounded px-1 py-0.5 shrink-0">↑</span>
+            {{end}}
+            {{if .Assignees}}
+            <div class="flex -space-x-1 shrink-0">
+              {{range $i, $a := .Assignees}}{{if lt $i 2}}
+              <div class="w-4 h-4 rounded-full bg-[#18322c] ring-1 ring-base-200 flex items-center justify-center text-[9px] font-bold text-primary">{{initials $a.Name}}</div>
+              {{end}}{{end}}
+            </div>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
 
   <div class="flex items-center gap-2 mb-2">
     <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Backlog</span>
@@ -13,24 +66,27 @@
 
   <div class="backlog-list flex flex-col gap-1 min-h-[2.5rem]">
     {{range .Tickets}}
-    <div class="group flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 hover:border-primary/30"
+    <div class="group flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 hover:border-primary/30 cursor-pointer"
          :class="isRefined ? 'border-primary bg-primary/10' : (selected.includes('{{.ID}}') ? 'border-primary/40 bg-primary/5' : '')"
          x-data="{ isRefined: window._docketRefineTicketID === '{{.ID}}' }"
          @refine-selected.window="isRefined = ($event.detail.id === '{{.ID}}')"
+         @click="$dispatch('ticket-click', {ticketID: '{{.ID}}'})"
          data-ticket-id="{{.ID}}"
          data-position="{{.Position}}"
          data-ticket-column-id="{{.ColumnID}}">
-      <svg class="drag-handle h-4 w-4 text-base-content/20 shrink-0 cursor-grab group-hover:text-base-content/40" fill="currentColor" viewBox="0 0 20 20">
+      <svg class="drag-handle h-4 w-4 text-base-content/20 shrink-0 cursor-grab group-hover:text-base-content/40" fill="currentColor" viewBox="0 0 20 20"
+           @click.stop>
         <path d="M7 4a1 1 0 100 2 1 1 0 000-2zM13 4a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zM13 9a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zM13 14a1 1 0 100 2 1 1 0 000-2z"/>
       </svg>
       <input type="checkbox"
              x-show="!refineMode"
+             {{if $.InitRefineMode}}x-cloak{{end}}
              :checked="selected.includes('{{.ID}}')"
-             @click="selected.includes('{{.ID}}') ? selected = selected.filter(i => i !== '{{.ID}}') : selected.push('{{.ID}}')"
+             @click.stop="selected.includes('{{.ID}}') ? selected = selected.filter(i => i !== '{{.ID}}') : selected.push('{{.ID}}')"
              class="w-4 h-4 rounded accent-primary shrink-0 cursor-pointer" />
-      <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary shrink-0 hover:underline">{{.DisplayID}}</a>
-      <span class="text-sm text-base-content flex-1 min-w-0 truncate hover:text-primary cursor-pointer"
-            @click="$dispatch('ticket-click', {ticketID: '{{.ID}}'})">{{.Title}}</span>
+      <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary shrink-0 hover:underline"
+         @click.stop>{{.DisplayID}}</a>
+      <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{.Title}}</span>
       {{if eq .Priority "critical"}}
       <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5 shrink-0">critical</span>
       {{else if eq .Priority "high"}}
@@ -41,10 +97,13 @@
       <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5 shrink-0">low</span>
       {{end}}
       {{if .Assignees}}
-      <div class="flex shrink-0">
-        {{range $i, $a := .Assignees}}{{if lt $i 3}}
-        <div class="w-5 h-5 rounded-full bg-primary/20 border border-base-300 flex items-center justify-center text-[10px] font-bold text-primary {{if gt $i 0}}-ml-1{{end}}">{{initials $a.Name}}</div>
+      <div class="flex -space-x-1 overflow-hidden shrink-0">
+        {{range $i, $a := .Assignees}}{{if lt $i 2}}
+        <div class="w-5 h-5 rounded-full bg-[#18322c] ring-2 ring-base-100 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
         {{end}}{{end}}
+        {{if gt (len .Assignees) 2}}
+        <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-100 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
+        {{end}}
       </div>
       {{end}}
       <!-- Readiness indicator: green when has both story points and AC, gray otherwise -->

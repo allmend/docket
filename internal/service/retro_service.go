@@ -162,6 +162,24 @@ func (s *RetroService) GetSprintReviewData(ctx context.Context, orgID, boardID, 
 }
 
 // AssignActionItemOwner assigns an owner to an action item card and creates a backlog ticket.
+func (s *RetroService) StackCard(ctx context.Context, orgID, cardID, parentID uuid.UUID) error {
+	if cardID == parentID {
+		return fmt.Errorf("cannot stack a card with itself")
+	}
+	parent, err := s.store.GetRetroCard(ctx, orgID, parentID)
+	if err != nil {
+		return fmt.Errorf("parent card not found")
+	}
+	if parent.ParentID != nil {
+		return fmt.Errorf("cannot stack onto a child card")
+	}
+	return s.store.StackRetroCard(ctx, orgID, cardID, parentID)
+}
+
+func (s *RetroService) UnstackCard(ctx context.Context, orgID, cardID uuid.UUID) error {
+	return s.store.UnstackRetroCard(ctx, orgID, cardID)
+}
+
 func (s *RetroService) AssignActionItemOwner(ctx context.Context, orgID, cardID, ownerID, actorID uuid.UUID) (*model.RetroCard, error) {
 	card, err := s.store.GetRetroCard(ctx, orgID, cardID)
 	if err != nil {

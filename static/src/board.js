@@ -40,6 +40,7 @@ function board(boardID, sprintID) {
       this._loadFromURL();
       this.initSortables();
       if (this.activeFilterCount() > 0) this.applyFilters();
+
       // Only reinitialize when the board columns container is swapped.
       // Firing on every htmx:afterSwap (modal loads, comment posts, etc.) destroys
       // and recreates Sortables unnecessarily, and if that happens mid-drag,
@@ -286,14 +287,24 @@ function board(boardID, sprintID) {
 function backlogList() {
   return {
     sortable: null,
+    _swapHandler: null,
 
     init() {
       this.initSortable();
-      document.addEventListener("htmx:afterSwap", (e) => {
+      this._swapHandler = (e) => {
         if (e.detail.target && e.detail.target.id === "backlog-ticket-list") {
           this.initSortable();
         }
-      });
+      };
+      document.addEventListener("htmx:afterSwap", this._swapHandler);
+    },
+
+    destroy() {
+      if (this._swapHandler) {
+        document.removeEventListener("htmx:afterSwap", this._swapHandler);
+        this._swapHandler = null;
+      }
+      if (this.sortable) { this.sortable.destroy(); this.sortable = null; }
     },
 
     initSortable() {

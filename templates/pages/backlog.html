@@ -1,6 +1,6 @@
 {{template "base" .}}
 
-{{define "title"}}Backlog{{if .Team}} — {{.Team.Name}}{{end}} — Docket{{end}}
+{{define "title"}}{{if .InitRefineMode}}Backlog Refinement{{else}}Backlog{{end}}{{if .Team}} — {{.Team.Name}}{{end}} — Docket{{end}}
 
 {{define "scripts"}}<script src="/static/board.js"></script>{{end}}
 
@@ -52,26 +52,28 @@
         <a href="/teams/{{.Team.ID}}" class="hover:text-primary"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
         {{end}}
         <span class="mx-1">/</span>
-        <span class="text-base-content/70">Backlog</span>
+        <a :href="window.location.pathname.replace('/refinement','')" class="hover:text-primary" :class="refineMode ? 'text-base-content/50' : 'text-base-content/70'">Backlog</a>
+        <span x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="mx-1">/</span>
+        <span x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="text-base-content/70">Backlog Refinement</span>
       </nav>
       <div class="flex items-center gap-2">
-        <h1 class="text-2xl font-semibold">Backlog</h1>
+        <h1 class="text-2xl font-semibold" x-text="refineMode ? 'Backlog Refinement' : 'Backlog'">{{if .InitRefineMode}}Backlog Refinement{{else}}Backlog{{end}}</h1>
       </div>
     </div>
 
     <!-- Refine toggle -->
-    <button @click="refineMode = !refineMode; window._docketRefineMode = refineMode; window.dispatchEvent(new CustomEvent('refine-mode', {detail: {active: refineMode}})); if (refineMode) { history.pushState({}, '', window.location.pathname + '/refinement'); } else { history.pushState({}, '', window.location.pathname.replace('/refinement', '')); refineTicketID = ''; window._docketRefineTicketID = ''; window.dispatchEvent(new CustomEvent('refine-selected', {detail: {id: ''}})); }"
-            :class="refineMode ? 'bg-primary text-base-100 border-primary' : 'text-base-content/60 border-base-300 hover:border-primary/40 hover:text-primary'"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition-colors">
+    <button @click="refineMode = !refineMode; window._docketRefineMode = refineMode; window.dispatchEvent(new CustomEvent('refine-mode', {detail: {active: refineMode}})); if (refineMode) { history.pushState({}, '', window.location.pathname + '/refinement'); document.title = 'Backlog Refinement{{if .Team}} — {{.Team.Name}}{{end}} — Docket'; } else { history.pushState({}, '', window.location.pathname.replace('/refinement', '')); document.title = 'Backlog{{if .Team}} — {{.Team.Name}}{{end}} — Docket'; refineTicketID = ''; window._docketRefineTicketID = ''; window.dispatchEvent(new CustomEvent('refine-selected', {detail: {id: ''}})); }"
+            :class="refineMode ? '!bg-primary !text-base-100 !border-primary' : '!bg-transparent !text-base-content/60 !border-base-300 hover:border-primary/40 hover:text-primary'"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition-colors {{if .InitRefineMode}}bg-primary text-base-100 border-primary{{else}}text-base-content/60 border-base-300{{end}}">
       <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
       </svg>
-      <span x-text="refineMode ? 'Exit Refinement' : 'Refine'">Refine</span>
+      <span x-text="refineMode ? 'Back to Backlog' : 'Refine'">{{if .InitRefineMode}}Back to Backlog{{else}}Refine{{end}}</span>
     </button>
   </div>
 
   <!-- Refine mode hint -->
-  <div x-show="refineMode" x-cloak class="flex items-center gap-2 text-xs text-base-content/40 -mt-4">
+  <div x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="flex items-center gap-2 text-xs text-base-content/40 -mt-4">
     <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
       <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
     </svg>
@@ -82,12 +84,13 @@
   <div class="flex gap-6 items-start">
 
     <!-- Left: backlog ticket list -->
-    <div :class="refineMode ? 'w-80 shrink-0' : 'flex-1 min-w-0'">
-      {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews)}}
+    <div class="{{if .InitRefineMode}}w-80 shrink-0{{else}}flex-1 min-w-0{{end}}"
+         :style="refineMode ? 'flex: none; width: 20rem' : 'flex: 1; min-width: 0'">
+      {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews "InitRefineMode" .InitRefineMode "ActiveSprintSection" .ActiveSprintSection)}}
     </div>
 
     <!-- Center: refine detail panel (refine mode only) -->
-    <div x-show="refineMode" x-cloak class="flex-1 min-w-0 bg-base-200 border border-base-300 rounded-lg overflow-hidden">
+    <div x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="flex-1 min-w-0 bg-base-200 border border-base-300 rounded-lg overflow-hidden">
       <div id="refine-panel" class="h-full">
         <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
           <svg class="h-8 w-8 text-base-content/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
@@ -100,7 +103,7 @@
     </div>
 
     <!-- Right: sprints sidebar (hidden in refine mode) -->
-    <div x-show="!refineMode" class="w-72 shrink-0 flex flex-col gap-3" x-data="{ newSprint: false }">
+    <div x-show="!refineMode" {{if .InitRefineMode}}x-cloak{{end}} class="w-72 shrink-0 flex flex-col gap-3" x-data="{ newSprint: false }">
 
       <!-- Section header -->
       <div class="flex items-center justify-between mb-1">
@@ -177,7 +180,7 @@
                   :disabled="selected.length === 0"
                   class="w-full text-center text-xs border border-base-300 text-base-content/20 cursor-not-allowed rounded py-1.5 transition-colors"
                   :class="selected.length > 0 ? '!text-primary !border-primary/30 hover:bg-primary/10 !cursor-pointer' : ''">
-            <span x-text="selected.length > 0 ? 'Move ' + selected.length + ' ticket' + (selected.length > 1 ? 's' : '') + ' to {{.Name}}' : 'Move selected to {{.Name}}'"></span>
+            <span x-text="selected.length > 0 ? 'Move ' + selected.length + ' ticket' + (selected.length > 1 ? 's' : '') + ' to {{.Name}}' : 'Move selected to {{.Name}}'">Move selected to {{.Name}}</span>
           </button>
         </form>
       </div>

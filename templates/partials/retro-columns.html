@@ -25,10 +25,111 @@
     <span class="text-xs text-base-content/30 font-mono">{{len .Cards}}</span>
   </div>
 
-  <!-- Cards -->
-  <div class="flex flex-col gap-2 p-3 flex-1 overflow-y-auto">
+  <!--
+    Single x-data for the whole cards area — avoids nested scopes that would shadow
+    dragCard/dropTarget/doDrop. Stack open states are tracked in stackOpen[id].
+  -->
+  <div x-data="(() => {
+    const _key = 'retroOpen_{{.RetroBoardID}}_{{.Col}}';
+    return {
+    dragCard: null,
+    dropTarget: null,
+    stackOpen: {},
+    init() {
+      try { const s = sessionStorage.getItem(_key); if (s) this.stackOpen = JSON.parse(s); } catch(e) {}
+      this.$watch('stackOpen', v => { try { sessionStorage.setItem(_key, JSON.stringify(v)); } catch(e) {} });
+    },
+    toggleStack(id) { this.stackOpen = { ...this.stackOpen, [id]: !this.stackOpen[id] }; },
+    isOpen(id) { return !!this.stackOpen[id]; },
+    async doDrop(parentID) {
+      const id = this.dragCard;
+      if (!id || id === parentID) { this.dragCard = null; this.dropTarget = null; return; }
+      this.dragCard = null; this.dropTarget = null;
+      const res = await fetch('/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards/' + id + '/stack', {
+        method: 'POST',
+        body: new URLSearchParams({ parent_id: parentID })
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const newEl = tmp.firstElementChild;
+        document.getElementById('retro-columns').replaceWith(newEl);
+        Alpine.initTree(newEl);
+        htmx.process(newEl);
+      }
+    }
+  }; })()" class="flex flex-col gap-2 p-3 flex-1 overflow-y-auto min-h-0">
+
     {{range .Cards}}
-    <div class="bg-base-100 border border-base-300 rounded-lg p-3 flex flex-col gap-2 group">
+
+    {{if .Children}}
+    <!-- Stack: root card with grouped children -->
+    <div class="relative">
+      <!-- Depth shadow layer -->
+      <div class="absolute inset-x-1 bottom-0 h-full translate-y-1 bg-base-300/60 border border-base-300/40 rounded-lg -z-10"></div>
+      <!-- Main card — drop target only (stacks can't be dragged as a whole) -->
+      <div class="bg-base-100 border border-base-300 rounded-lg p-3 flex flex-col gap-2 group relative z-10"
+           {{if not $.Closed}}
+           @dragover.prevent="if (dragCard && dragCard !== '{{.ID}}') dropTarget = '{{.ID}}'"
+           @dragleave="$event.relatedTarget && !$el.contains($event.relatedTarget) && (dropTarget = null)"
+           @drop.prevent="doDrop('{{.ID}}')"
+           :class="{ 'ring-2 ring-primary/50 border-primary/30': dropTarget === '{{.ID}}' }"
+           {{end}}>
+        <p class="text-sm text-base-content/80 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
+        <!-- Stack toggle chip -->
+        <button @click.stop="toggleStack('{{.ID}}')"
+                class="self-start flex items-center gap-1.5 text-xs text-base-content/40 hover:text-base-content/70 transition-colors">
+          <span class="bg-base-300 text-base-content/50 rounded px-1.5 py-0.5 font-mono">+{{len .Children}}</span>
+          <span>similar</span>
+          <svg class="h-3 w-3 transition-transform duration-150"
+               :class="isOpen('{{.ID}}') ? 'rotate-180' : ''"
+               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+          </svg>
+        </button>
+        <!-- Expanded stacked children — inside the card -->
+        <div x-show="isOpen('{{.ID}}')" x-cloak class="flex flex-col gap-1.5 border-t border-base-300 pt-2 -mx-3 px-3">
+          {{range .Children}}
+          <div class="bg-base-200 rounded-lg p-2.5 flex items-start gap-2 group/child">
+            <p class="flex-1 text-sm text-base-content/70 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
+            {{if not $.Closed}}
+            <button hx-delete="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards/{{.ID}}/stack"
+                    hx-target="#retro-columns" hx-swap="outerHTML"
+                    title="Remove from stack"
+                    class="shrink-0 mt-0.5 text-base-content/25 hover:text-base-content/60 opacity-0 group-hover/child:opacity-100 transition-all">
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 12H6"/></svg>
+            </button>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+        {{if and (not $.Closed) (eq .AuthorID.String $.CurrentUserID)}}
+        <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+          <button hx-delete="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards/{{.ID}}"
+                  hx-target="#retro-columns" hx-swap="outerHTML"
+                  hx-confirm="Delete this card and all stacked cards?"
+                  class="text-xs text-base-content/30 hover:text-red-400 transition-colors">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    {{else}}
+    <!-- Solo root card — draggable and a drop target -->
+    <div class="bg-base-100 border border-base-300 rounded-lg p-3 flex flex-col gap-2 group
+                {{if not $.Closed}}cursor-grab active:cursor-grabbing{{end}}"
+         {{if not $.Closed}}
+         draggable="true"
+         @dragstart="dragCard = '{{.ID}}'; $event.dataTransfer.effectAllowed = 'move'"
+         @dragend="dragCard = null; dropTarget = null"
+         @dragover.prevent="if (dragCard && dragCard !== '{{.ID}}') dropTarget = '{{.ID}}'"
+         @dragleave="$event.relatedTarget && !$el.contains($event.relatedTarget) && (dropTarget = null)"
+         @drop.prevent="doDrop('{{.ID}}')"
+         :class="{ 'ring-2 ring-primary/50 border-primary/30': dropTarget === '{{.ID}}' }"
+         {{end}}>
       <p class="text-sm text-base-content/80 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
 
       {{if eq $.Col "action_item"}}
@@ -49,10 +150,12 @@
       {{end}}
     </div>
     {{end}}
+
+    {{end}}{{/* end range .Cards */}}
   </div>
 
   <!-- Add card form (hidden when retro is closed) -->
-  {{if not $.Closed}}
+  {{if not .Closed}}
   <div class="p-3 border-t border-base-300 shrink-0"
        x-data="{ open: false, body: '' }">
     <div x-show="!open">
@@ -63,7 +166,7 @@
       </button>
     </div>
     <form x-show="open" x-cloak
-          hx-post="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards"
+          hx-post="/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards"
           hx-target="#retro-columns" hx-swap="outerHTML"
           @htmx:after-request="open=false; body=''"
           class="flex flex-col gap-2">

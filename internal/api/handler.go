@@ -212,7 +212,6 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/boards/{boardID}", h.UpdateBoard)
 	r.Delete("/boards/{boardID}", h.DeleteBoard)
 
-	r.Get("/boards/{boardID}/columns", h.BoardColumnsPartial)
 	r.Post("/boards/{boardID}/columns", h.CreateColumn)
 	r.Put("/boards/{boardID}/columns/{columnID}", h.RenameColumn)
 	r.Delete("/boards/{boardID}/columns/{columnID}", h.DeleteColumn)
@@ -222,7 +221,6 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/boards/{boardID}/roadmap", h.BoardRoadmap)
 	r.Get("/boards/{boardID}/daily", h.BoardDailyScrum)
 	r.Get("/boards/{boardID}/daily/tickets", h.BoardDailyScrumTickets)
-	r.Get("/boards/{boardID}/backlog/tickets", h.BacklogTicketList)
 	r.Get("/boards/{boardID}/tags", h.BoardTagsJSON)
 	r.Get("/boards/{boardID}/tags/manage", h.BoardTagsPanel)
 	r.Post("/boards/{boardID}/tags", h.CreateTag)
@@ -297,6 +295,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards", h.CreateRetroCard)
 	r.Delete("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}", h.DeleteRetroCard)
 	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}/assign", h.AssignRetroCardOwner)
+	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}/stack", h.StackRetroCard)
+	r.Delete("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}/stack", h.UnstackRetroCard)
 
 	r.Get("/settings", h.SettingsPage)
 	r.Post("/settings/tokens", h.CreateToken)

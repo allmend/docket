@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/allmend/docket/internal/model"
@@ -29,14 +30,15 @@ func (h *Handler) boardViewData(r *http.Request, view *model.BoardView) map[stri
 		}
 	}
 	return h.pageData(r, map[string]any{
-		"Board":         view.Board,
-		"Team":          view.Team,
-		"Columns":       view.Columns,
-		"ActiveSprint":  view.ActiveSprint,
-		"Sprints":       view.Sprints,
-		"BacklogCount":  view.BacklogCount,
-		"FirstColumnID": view.FirstColumnID,
-		"SprintID":      sprintID,
+		"Board":               view.Board,
+		"Team":                view.Team,
+		"Columns":             view.Columns,
+		"ActiveSprint":        view.ActiveSprint,
+		"Sprints":             view.Sprints,
+		"BacklogCount":        view.BacklogCount,
+		"FirstColumnID":       view.FirstColumnID,
+		"SprintID":            sprintID,
+		"ActiveSprintSection": view.ActiveSprintSection,
 	})
 }
 
@@ -107,23 +109,6 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// BoardColumnsPartial returns just the board columns div for HTMX out-of-band refreshes.
-// Used by the board page to reload columns when a ticketUpdated event fires.
-func (h *Handler) BoardColumnsPartial(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
-	if err != nil {
-		http.Error(w, "board not found", http.StatusNotFound)
-		return
-	}
-	h.render(w, "board-columns-partial.html", h.boardViewData(r, view))
-}
-
 func (h *Handler) CreateColumn(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
@@ -148,23 +133,12 @@ func (h *Handler) CreateColumn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create column", http.StatusInternalServerError)
 		return
 	}
-
-	// Return refreshed board view.
-	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
-	if err != nil {
-		http.Error(w, "failed to reload board", http.StatusInternalServerError)
-		return
-	}
-	h.render(w, "board-columns-partial.html", view)
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) RenameColumn(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
 	columnID, err := uuid.Parse(chi.URLParam(r, "columnID"))
 	if err != nil {
 		http.Error(w, "invalid column ID", http.StatusBadRequest)
@@ -185,13 +159,8 @@ func (h *Handler) RenameColumn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to rename column", http.StatusInternalServerError)
 		return
 	}
-
-	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
-	if err != nil {
-		http.Error(w, "failed to reload board", http.StatusInternalServerError)
-		return
-	}
-	h.render(w, "board-columns-partial.html", view)
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) DeleteColumn(w http.ResponseWriter, r *http.Request) {
@@ -201,23 +170,13 @@ func (h *Handler) DeleteColumn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid column ID", http.StatusBadRequest)
 		return
 	}
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
 
 	if err := h.boards.DeleteColumn(r.Context(), orgID, columnID); err != nil {
 		http.Error(w, "failed to delete column", http.StatusInternalServerError)
 		return
 	}
-
-	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
-	if err != nil {
-		http.Error(w, "failed to reload board", http.StatusInternalServerError)
-		return
-	}
-	h.render(w, "board-columns-partial.html", view)
+	w.Header().Set("HX-Trigger", "boardUpdated")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- Sprint handlers ---
@@ -447,7 +406,11 @@ func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "backlog not found", http.StatusNotFound)
 		return
 	}
-	h.render(w, "backlog.html", h.boardViewData(r, view))
+	data := h.boardViewData(r, view)
+	if strings.Contains(r.Header.Get("HX-Current-URL"), "/refinement") {
+		data["InitRefineMode"] = true
+	}
+	h.render(w, "backlog.html", data)
 }
 
 func (h *Handler) BoardRefinement(w http.ResponseWriter, r *http.Request) {
@@ -882,22 +845,3 @@ func (h *Handler) UpdateMemberCapacity(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// BacklogTicketList renders just the ticket list partial for HTMX refresh.
-func (h *Handler) BacklogTicketList(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	view, err := h.boards.GetBacklog(r.Context(), orgID, boardID)
-	if err != nil {
-		http.Error(w, "backlog not found", http.StatusNotFound)
-		return
-	}
-	h.render(w, "backlog-ticket-list.html", map[string]any{
-		"Board":       view.Board,
-		"Tickets":     view.Columns[0].Tickets,
-		"SprintViews": view.SprintViews,
-	})
-}

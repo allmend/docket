@@ -49,8 +49,13 @@ type RetroCard struct {
 	OwnerName     string      `json:"owner_name"`
 	TicketID      *uuid.UUID  `json:"ticket_id"`
 	TicketDisplay string      `json:"ticket_display"` // e.g. "ENG-42", populated on read
+	ParentID      *uuid.UUID  `json:"parent_id,omitempty"`
+	Children      []RetroCard `json:"children,omitempty"`
 	CreatedAt     time.Time   `json:"created_at"`
 }
+
+func (c RetroCard) IsChild() bool    { return c.ParentID != nil }
+func (c RetroCard) IsSoloRoot() bool { return c.ParentID == nil && len(c.Children) == 0 }
 
 type RetroView struct {
 	RetroBoard  RetroBoard

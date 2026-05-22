@@ -123,14 +123,30 @@ func (s SprintStatus) IsCompleted() bool { return s == SprintStatusCompleted }
 
 // BoardView is the full board with columns and their tickets, used for rendering.
 type BoardView struct {
-	Board         Board
-	Team          *Team        // nil if board has no team
-	Columns       []ColumnView
-	ActiveSprint  *Sprint      // nil for kanban/blank boards or scrum boards with no active sprint
-	Sprints       []Sprint     // all sprints for this board (scrum only)
-	SprintViews   []SprintView // planning sprints with their tickets (backlog page)
-	BacklogCount  int          // tickets with sprint_id IS NULL (scrum only)
-	FirstColumnID uuid.UUID    // first column's ID — used by New Ticket button
+	Board               Board
+	Team                *Team               // nil if board has no team
+	Columns             []ColumnView
+	ActiveSprint        *Sprint             // nil for kanban/blank boards or scrum boards with no active sprint
+	Sprints             []Sprint            // all sprints for this board (scrum only)
+	SprintViews         []SprintView        // planning sprints with their tickets (backlog page)
+	BacklogCount        int                 // tickets with sprint_id IS NULL (scrum only)
+	FirstColumnID       uuid.UUID           // first column's ID — used by New Ticket button
+	ActiveSprintSection *ActiveSprintSection // backlog page: active sprint tickets grouped by column
+}
+
+// ActiveSprintSection is the active sprint shown above the backlog list.
+type ActiveSprintSection struct {
+	Sprint  Sprint
+	Columns []SprintColumnGroup
+	Total   int
+	Done    int
+}
+
+// SprintColumnGroup is one column's tickets within the active sprint section.
+type SprintColumnGroup struct {
+	Name    string
+	IsDone  bool
+	Tickets []Ticket
 }
 
 // SprintView is a planning sprint with its tickets, used in the backlog sectioned view.

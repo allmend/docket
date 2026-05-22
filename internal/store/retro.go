@@ -139,12 +139,12 @@ func (s *Store) ListRetroCards(ctx context.Context, orgID, retroBoardID uuid.UUI
 	rows, err := s.replica.Query(ctx,
 		`SELECT rc.id, rc.org_id, rc.retro_board_id, rc.column_name, rc.body,
 		        rc.author_id, rc.owner_id, COALESCE(rc.owner_name, ''), rc.ticket_id,
-		        COALESCE(tm.key || '-' || t.number::text, '')
+		        COALESCE(tm.key || '-' || t.number::text, ''), rc.parent_id
 		 FROM retro_cards rc
 		 LEFT JOIN tickets t  ON t.id = rc.ticket_id
 		 LEFT JOIN teams   tm ON tm.id = t.team_id
 		 WHERE rc.org_id = $1 AND rc.retro_board_id = $2
-		 ORDER BY rc.created_at`,
+		 ORDER BY rc.parent_id NULLS FIRST, rc.created_at`,
 		orgID, retroBoardID,
 	)
 	if err != nil {
@@ -152,18 +152,58 @@ func (s *Store) ListRetroCards(ctx context.Context, orgID, retroBoardID uuid.UUI
 	}
 	defer rows.Close()
 
-	var cards []model.RetroCard
+	var all []model.RetroCard
 	for rows.Next() {
 		var c model.RetroCard
 		if err := rows.Scan(
 			&c.ID, &c.OrgID, &c.RetroBoardID, &c.Column, &c.Body,
 			&c.AuthorID, &c.OwnerID, &c.OwnerName, &c.TicketID, &c.TicketDisplay,
+			&c.ParentID,
 		); err != nil {
 			return nil, err
 		}
-		cards = append(cards, c)
+		all = append(all, c)
 	}
-	return cards, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Build one level of hierarchy: attach children to their parents.
+	byID := make(map[uuid.UUID]*model.RetroCard, len(all))
+	for i := range all {
+		byID[all[i].ID] = &all[i]
+	}
+	for i := range all {
+		if all[i].ParentID != nil {
+			if parent, ok := byID[*all[i].ParentID]; ok {
+				parent.Children = append(parent.Children, all[i])
+			}
+		}
+	}
+	var roots []model.RetroCard
+	for i := range all {
+		if all[i].ParentID == nil {
+			roots = append(roots, all[i])
+		}
+	}
+	return roots, nil
+}
+
+func (s *Store) StackRetroCard(ctx context.Context, orgID, cardID, parentID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`UPDATE retro_cards SET parent_id = $3
+		 WHERE org_id = $1 AND id = $2 AND parent_id IS NULL`,
+		orgID, cardID, parentID,
+	)
+	return err
+}
+
+func (s *Store) UnstackRetroCard(ctx context.Context, orgID, cardID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`UPDATE retro_cards SET parent_id = NULL WHERE org_id = $1 AND id = $2`,
+		orgID, cardID,
+	)
+	return err
 }
 
 func (s *Store) CreateRetroCard(ctx context.Context, orgID, retroBoardID, authorID uuid.UUID, column model.RetroColumn, body string) (*model.RetroCard, error) {

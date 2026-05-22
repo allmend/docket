@@ -407,6 +407,43 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		})
 	}
 
+	// Load active sprint and group its tickets by column for the backlog sprint section.
+	if activeSprint, err := s.store.GetActiveSprint(ctx, orgID, boardID); err == nil {
+		view.ActiveSprint = activeSprint
+		sprintTickets, _ := s.store.ListSprintTickets(ctx, orgID, activeSprint.ID)
+		for i := range sprintTickets {
+			sprintTickets[i].Assignees = assigneesByTicket[sprintTickets[i].ID]
+		}
+
+		type colInfo struct{ name string; isDone bool }
+		colLookup := make(map[uuid.UUID]colInfo, len(cols))
+		for _, c := range cols {
+			colLookup[c.ID] = colInfo{name: c.Name, isDone: strings.EqualFold(c.Name, "done")}
+		}
+		groupMap := make(map[uuid.UUID][]model.Ticket, len(cols))
+		for _, t := range sprintTickets {
+			groupMap[t.ColumnID] = append(groupMap[t.ColumnID], t)
+		}
+
+		section := &model.ActiveSprintSection{Sprint: *activeSprint, Total: len(sprintTickets)}
+		for _, c := range cols {
+			grp := groupMap[c.ID]
+			if len(grp) == 0 {
+				continue
+			}
+			info := colLookup[c.ID]
+			if info.isDone {
+				section.Done += len(grp)
+			}
+			section.Columns = append(section.Columns, model.SprintColumnGroup{
+				Name:    info.name,
+				IsDone:  info.isDone,
+				Tickets: grp,
+			})
+		}
+		view.ActiveSprintSection = section
+	}
+
 	return view, nil
 }
 

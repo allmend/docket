@@ -46,11 +46,11 @@
       <!-- Filter button + popover -->
       <div x-data="{ filterOpen: false }" class="relative">
         <button @click="filterOpen = !filterOpen"
-                :class="activeFilterCount() > 0 ? 'border-primary text-primary' : 'border-base-300 text-base-content/50 hover:text-base-content'"
-                class="flex items-center gap-1.5 px-3 py-1.5 text-sm hover:bg-base-300 rounded border transition-colors">
+                :data-active="activeFilterCount() > 0"
+                class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border transition-colors border-base-300 text-base-content/50 hover:text-base-content hover:bg-base-300 data-[active=true]:border-primary data-[active=true]:text-primary">
           <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>
           Filter
-          <span x-show="activeFilterCount() > 0"
+          <span x-show="activeFilterCount() > 0" x-cloak
                 x-text="activeFilterCount()"
                 class="min-w-[1rem] h-4 px-1 bg-primary text-base-100 text-[10px] font-bold rounded-full flex items-center justify-center"></span>
         </button>
@@ -88,10 +88,10 @@
 
           <!-- Age -->
           <div>
-            <p class="text-xs font-medium text-base-content/40 uppercase tracking-wider mb-2">Ticket age</p>
+            <p class="text-xs font-medium text-base-content/40 uppercase tracking-wider mb-2">Created within</p>
             <select x-model.number="filterMaxAgeDays" @change="applyFilters()"
                     class="w-full bg-base-300 text-sm text-base-content rounded px-2 py-1.5 focus:outline-none border-0">
-              <option value="0">Any age</option>
+              <option value="0">All time</option>
               <option value="30">Last 30 days</option>
               <option value="60">Last 60 days</option>
               <option value="90">Last 90 days</option>
