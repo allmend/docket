@@ -86,7 +86,7 @@
     <!-- Left: backlog ticket list -->
     <div class="{{if .InitRefineMode}}w-80 shrink-0{{else}}flex-1 min-w-0{{end}}"
          :style="refineMode ? 'flex: none; width: 20rem' : 'flex: 1; min-width: 0'">
-      {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews "InitRefineMode" .InitRefineMode "ActiveSprintSection" .ActiveSprintSection)}}
+      {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews "InitRefineMode" .InitRefineMode "ActiveSprintSection" .ActiveSprintSection "FirstColumnID" (index .Columns 0).Column.ID)}}
     </div>
 
     <!-- Center: refine detail panel (refine mode only) -->

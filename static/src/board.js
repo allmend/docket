@@ -287,13 +287,14 @@ function board(boardID, sprintID) {
 function backlogList() {
   return {
     sortable: null,
+    sprintSortable: null,
     _swapHandler: null,
 
     init() {
-      this.initSortable();
+      this.initSortables();
       this._swapHandler = (e) => {
         if (e.detail.target && e.detail.target.id === "backlog-ticket-list") {
-          this.initSortable();
+          this.initSortables();
         }
       };
       document.addEventListener("htmx:afterSwap", this._swapHandler);
@@ -305,31 +306,93 @@ function backlogList() {
         this._swapHandler = null;
       }
       if (this.sortable) { this.sortable.destroy(); this.sortable = null; }
+      if (this.sprintSortable) { this.sprintSortable.destroy(); this.sprintSortable = null; }
     },
 
-    initSortable() {
+    initSortables() {
       if (this.sortable) { this.sortable.destroy(); this.sortable = null; }
-      const el = document.querySelector(".backlog-list");
-      if (!el) return;
-      this.sortable = Sortable.create(el, {
+      if (this.sprintSortable) { this.sprintSortable.destroy(); this.sprintSortable = null; }
+
+      const sprintEl = document.querySelector(".sprint-list");
+      if (sprintEl) {
+        this.sprintSortable = Sortable.create(sprintEl, {
+          group: "backlog-sprint",
+          animation: 150,
+          ghostClass: "opacity-30",
+          dragClass: "shadow-2xl",
+          handle: ".drag-handle",
+          onEnd: (evt) => this.onDrop(evt),
+        });
+      }
+
+      const backlogEl = document.querySelector(".backlog-list");
+      if (!backlogEl) return;
+      this.sortable = Sortable.create(backlogEl, {
+        group: "backlog-sprint",
         animation: 150,
         ghostClass: "opacity-30",
         dragClass: "shadow-2xl",
         handle: ".drag-handle",
-        onEnd: (evt) => {
-          const ticketEl = evt.item;
-          const ticketID = ticketEl.dataset.ticketId;
-          const ticketColumnID = ticketEl.dataset.ticketColumnId;
-          const siblings = Array.from(el.querySelectorAll("[data-ticket-id]"));
-          const idx = siblings.indexOf(ticketEl);
-          const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
-          const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
-          fetch(`/tickets/${ticketID}/move`, {
+        onEnd: (evt) => this.onDrop(evt),
+      });
+    },
+
+    onDrop(evt) {
+      const ticketEl = evt.item;
+      const ticketID = ticketEl.dataset.ticketId;
+      const fromSprint = evt.from.classList.contains("sprint-list");
+      const toSprint = evt.to.classList.contains("sprint-list");
+
+      if (!fromSprint && toSprint) {
+        // Backlog → sprint: place at drop position using sprint-place
+        const sprintID = evt.to.dataset.sprintId;
+        const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
+        const idx = siblings.indexOf(ticketEl);
+        const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
+        const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
+        // Use the nearest neighbor's column so the ticket lands in the right sprint column
+        const nextTick = idx < siblings.length - 1 ? siblings[idx + 1] : null;
+        const prevTick = idx > 0 ? siblings[idx - 1] : null;
+        const columnID = (nextTick || prevTick)?.dataset.ticketColumnId || evt.to.dataset.firstColumnId || "";
+        fetch(`/tickets/${ticketID}/sprint-place`, {
+          method: "POST",
+          body: new URLSearchParams({ sprint_id: sprintID, column_id: columnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
+        }).then((res) => {
+          if (!res.ok) console.error("sprint-place failed", res.status);
+          else document.body.dispatchEvent(new CustomEvent("boardUpdated"));
+        });
+      } else if (fromSprint && !toSprint) {
+        // Sprint → backlog: unassign + persist drop position + reload so backlog row renders correctly
+        const ticketColumnID = ticketEl.dataset.ticketColumnId;
+        const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
+        const idx = siblings.indexOf(ticketEl);
+        const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
+        const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
+        fetch(`/tickets/${ticketID}/sprint`, {
+          method: "POST",
+          body: new URLSearchParams({ sprint_id: "" }),
+        }).then((res) => {
+          if (!res.ok) { console.error("sprint-unassign failed", res.status); return null; }
+          return fetch(`/tickets/${ticketID}/move`, {
             method: "POST",
             body: new URLSearchParams({ column_id: ticketColumnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
-          }).then((res) => { if (!res.ok) console.error("reorder failed", res.status); });
-        },
-      });
+          });
+        }).then((res) => {
+          if (res && !res.ok) console.error("position failed", res.status);
+          else if (res) document.body.dispatchEvent(new CustomEvent("boardUpdated"));
+        });
+      } else {
+        // Reorder within same list (backlog or sprint)
+        const ticketColumnID = ticketEl.dataset.ticketColumnId;
+        const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
+        const idx = siblings.indexOf(ticketEl);
+        const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
+        const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
+        fetch(`/tickets/${ticketID}/move`, {
+          method: "POST",
+          body: new URLSearchParams({ column_id: ticketColumnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
+        }).then((res) => { if (!res.ok) console.error("reorder failed", res.status); });
+      }
     },
   };
 }
