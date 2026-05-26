@@ -29,8 +29,8 @@
          if (e && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) return;
          if (!this.refineMode) return;
          if (e) e.preventDefault();
-         const rows = document.querySelectorAll('[data-ticket-id]');
-         const ids = [...rows].map(r => r.dataset.ticketId);
+         const rows = [...document.querySelectorAll('[data-ticket-id]')].filter(r => r.offsetParent !== null);
+         const ids = rows.map(r => r.dataset.ticketId);
          const idx = ids.indexOf(this.refineTicketID);
          const next = idx + dir;
          if (next >= 0 && next < ids.length) this.selectRefine(ids[next]);

@@ -282,12 +282,31 @@ function board(boardID, sprintID) {
   };
 }
 
+// Show an informational banner above #backlog-ticket-list. Dismissed with X.
+function showSprintWarning(message) {
+  document.getElementById("sprint-warning")?.remove();
+  const bar = document.createElement("div");
+  bar.id = "sprint-warning";
+  bar.className = "flex items-center gap-3 px-4 py-3 bg-base-200 border border-amber-700 rounded-lg text-sm text-amber-400 mb-3";
+  bar.innerHTML = `
+    <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"/>
+    </svg>
+    <span class="flex-1">${message}</span>
+    <button class="text-amber-400/60 hover:text-amber-400 transition-colors" onclick="document.getElementById('sprint-warning').remove()">
+      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+  `;
+  const list = document.getElementById("backlog-ticket-list");
+  if (list) list.parentNode.insertBefore(bar, list);
+}
+
 // backlogList — wires the flat backlog ticket list for drag-to-reorder.
 // Each ticket row must have data-ticket-id, data-position, data-ticket-column-id.
 function backlogList() {
   return {
     sortable: null,
-    sprintSortable: null,
+    sprintSortables: [],
     _swapHandler: null,
 
     init() {
@@ -306,24 +325,25 @@ function backlogList() {
         this._swapHandler = null;
       }
       if (this.sortable) { this.sortable.destroy(); this.sortable = null; }
-      if (this.sprintSortable) { this.sprintSortable.destroy(); this.sprintSortable = null; }
+      this.sprintSortables.forEach((s) => { try { s.destroy(); } catch (_) {} });
+      this.sprintSortables = [];
     },
 
     initSortables() {
       if (this.sortable) { this.sortable.destroy(); this.sortable = null; }
-      if (this.sprintSortable) { this.sprintSortable.destroy(); this.sprintSortable = null; }
+      this.sprintSortables.forEach((s) => { try { s.destroy(); } catch (_) {} });
+      this.sprintSortables = [];
 
-      const sprintEl = document.querySelector(".sprint-list");
-      if (sprintEl) {
-        this.sprintSortable = Sortable.create(sprintEl, {
+      document.querySelectorAll(".sprint-list").forEach((sprintEl) => {
+        this.sprintSortables.push(Sortable.create(sprintEl, {
           group: "backlog-sprint",
           animation: 150,
           ghostClass: "opacity-30",
           dragClass: "shadow-2xl",
           handle: ".drag-handle",
           onEnd: (evt) => this.onDrop(evt),
-        });
-      }
+        }));
+      });
 
       const backlogEl = document.querySelector(".backlog-list");
       if (!backlogEl) return;
@@ -344,25 +364,31 @@ function backlogList() {
       const toSprint = evt.to.classList.contains("sprint-list");
 
       if (!fromSprint && toSprint) {
-        // Backlog → sprint: place at drop position using sprint-place
+        // Backlog → sprint: place immediately, warn only if the sprint is active.
         const sprintID = evt.to.dataset.sprintId;
+        const sprintStatus = evt.to.dataset.sprintStatus;
         const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
         const idx = siblings.indexOf(ticketEl);
         const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
         const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
-        // Use the nearest neighbor's column so the ticket lands in the right sprint column
         const nextTick = idx < siblings.length - 1 ? siblings[idx + 1] : null;
         const prevTick = idx > 0 ? siblings[idx - 1] : null;
         const columnID = (nextTick || prevTick)?.dataset.ticketColumnId || evt.to.dataset.firstColumnId || "";
-        fetch(`/tickets/${ticketID}/sprint-place`, {
-          method: "POST",
-          body: new URLSearchParams({ sprint_id: sprintID, column_id: columnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
-        }).then((res) => {
-          if (!res.ok) console.error("sprint-place failed", res.status);
-          else document.body.dispatchEvent(new CustomEvent("boardUpdated"));
-        });
+        const isActive = sprintStatus === "active";
+        const params = new URLSearchParams({ sprint_id: sprintID, column_id: columnID, prev_pos: String(prevPos), next_pos: String(nextPos) });
+        if (isActive) params.set("unplanned", "1");
+        fetch(`/tickets/${ticketID}/sprint-place`, { method: "POST", body: params })
+          .then((res) => {
+            if (!res.ok) console.error("sprint-place failed", res.status);
+            else {
+              if (isActive) showSprintWarning("Sprint commitment is broken — the active sprint was modified.");
+              document.body.dispatchEvent(new CustomEvent("boardUpdated"));
+            }
+          });
       } else if (fromSprint && !toSprint) {
-        // Sprint → backlog: unassign + persist drop position + reload so backlog row renders correctly
+        // Sprint → backlog: unassign immediately, warn only if sprint was active.
+        const sprintStatus = evt.from.dataset.sprintStatus;
+        const isActive = sprintStatus === "active";
         const ticketColumnID = ticketEl.dataset.ticketColumnId;
         const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
         const idx = siblings.indexOf(ticketEl);
@@ -379,7 +405,10 @@ function backlogList() {
           });
         }).then((res) => {
           if (res && !res.ok) console.error("position failed", res.status);
-          else if (res) document.body.dispatchEvent(new CustomEvent("boardUpdated"));
+          else if (res) {
+            if (isActive) showSprintWarning("Sprint commitment is broken — the active sprint was modified.");
+            document.body.dispatchEvent(new CustomEvent("boardUpdated"));
+          }
         });
       } else {
         // Reorder within same list (backlog or sprint)

@@ -673,17 +673,22 @@ func filterDailyScrumTickets(tickets []model.Ticket, f model.DailyScrumFilters) 
 		if len(f.Priorities) > 0 && !containsStr(f.Priorities, string(t.Priority)) {
 			continue
 		}
-		if len(f.AssigneeIDs) > 0 {
+		if len(f.AssigneeIDs) > 0 || f.FilterUnassigned {
 			matched := false
-			for _, aid := range f.AssigneeIDs {
-				for _, a := range t.Assignees {
-					if a.ID.String() == aid {
-						matched = true
+			if f.FilterUnassigned && len(t.Assignees) == 0 {
+				matched = true
+			}
+			if !matched {
+				for _, aid := range f.AssigneeIDs {
+					for _, a := range t.Assignees {
+						if a.ID.String() == aid {
+							matched = true
+							break
+						}
+					}
+					if matched {
 						break
 					}
-				}
-				if matched {
-					break
 				}
 			}
 			if !matched {

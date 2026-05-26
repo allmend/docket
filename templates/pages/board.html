@@ -370,10 +370,11 @@
             {{end}}
             {{if .Assignees}}
             <div class="ml-auto flex -space-x-1 overflow-hidden">
-              {{range $i, $a := .Assignees}}{{if lt $i 2}}
+              {{$as := .Assignees}}
+              {{range $i, $a := $as}}{{if or (lt $i 2) (and (eq $i 2) (le (len $as) 3))}}
               <div class="w-5 h-5 rounded-full bg-[#18322c] ring-2 ring-base-100 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
               {{end}}{{end}}
-              {{if gt (len .Assignees) 2}}
+              {{if gt (len .Assignees) 3}}
               <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-100 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
               {{end}}
             </div>
@@ -472,10 +473,11 @@
             {{end}}
             {{if .Assignees}}
             <div class="ml-auto flex -space-x-1 overflow-hidden">
-              {{range $i, $a := .Assignees}}{{if lt $i 2}}
+              {{$as := .Assignees}}
+              {{range $i, $a := $as}}{{if or (lt $i 2) (and (eq $i 2) (le (len $as) 3))}}
               <div class="w-5 h-5 rounded-full bg-[#18322c] ring-2 ring-base-100 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
               {{end}}{{end}}
-              {{if gt (len .Assignees) 2}}
+              {{if gt (len .Assignees) 3}}
               <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-100 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
               {{end}}
             </div>

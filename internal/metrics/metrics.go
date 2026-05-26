@@ -18,3 +18,9 @@ var TicketTransitions = promauto.NewCounterVec(prometheus.CounterOpts{
 	Name: "docket_ticket_transitions_total",
 	Help: "Number of ticket column moves by org, team, and column pair.",
 }, []string{"org", "team", "from_column", "to_column"})
+
+// SprintUnplannedPoints counts story points added to an active sprint after it started.
+var SprintUnplannedPoints = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "docket_sprint_unplanned_points_total",
+	Help: "Story points added to an active sprint mid-flight (unplanned work).",
+}, []string{"org", "sprint"})

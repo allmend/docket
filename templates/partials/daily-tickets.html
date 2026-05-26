@@ -54,7 +54,7 @@
   <a href="/tickets/{{.Ticket.DisplayID}}"
      class="font-mono text-xs text-primary hover:underline shrink-0"
      onclick="event.stopPropagation()">{{.Ticket.DisplayID}}</a>
-  <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{.Ticket.Title}}</span>
+  <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{if .Ticket.StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-4 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .Ticket.StoryPoints}}</span>{{end}}{{.Ticket.Title}}</span>
   <!-- Column / status chip -->
   {{if .Ticket.ClosedAt}}
   <span class="text-xs px-2 py-0.5 rounded-full shrink-0 text-primary bg-primary/10 border border-primary/20 flex items-center gap-1">
@@ -78,10 +78,6 @@
   {{range .Ticket.Tags}}
   <span class="text-xs rounded-full px-2 py-0.5 shrink-0 border"
         style="background-color: {{.Color}}20; border-color: {{.Color}}40; color: {{.Color}}">{{.Name}}</span>
-  {{end}}
-  <!-- Story points -->
-  {{if .Ticket.StoryPoints}}
-  <span class="inline-flex items-center justify-center min-w-[1.25rem] h-5 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 px-1">{{deref .Ticket.StoryPoints}}</span>
   {{end}}
   <!-- Blocked indicator -->
   {{if .Ticket.IsBlocked}}

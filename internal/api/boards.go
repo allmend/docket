@@ -438,10 +438,11 @@ func (h *Handler) BoardDailyScrum(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	filters := model.DailyScrumFilters{
-		Q:           r.URL.Query().Get("q"),
-		AssigneeIDs: r.URL.Query()["assignee_id"],
-		TagIDs:      r.URL.Query()["tag_id"],
-		Priorities:  r.URL.Query()["priority"],
+		Q:                r.URL.Query().Get("q"),
+		AssigneeIDs:      r.URL.Query()["assignee_id"],
+		TagIDs:           r.URL.Query()["tag_id"],
+		Priorities:       r.URL.Query()["priority"],
+		FilterUnassigned: r.URL.Query().Get("unassigned") == "1",
 	}
 	view, err := h.boards.GetDailyScrumView(r.Context(), orgID, boardID, filters)
 	if err != nil {
@@ -468,10 +469,11 @@ func (h *Handler) BoardDailyScrumTickets(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	filters := model.DailyScrumFilters{
-		Q:           r.URL.Query().Get("q"),
-		AssigneeIDs: r.URL.Query()["assignee_id"],
-		TagIDs:      r.URL.Query()["tag_id"],
-		Priorities:  r.URL.Query()["priority"],
+		Q:                r.URL.Query().Get("q"),
+		AssigneeIDs:      r.URL.Query()["assignee_id"],
+		TagIDs:           r.URL.Query()["tag_id"],
+		Priorities:       r.URL.Query()["priority"],
+		FilterUnassigned: r.URL.Query().Get("unassigned") == "1",
 	}
 	view, err := h.boards.GetDailyScrumView(r.Context(), orgID, boardID, filters)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/allmend/docket/internal/metrics"
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -747,6 +748,11 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 	if err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos); err != nil {
 		http.Error(w, "move failed", http.StatusInternalServerError)
 		return
+	}
+	if r.FormValue("unplanned") == "1" {
+		if t, err := h.tickets.GetTicket(r.Context(), orgID, ticketID); err == nil && t.StoryPoints != nil {
+			metrics.SprintUnplannedPoints.WithLabelValues(orgID.String(), sprintID.String()).Add(float64(*t.StoryPoints))
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

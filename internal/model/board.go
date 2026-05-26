@@ -203,14 +203,15 @@ type DodItemWithCheck struct {
 
 // DailyScrumFilters holds active filter state for the Daily Scrum view.
 type DailyScrumFilters struct {
-	Q           string
-	AssigneeIDs []string
-	TagIDs      []string
-	Priorities  []string
+	Q                string
+	AssigneeIDs      []string
+	TagIDs           []string
+	Priorities       []string
+	FilterUnassigned bool
 }
 
 func (f DailyScrumFilters) HasFilters() bool {
-	return f.Q != "" || len(f.AssigneeIDs) > 0 || len(f.TagIDs) > 0 || len(f.Priorities) > 0
+	return f.Q != "" || len(f.AssigneeIDs) > 0 || len(f.TagIDs) > 0 || len(f.Priorities) > 0 || f.FilterUnassigned
 }
 
 // DailyScrumTicket is a ticket annotated with its column name for the Daily Scrum view.

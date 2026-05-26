@@ -3,7 +3,8 @@
 {{range .Users}}
 <form hx-post="/tickets/{{$.TicketID}}/assignees"
       hx-target="#ticket-assignees-{{$.TicketID}}"
-      hx-swap="outerHTML">
+      hx-swap="outerHTML"
+      hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))">
   <input type="hidden" name="user_id" value="{{.ID}}" />
   <button type="submit" class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-base-300 text-left">
     <div class="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">{{initials .Name}}</div>
