@@ -1,49 +1,11 @@
 {{define "ticket-body-section"}}
-<div id="ticket-body-{{.ID}}"{{if not .ClosedAt}}
-     x-data="{ editing: false }"
-     @click.outside="editing = false"{{end}}>
-
-  {{if .ClosedAt}}
-  {{if .Body}}
-  <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm px-3 py-2 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto">
-    {{.BodyHTML}}
+<section id="ticket-body-section" class="space-y-2">
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Description</div>
+  <div class="text-[15px] leading-[22px] text-base-800 cursor-pointer hover:bg-base-200/40 rounded px-2 py-1.5 -mx-2 transition-colors min-h-[3em]"
+       hx-get="/tickets/{{.ID}}/edit"
+       hx-target="#ticket-body"
+       hx-swap="outerHTML">
+    {{if .Body}}{{.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">Click to add a description…</span>{{end}}
   </div>
-  {{else}}
-  <p class="text-sm text-base-content/30 italic px-3 py-2">No description.</p>
-  {{end}}
-  {{else}}
-
-  <!-- Read view: click to enter edit mode -->
-  <div x-show="!editing">
-    {{if .Body}}
-    <div class="prose prose-sm prose-invert max-w-none text-base-content/80 leading-relaxed text-sm cursor-text hover:bg-base-200 rounded px-3 py-2 -mx-3 transition-colors [&_a]:text-primary [&_a]:hover:underline overflow-x-auto"
-         @click="editing = true"
-         title="Click to edit">
-      {{.BodyHTML}}
-    </div>
-    {{else}}
-    <p class="text-sm text-base-content/30 italic cursor-text hover:bg-base-200 rounded px-3 py-2 -mx-3 transition-colors"
-       @click="editing = true"
-       title="Click to add description">
-      Add a description…
-    </p>
-    {{end}}
-  </div>
-
-  <!-- Edit mode: rich editor -->
-  <form x-show="editing" x-cloak
-        hx-put="/tickets/{{.ID}}/body"
-        hx-target="#ticket-body-{{.ID}}"
-        hx-swap="outerHTML"
-        @keydown.escape="editing = false"
-        class="flex flex-col gap-2">
-    {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Write a description… (@username, #TICKET-ID)" "Rows" "6")}}
-    <div class="flex gap-2">
-      <button type="submit" class="px-3 py-1 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
-      <button type="button" @click="editing = false" class="px-3 py-1 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-    </div>
-  </form>
-
-  {{end}}
-</div>
+</section>
 {{end}}

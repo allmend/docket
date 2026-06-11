@@ -1,37 +1,32 @@
 {{define "ticket-dod-partial"}}
-<div id="ticket-dod" class="flex flex-col gap-1.5">
-  {{$closed := .IsClosed}}
-  {{range .Items}}
-  <div class="flex items-start gap-2.5">
-    {{if $closed}}
-    <input type="checkbox" disabled
-           {{if .Checked}}checked{{end}}
-           class="mt-0.5 shrink-0 accent-primary cursor-not-allowed opacity-50" />
-    {{else}}
-    <input type="checkbox"
-           {{if .Checked}}checked{{end}}
-           hx-post="/tickets/{{$.TicketID}}/dod/{{.ID}}/toggle"
-           hx-vals='{"checked": "{{if .Checked}}false{{else}}true{{end}}"}'
-           hx-target="#ticket-dod"
-           hx-swap="outerHTML"
-           hx-trigger="change"
-           class="mt-0.5 shrink-0 accent-primary cursor-pointer" />
-    {{end}}
-    <span class="text-sm {{if .Checked}}line-through text-base-content/40{{else}}text-base-content/80{{end}}">{{.Text}}</span>
-  </div>
-  {{end}}
-
-  {{/* Progress summary */}}
-  {{$total := len .Items}}
-  {{if gt $total 0}}
-  {{$checked := 0}}
-  {{range .Items}}{{if .Checked}}{{$checked = add $checked 1}}{{end}}{{end}}
-  <div class="mt-1 flex items-center gap-2">
-    <div class="flex-1 h-1 bg-base-300 rounded-full overflow-hidden">
-      <div class="h-full bg-primary rounded-full transition-all" style="width: {{pct $checked $total}}%"></div>
-    </div>
-    <span class="text-xs text-base-content/40 font-mono shrink-0">{{$checked}}/{{$total}}</span>
-  </div>
+{{$closed := .IsClosed}}
+<div id="ticket-dod-partial">
+  {{if .Items}}
+  <section class="space-y-2">
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Definition of Done</div>
+    <ul class="space-y-1.5">
+      {{range .Items}}
+      <li class="flex items-center gap-2.5">
+        {{if not $closed}}
+        <button type="button"
+                hx-post="/tickets/{{$.TicketID}}/dod/{{.ID}}/toggle"
+                hx-vals='{"checked":"{{if .Checked}}false{{else}}true{{end}}"}'
+                hx-target="#ticket-dod-partial" hx-swap="outerHTML"
+                class="mt-0.5 shrink-0 w-3.5 h-3.5 rounded-sm inline-flex items-center justify-center
+                  {{if .Checked}}bg-primary-500{{else}}bg-base-150 border border-base-400{{end}}">
+          {{if .Checked}}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#062b1d" stroke-width="2"><path d="m3 6 2 2 4-5"/></svg>{{end}}
+        </button>
+        {{else}}
+        <span class="mt-0.5 shrink-0 w-3.5 h-3.5 rounded-sm inline-flex items-center justify-center
+          {{if .Checked}}bg-primary-500{{else}}bg-base-150 border border-base-400{{end}}">
+          {{if .Checked}}<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="#062b1d" stroke-width="2"><path d="m3 6 2 2 4-5"/></svg>{{end}}
+        </span>
+        {{end}}
+        <span class="text-[14px] {{if .Checked}}text-base-600 line-through decoration-base-500{{else}}text-base-900{{end}}">{{.Text}}</span>
+      </li>
+      {{end}}
+    </ul>
+  </section>
   {{end}}
 </div>
 {{end}}

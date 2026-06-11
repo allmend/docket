@@ -1,7 +1,356 @@
 {{template "base" .}}
 
-{{define "title"}}{{.Ticket.DisplayID}} — Docket{{end}}
+{{define "title"}}{{.Ticket.DisplayID}} — {{.Ticket.Title}} — Docket{{end}}
+
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none" aria-hidden="true"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">{{.Ticket.DisplayID}}</span>
+{{end}}
 
 {{define "content"}}
-{{template "ticket-detail" .}}
+{{$t := .Ticket}}
+{{$closed := .Ticket.ClosedAt}}
+
+<div class="flex-1 min-h-0 overflow-hidden flex flex-col">
+
+  <!-- Ticket bar -->
+  <div class="shrink-0 h-11 px-5 flex items-center gap-3 border-b border-base-300 bg-base-200">
+    <div class="flex items-center gap-2">
+      {{if .Tags}}<span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{(index .Tags 0).Color}}"></span>{{end}}
+      <span class="mono text-[13px] text-primary-400">{{$t.DisplayID}}</span>
+    </div>
+    <!-- Current column as status badge -->
+    {{range .Columns}}{{if eq .ID $t.ColumnID}}
+    {{$col := lower .Name}}
+    <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[13px] uppercase tracking-wider
+      {{if contains $col "progress"}}bg-info/15 border border-info/30 text-info
+      {{else if contains $col "review"}}bg-warn/15 border border-warn/30 text-warn
+      {{else if eq $col "done"}}bg-success/15 border border-success/30 text-success
+      {{else}}bg-base-300 border border-base-350 text-base-700{{end}}">{{.Name}}</span>
+    {{end}}{{end}}
+    {{if $closed}}
+    <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-success/15 border border-success/30 mono text-[13px] uppercase tracking-wider text-success">closed</span>
+    {{end}}
+    <span class="mono text-[13px] text-base-600">opened {{timeAgo $t.CreatedAt}}{{if $t.CreatedByName}} by{{end}}</span>
+    {{if $t.CreatedByName}}
+    <span class="inline-flex items-center gap-1.5 mono text-[13px] text-base-800 shrink-0">
+      <span class="w-3.5 h-3.5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center text-[9px] font-semibold">{{initials $t.CreatedByName}}</span>
+      {{$t.CreatedByName}}
+    </span>
+    {{end}}
+    <div class="ml-auto flex items-center gap-1">
+      {{if not $closed}}
+      <button hx-post="/tickets/{{$t.ID}}/close"
+              hx-confirm="Close this ticket?"
+              hx-swap="none"
+              class="h-7 px-2 inline-flex items-center gap-1.5 rounded text-[13px] text-base-700 hover:text-danger hover:bg-danger/10 border border-transparent hover:border-danger/30">
+        Close
+      </button>
+      {{else}}
+      <button hx-post="/tickets/{{$t.ID}}/reopen"
+              hx-swap="none"
+              class="h-7 px-2 inline-flex items-center gap-1.5 rounded text-[13px] text-base-700 hover:text-success hover:bg-success/10 border border-transparent hover:border-success/30">
+        Reopen
+      </button>
+      {{end}}
+      <span class="w-px h-5 bg-base-300 mx-1"></span>
+      <button hx-delete="/tickets/{{$t.ID}}"
+              hx-confirm="Delete this ticket permanently?"
+              hx-swap="none"
+              class="w-7 h-7 rounded text-base-700 hover:text-danger hover:bg-danger/10 inline-flex items-center justify-center">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M5.5 5V3.5h5V5M6.5 8v4.5M9.5 8v4.5M4 5l.5 8h7L12 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Two-column body -->
+  <div class="flex-1 min-h-0 grid grid-cols-[1fr_280px] overflow-hidden">
+
+    <!-- Main column -->
+    <div class="overflow-y-auto p-6 space-y-6 border-r border-base-300">
+
+      <!-- Title + meta -->
+      {{template "ticket-body" (dict "Ticket" $t "Board" .Board "Team" .Team)}}
+
+      <!-- Acceptance Criteria -->
+      {{template "ticket-ac-section" $t}}
+
+      <!-- Linked work -->
+      {{if .Links}}
+      <section class="space-y-2.5">
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Linked work</div>
+        <div class="bg-base-150 border border-base-300 rounded shadow-sunk divide-y divide-base-300">
+          {{range .Links}}
+          {{$col := lower .ToColumnName}}
+          <div class="flex items-center gap-3 px-3 py-2 group">
+            <span class="mono text-[13px] text-base-600 w-16 shrink-0">{{.Relation.Label}}</span>
+            <span class="mono text-[13px] text-primary-400 shrink-0">{{.ToDisplayID}}</span>
+            <span class="text-[14px] text-base-700 flex-1 truncate">{{.ToTitle}}</span>
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[12px] uppercase tracking-wider shrink-0
+              {{if .ToClosedAt}}bg-success/15 border border-success/30 text-success
+              {{else if contains $col "progress"}}bg-info/15 border border-info/30 text-info
+              {{else if contains $col "review"}}bg-warn/15 border border-warn/30 text-warn
+              {{else}}bg-base-250 border border-base-350 text-base-700{{end}}">
+              {{if .ToClosedAt}}done
+              {{else if eq .ToColumnName ""}}backlog
+              {{else}}{{.ToColumnName}}{{end}}
+            </span>
+            <button hx-delete="/tickets/{{$t.ID}}/links/{{.ID}}"
+                    hx-confirm="Remove this link?"
+                    hx-target="closest .space-y-2\\.5"
+                    hx-swap="outerHTML"
+                    class="opacity-0 group-hover:opacity-100 w-5 h-5 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10 shrink-0">
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 3 10 10M13 3 3 13"/></svg>
+            </button>
+          </div>
+          {{end}}
+        </div>
+        <!-- Add link -->
+        <div x-data="{open:false, q:''}" class="relative">
+          <button @click="open=!open"
+                  class="mono text-[13px] text-base-600 hover:text-base-900 flex items-center gap-1">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+            Add link
+          </button>
+          <div x-show="open" @click.outside="open=false"
+               class="absolute top-full mt-1 left-0 w-72 bg-base-250 border border-base-350 rounded shadow-pop z-10 p-2">
+            <input placeholder="Search ticket…" x-model="q"
+                   @input.debounce.300="htmx.ajax('GET', '/tickets/{{$t.ID}}/link-search?q='+q, {target:'#link-results-{{$t.ID}}',swap:'innerHTML'})"
+                   class="w-full bg-base-150 border border-base-300 rounded px-2 py-1.5 text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 mb-1.5"/>
+            <div id="link-results-{{$t.ID}}"></div>
+          </div>
+        </div>
+      </section>
+      {{else}}
+      <section class="space-y-2.5">
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Linked work</div>
+        <div x-data="{open:false, q:''}" class="relative">
+          <button @click="open=!open"
+                  class="mono text-[13px] text-base-600 hover:text-base-900 flex items-center gap-1.5">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+            Add link
+          </button>
+          <div x-show="open" @click.outside="open=false"
+               class="absolute top-full mt-1 left-0 w-72 bg-base-250 border border-base-350 rounded shadow-pop z-10 p-2">
+            <input placeholder="Search ticket…" x-model="q"
+                   @input.debounce.300="htmx.ajax('GET', '/tickets/{{$t.ID}}/link-search?q='+q, {target:'#link-results-{{$t.ID}}',swap:'innerHTML'})"
+                   class="w-full bg-base-150 border border-base-300 rounded px-2 py-1.5 text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 mb-1.5"/>
+            <div id="link-results-{{$t.ID}}"></div>
+          </div>
+        </div>
+      </section>
+      {{end}}
+
+      <!-- Activity: comments + history -->
+      <section class="space-y-3">
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Activity</div>
+
+        <div id="ticket-activity" class="relative pl-5 space-y-3">
+          <span class="absolute left-[5.5px] top-1.5 bottom-1.5 w-px bg-base-300"></span>
+
+          {{/* Merge comments and history, sorted by created_at */}}
+          {{range .History}}
+          <div class="relative flex items-center gap-2 text-[13px] text-base-700">
+            <span class="absolute -left-[18px] w-3 h-3 rounded-full bg-base-300 ring-2 ring-base-100"></span>
+            <span class="text-base-900 font-medium">{{.ActorName}}</span>
+            {{if eq .Field "title"}}changed title
+            {{else if eq .Field "description"}}updated description
+            {{else if eq .Field "priority"}}changed priority to <span class="text-base-900">{{.NewValue}}</span>
+            {{else if eq .Field "assignee"}}{{if .NewValue}}assigned <span class="text-base-900">{{.NewValue}}</span>{{else}}unassigned{{end}}
+            {{else if eq .Field "story_points"}}estimated <span class="mono text-base-900">{{.NewValue}} pt</span>
+            {{else if eq .Field "column"}}moved to
+              {{$cn := lower .NewValue}}
+              <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[12px] uppercase tracking-wider
+                {{if contains $cn "progress"}}bg-info/15 border border-info/30 text-info
+                {{else if contains $cn "review"}}bg-warn/15 border border-warn/30 text-warn
+                {{else if eq $cn "done"}}bg-success/15 border border-success/30 text-success
+                {{else}}bg-base-300 border border-base-350 text-base-700{{end}}">{{.NewValue}}</span>
+            {{else if eq .Field "comment"}}commented
+            {{else if eq .Field "link_added"}}linked <span class="mono text-base-900">{{.NewValue}}</span>
+            {{else if eq .Field "link_removed"}}removed link to <span class="mono text-base-900">{{.OldValue}}</span>
+            {{else}}{{.Field}}: {{.NewValue}}
+            {{end}}
+            <span class="ml-auto mono text-[12px] text-base-600 shrink-0">{{timeAgo .CreatedAt}}</span>
+          </div>
+          {{end}}
+
+          {{range .Comments}}
+          {{template "comment" .}}
+          {{end}}
+        </div>
+
+        <!-- Comment composer -->
+        {{if not $closed}}
+        <div class="bg-base-150 border border-base-300 rounded shadow-sunk">
+          <form hx-post="/tickets/{{$t.ID}}/comments"
+                hx-target="#ticket-activity"
+                hx-swap="beforeend"
+                @submit="$el.reset()">
+            <textarea name="body" rows="2"
+                      placeholder="Leave a comment · markdown supported"
+                      class="block w-full bg-transparent border-0 px-3 py-2.5 text-[14px] text-base-800 placeholder:text-base-600 focus:outline-none resize-none"></textarea>
+            <div class="h-9 px-2.5 flex items-center justify-between border-t border-base-300">
+              <div class="flex items-center gap-1.5 mono text-[13px] text-base-600">
+                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">**b**</span>
+                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">_i_</span>
+                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">`code`</span>
+                <span class="text-base-500 mx-0.5">·</span>
+                <span>@ # tickets</span>
+              </div>
+              <button type="submit"
+                      class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] px-2.5 py-1 rounded">
+                Comment
+              </button>
+            </div>
+          </form>
+        </div>
+        {{end}}
+      </section>
+
+    </div>
+
+    <!-- Sidebar -->
+    <aside class="overflow-y-auto p-5 space-y-4 bg-base-200/40">
+
+      <!-- Status / Column -->
+      <div>
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Status</div>
+        {{if not $closed}}
+        <select name="column_id"
+                hx-put="/tickets/{{$t.ID}}/column"
+                hx-trigger="change"
+                hx-swap="none"
+                class="w-full bg-base-150 border border-base-300 hover:border-base-400 rounded h-8 px-2 text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 cursor-pointer">
+          {{range .Columns}}
+          <option value="{{.ID}}" {{if eq .ID $t.ColumnID}}selected{{end}}>{{.Name}}</option>
+          {{end}}
+        </select>
+        {{else}}
+        <div class="flex items-center gap-1.5 px-1 py-1">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-success shrink-0"><path d="M2.5 8.5 6 12l7.5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="text-[14px] text-success">Closed {{if $t.CloseReason}}· {{derefStr $t.CloseReason}}{{end}}</span>
+        </div>
+        {{end}}
+      </div>
+
+      <!-- Assignees -->
+      {{template "ticket-assignees" (dict "Ticket" $t "Assignees" .Assignees "CurrentUser" .CurrentUser)}}
+
+      <!-- Priority + Points side by side -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Priority -->
+        {{template "ticket-priority-select" $t}}
+
+        <!-- Story points -->
+        <div>
+          <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Points</div>
+          {{if not $closed}}
+          <div class="selwrap">
+            <select name="story_points"
+                    hx-put="/tickets/{{$t.ID}}/points"
+                    hx-trigger="change"
+                    hx-swap="none"
+                    class="metasel pts">
+              <option value="">—</option>
+              <option value="1"  {{if eq (deref $t.StoryPoints) "1"}}selected{{end}}>1</option>
+              <option value="2"  {{if eq (deref $t.StoryPoints) "2"}}selected{{end}}>2</option>
+              <option value="3"  {{if eq (deref $t.StoryPoints) "3"}}selected{{end}}>3</option>
+              <option value="5"  {{if eq (deref $t.StoryPoints) "5"}}selected{{end}}>5</option>
+              <option value="8"  {{if eq (deref $t.StoryPoints) "8"}}selected{{end}}>8</option>
+              <option value="13" {{if eq (deref $t.StoryPoints) "13"}}selected{{end}}>13</option>
+            </select>
+            <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          {{else}}
+          <div class="px-1 py-1">
+            {{if $t.StoryPoints}}<span class="mono text-[14px] text-base-900">{{deref $t.StoryPoints}} pt</span>{{else}}<span class="mono text-[13px] text-base-600">—</span>{{end}}
+          </div>
+          {{end}}
+        </div>
+      </div>
+
+      <!-- Sprint -->
+      {{if and .Board .Board.Mode.IsScrum}}
+      <div>
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Sprint</div>
+        <div class="text-[14px] text-base-900 px-1 py-1">
+          {{if $t.SprintID}}
+          {{if .NavActiveSprint}}<span>{{.NavActiveSprint.Name}}</span>{{else}}<span class="text-base-700">In sprint</span>{{end}}
+          {{else}}
+          <span class="text-base-600">Backlog</span>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
+      <!-- Tags -->
+      {{if or .Tags .BoardTags}}
+      <div>
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Tracks</div>
+        <div class="flex flex-wrap gap-1.5">
+          {{range .Tags}}
+          <span class="inline-flex items-center gap-1.5 h-6 pl-1.5 pr-1 rounded-sm bg-base-250 border border-base-350 text-[13px] text-base-800 group">
+            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+            {{.Name}}
+            {{if not $closed}}
+            <button hx-delete="/tickets/{{$t.ID}}/tags/{{.ID}}"
+                    hx-swap="none"
+                    hx-on::after-request="window.location.reload()"
+                    aria-label="Remove track"
+                    class="w-4 h-4 inline-flex items-center justify-center rounded-sm text-base-600 hover:text-danger hover:bg-base-300 opacity-0 group-hover:opacity-100">
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 3 10 10M13 3 3 13"/></svg>
+            </button>
+            {{end}}
+          </span>
+          {{end}}
+          {{if and (not $closed) .BoardTags}}
+          <div x-data="{open:false}" class="relative">
+            <button @click="open=!open"
+                    class="inline-flex items-center gap-1 h-5 px-1.5 rounded-sm border border-dashed border-base-500 mono text-[13px] text-base-600 hover:text-base-900 hover:border-base-400">
+              <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+              Add
+            </button>
+            <div x-show="open" @click.outside="open=false"
+                 class="absolute top-full mt-1 left-0 min-w-[140px] bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1">
+              {{range .BoardTags}}
+              <button type="button"
+                      hx-post="/tickets/{{$t.ID}}/tags"
+                      hx-vals='{"tag_id":"{{.ID}}"}'
+                      hx-swap="none"
+                      hx-on::after-request="window.location.reload()"
+                      @click="open=false"
+                      class="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-base-900 hover:bg-base-300">
+                <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+                {{.Name}}
+              </button>
+              {{end}}
+            </div>
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
+      <!-- Timestamps -->
+      <div class="pt-3 border-t border-base-300 space-y-1.5 mono text-[13px] text-base-700">
+        <div class="flex justify-between">
+          <span class="text-base-600">created</span>
+          <span>{{$t.CreatedAt.Format "2 Jan 15:04"}}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-base-600">updated</span>
+          <span>{{timeAgo $t.UpdatedAt}}</span>
+        </div>
+        {{if $closed}}
+        <div class="flex justify-between">
+          <span class="text-base-600">closed</span>
+          <span class="text-success">{{$closed.Format "2 Jan 15:04"}}</span>
+        </div>
+        {{end}}
+      </div>
+
+    </aside>
+
+  </div>
+</div>
 {{end}}

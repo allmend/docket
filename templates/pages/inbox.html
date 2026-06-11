@@ -3,61 +3,102 @@
 {{define "title"}}Inbox — Docket{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[900px] mx-auto px-8 py-6">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold">Inbox</h1>
-      <p class="text-sm text-base-content/40 mt-0.5">Assignments, mentions, and comments on your tickets</p>
+    <!-- Header -->
+    <div class="flex items-end justify-between mb-4">
+      <div>
+        <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Inbox</h1>
+        {{$unread := 0}}{{range .Notifications}}{{if not .IsRead}}{{$unread = add $unread 1}}{{end}}{{end}}
+        <div class="mono text-[14px] text-base-700 mt-0.5">
+          {{if $unread}}<span class="text-info">{{$unread}} unread</span> · {{end}}tickets you're assigned to or mentioned in
+        </div>
+      </div>
+      <form method="POST" action="/inbox/mark-read">
+        <button type="submit" class="h-8 px-3 inline-flex items-center gap-2 bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-900">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8.5l3.2 3.2L13 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Mark all read
+        </button>
+      </form>
     </div>
-  </div>
 
-  {{if not .Notifications}}
-  <div class="flex flex-col items-center justify-center py-24 text-center gap-3">
-    <svg class="h-10 w-10 text-base-content/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"/>
-    </svg>
-    <p class="text-base-content/40 text-sm">No notifications yet</p>
-  </div>
-  {{else}}
+    <!-- Filter tabs -->
+    <div class="inline-flex items-center bg-base-200 border border-base-350 rounded-md p-0.5 mb-4">
+      <button class="h-7 px-3 rounded-sm bg-base-100 text-base-950 text-[14px] shadow-sunk inline-flex items-center gap-1.5">All</button>
+      <button class="h-7 px-3 rounded-sm text-base-600 hover:text-base-900 text-[14px] inline-flex items-center gap-1.5">
+        Unread
+        {{if $unread}}<span class="mono text-[12px] text-base-600">{{$unread}}</span>{{end}}
+      </button>
+      <button class="h-7 px-3 rounded-sm text-base-600 hover:text-base-900 text-[14px] inline-flex items-center gap-1.5">Assigned</button>
+      <button class="h-7 px-3 rounded-sm text-base-600 hover:text-base-900 text-[14px] inline-flex items-center gap-1.5">Mentions</button>
+    </div>
 
-  <div class="flex flex-col border border-base-300 rounded-lg overflow-hidden divide-y divide-base-300">
-    {{range .Notifications}}
-    <a href="{{if .TicketDisplayID}}/tickets/{{.TicketDisplayID}}{{else}}#{{end}}"
-       class="flex items-start gap-3 px-4 py-3 hover:bg-base-300 transition-colors {{if not .IsRead}}bg-primary/5{{else}}bg-base-200{{end}}">
-
-      <!-- Actor avatar -->
-      <div class="shrink-0 w-6 h-6 rounded-full bg-primary/20 border border-base-300 flex items-center justify-center text-[10px] font-bold text-primary mt-0.5">
-        {{initials .ActorName}}
+    {{if .Notifications}}
+    <div class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+      {{$shownToday := false}}
+      {{$shownEarlier := false}}
+      {{range .Notifications}}
+      {{if isToday .CreatedAt}}
+        {{if not $shownToday}}
+        <div class="px-4 h-9 flex items-center bg-base-250/40 border-b border-base-300 mono text-[13px] uppercase tracking-[0.16em] text-base-600">Today</div>
+        {{$shownToday = true}}
+        {{end}}
+      {{else}}
+        {{if not $shownEarlier}}
+        <div class="px-4 h-9 flex items-center bg-base-250/40 border-b border-base-300 mono text-[13px] uppercase tracking-[0.16em] text-base-600">Earlier this week</div>
+        {{$shownEarlier = true}}
+        {{end}}
+      {{end}}
+      <a href="{{if .TicketDisplayID}}/tickets/{{.TicketDisplayID}}{{else}}#{{end}}"
+         class="flex gap-3 px-4 py-3 border-b border-base-300 hover:bg-base-250/40 cursor-pointer
+           {{if not .IsRead}}bg-info/5 border-l-2 border-info pl-[14px] -ml-[2px]{{end}}">
+        <!-- Actor avatar -->
+        <span class="w-7 h-7 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[12px] font-semibold shrink-0">
+          {{if .ActorName}}{{initials .ActorName}}{{else}}?{{end}}
+        </span>
+        <!-- Content -->
+        <div class="flex-1 min-w-0">
+          <div class="text-[14px] text-base-900 leading-snug">
+            <span class="text-base-950">{{.ActorName}}</span>
+            {{if eq .Type "assigned"}} assigned you
+            {{else if eq .Type "mentioned"}} mentioned you in
+            {{else if eq .Type "comment"}} commented on
+            {{else}} updated
+            {{end}}
+            {{if .TicketDisplayID}}<span class="mono text-[13px] text-primary-400">{{.TicketDisplayID}}</span>{{end}}
+          </div>
+          {{if .TicketTitle}}<div class="text-[14px] text-base-700 truncate">{{.TicketTitle}}</div>{{end}}
+          <div class="mono text-[13px] text-base-600 mt-0.5">{{timeAgo .CreatedAt}}</div>
+        </div>
+        <!-- Type badge + unread dot -->
+        <div class="flex flex-col items-end gap-2 shrink-0">
+          <span class="inline-flex items-center gap-1.5 mono text-[12px] uppercase tracking-[0.12em] text-base-600">
+            <span class="w-1.5 h-1.5 rounded-full
+              {{if eq .Type "assigned"}}bg-primary-500
+              {{else if eq .Type "mentioned"}}bg-info
+              {{else if eq .Type "comment"}}bg-base-600
+              {{else}}bg-base-500{{end}}"></span>
+            {{.Type}}
+          </span>
+          {{if not .IsRead}}<span class="w-2 h-2 rounded-full bg-info"></span>{{else}}<span class="w-2 h-2"></span>{{end}}
+        </div>
+      </a>
+      {{end}}
+      <div class="px-4 h-11 flex items-center mono text-[13px] text-base-600">
+        You're all caught up · older items archived after 30 days
       </div>
-
-      <!-- Content -->
-      <div class="flex-1 min-w-0">
-        <p class="text-sm text-base-content leading-snug">
-          <span class="font-medium">{{.ActorName}}</span>
-          {{if eq .Type "assigned"}} assigned you to
-          {{else if eq .Type "mentioned"}} mentioned you in a comment on
-          {{else if eq .Type "comment"}} commented on
-          {{end}}
-          {{if .TicketDisplayID}}
-          <span class="font-mono text-xs text-primary">{{.TicketDisplayID}}</span>
-          <span class="text-base-content/60">{{.TicketTitle}}</span>
-          {{end}}
-        </p>
+    </div>
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
+      <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><path d="M2.5 9.5 4 4.3h8l1.5 5.2M2.5 9.5V12a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5M2.5 9.5H6l1 1.4h2l1-1.4h3.5" stroke-linejoin="round" stroke-linecap="round"/></svg>
       </div>
-
-      <!-- Unread dot + timestamp -->
-      <div class="shrink-0 flex items-center gap-2 mt-0.5">
-        {{if not .IsRead}}<span class="w-1.5 h-1.5 rounded-full bg-primary"></span>{{end}}
-        <span class="text-xs text-base-content/30 font-mono">{{.CreatedAt.Format "Jan 02 15:04"}}</span>
-      </div>
-
-    </a>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">Inbox zero</div>
+      <p class="text-[14px] text-base-700">Nothing new. Notifications appear when you're assigned a ticket or @mentioned.</p>
+    </div>
     {{end}}
+
   </div>
-
-  {{end}}
-
 </div>
 {{end}}

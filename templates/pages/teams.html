@@ -1,141 +1,198 @@
 {{template "base" .}}
 
-{{define "title"}}Teams — Docket{{end}}
+{{define "title"}}{{if .OrgName}}{{.OrgName}}{{else}}Workspaces{{end}} — Docket{{end}}
+
+{{/* Org page: no + New ticket in top bar */}}
+{{define "topbar-new-ticket"}}{{end}}
+
+{{/* Org page: org name shown highlighted, not as a link */}}
+{{define "breadcrumb-org"}}
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">{{.OrgName}}</span>
+{{end}}
+{{define "breadcrumb"}}{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6" x-data="{ newTeam: false, editTeam: null, closeNewTeam() { this.newTeam = false; this.$refs.newTeamForm.reset(); } }">
+<div class="flex-1 min-h-0 overflow-y-auto bg-base-100">
+<div class="max-w-[1100px] mx-auto px-8 py-8">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <h1 class="text-2xl font-semibold">Teams</h1>
-    <button @click="newTeam = true"
-            class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+  <!-- Org hero -->
+  <div class="flex items-start justify-between mb-7">
+    <div class="flex items-center gap-4">
+      <span class="w-12 h-12 rounded-lg bg-base-200 border border-base-300 inline-flex items-center justify-center shrink-0">
+        <svg width="26" height="26" viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true">
+          <rect x="2" y="2" width="5" height="5" fill="#10B981"/>
+          <rect x="9" y="2" width="5" height="5" fill="#39c5cf"/>
+          <rect x="2" y="9" width="5" height="5" fill="#8957e5"/>
+          <rect x="9" y="9" width="5" height="5" fill="#db61a2"/>
+        </svg>
+      </span>
+      <div>
+        <h1 class="text-[28px] leading-9 font-semibold tracking-tightish text-base-950">{{if .OrgName}}{{.OrgName}}{{else}}Workspaces{{end}}</h1>
+        <div class="mono text-[14px] text-base-700 mt-0.5">
+          {{if .Teams}}you have access to {{len .Teams}} workspace{{if gt (len .Teams) 1}}s{{end}}{{end}}
+        </div>
+      </div>
+    </div>
+    <a href="/settings" class="h-8 px-3 inline-flex items-center gap-2 bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-900">Org settings</a>
+  </div>
+
+  <!-- Org stats -->
+  {{if .Teams}}
+  <div class="grid grid-cols-4 bg-base-200 border border-base-300 rounded-md divide-x divide-base-300 mb-8">
+    <div class="px-5 py-3">
+      <div class="mono text-[24px] leading-none text-base-950">{{len .Teams}}</div>
+      <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">workspaces</div>
+    </div>
+    <div class="px-5 py-3">
+      <div class="mono text-[24px] leading-none text-base-950">{{.MemberCount}}</div>
+      <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">members</div>
+    </div>
+    <div class="px-5 py-3">
+      <div class="mono text-[24px] leading-none text-base-950">{{.TotalTickets}}</div>
+      <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">tickets created</div>
+    </div>
+    <div class="px-5 py-3">
+      <div class="mono text-[24px] leading-none text-primary-400">{{.ActiveSprintCount}}</div>
+      <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">active sprints</div>
+    </div>
+  </div>
+  {{end}}
+
+  <!-- Workspace grid -->
+  <div class="flex items-baseline justify-between mb-3">
+    <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">Workspaces</h2>
+    <button x-data @click="$dispatch('open-new-workspace')"
+            class="h-7 px-2.5 inline-flex items-center gap-1.5 bg-base-200 hover:bg-base-250 border border-base-350 rounded mono text-[13px] text-base-700 hover:text-base-900">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <path d="M8 3v10M3 8h10" stroke-linecap="round"/>
       </svg>
-      New team
+      New workspace
     </button>
   </div>
 
-  <!-- Team cards grid -->
   {{if .Teams}}
   <div class="grid grid-cols-2 gap-4">
     {{range .Teams}}
-    <div class="group relative bg-base-200 border border-base-300 rounded-lg p-4 hover:border-primary/40 flex flex-col gap-3">
+    {{$team := .Team}}
+    {{$board := .Board}}
+    {{$sprint := .ActiveSprint}}
+    {{$members := .Members}}
+    <a href="/workspaces/{{$team.Slug}}"
+       class="group bg-base-200 border border-base-300 rounded-md p-4 hover:border-base-400 flex flex-col gap-3">
       <div class="flex items-start justify-between">
-        <a href="/teams/{{.Team.ID}}" class="flex items-center gap-2 flex-1 min-w-0">
-          <span class="font-mono text-primary text-sm font-bold shrink-0">{{.Team.Key}}</span>
-          <span class="text-base font-semibold truncate">{{.Team.Name}}</span>
-        </a>
-        <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 shrink-0 ml-2">
-          <button @click.prevent="editTeam = '{{.Team.ID}}'"
-                  class="p-1 text-base-content/40 hover:text-base-content rounded hover:bg-base-300" title="Edit"
-                  hx-get="/teams/{{.Team.ID}}/edit-form"
-                  hx-target="#edit-team-modal-body"
-                  @click="editTeam = '{{.Team.ID}}'">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-            </svg>
-          </button>
-          <button class="p-1 text-base-content/40 hover:text-red-400 rounded hover:bg-base-300" title="Delete"
-                  hx-delete="/teams/{{.Team.ID}}"
-                  hx-confirm="Delete team {{.Team.Name}}? This cannot be undone."
-                  hx-swap="none">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-      {{if .Team.Description}}
-      <p class="text-sm text-base-content/60 leading-relaxed">{{.Team.Description}}</p>
-      {{else}}
-      <p class="text-sm text-base-content/30 italic leading-relaxed">No description.</p>
-      {{end}}
-      <div class="flex items-center justify-between pt-1 border-t border-base-300">
-        <div class="flex items-center gap-1.5 text-xs text-base-content/40">
-          {{if .Board}}
-          <span class="text-xs border border-base-300 rounded px-1.5 py-0.5 text-base-content/40">{{.Board.Mode.Label}}</span>
-          {{end}}
-        </div>
-        {{if .Board}}
-        <a href="/boards/{{.Board.ID}}" class="text-xs text-primary hover:underline" @click.stop>View board</a>
-        {{else}}
-        <span class="text-xs text-base-content/30">No board</span>
-        {{end}}
-      </div>
-    </div>
-    {{end}}
-  </div>
-  {{else}}
-  <div class="text-sm text-base-content/30 py-12 text-center">No teams yet. Create one to get started.</div>
-  {{end}}
-
-  <!-- New Team Modal -->
-  <div x-show="newTeam" x-cloak
-       class="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-       @click.self="closeNewTeam()"
-       @keydown.escape.window="closeNewTeam()">
-    <div class="bg-base-200 border border-base-300 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6 flex flex-col gap-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">New team</h2>
-        <button @click="closeNewTeam()" class="text-base-content/40 hover:text-base-content">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
-      </div>
-      <form method="POST" action="/teams" x-ref="newTeamForm" class="flex flex-col gap-3">
-        <div>
-          <label class="block text-xs text-base-content/50 mb-1">Team name</label>
-          <input type="text" name="name" required placeholder="e.g. Engineering"
-                 class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary" />
-        </div>
-        <div>
-          <label class="block text-xs text-base-content/50 mb-1">Key <span class="text-base-content/30">(2–5 uppercase letters, used as ticket prefix)</span></label>
-          <input type="text" name="key" required placeholder="e.g. ENG" maxlength="5"
-                 class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm font-mono focus:outline-none focus:border-primary"
-                 oninput="this.value = this.value.toUpperCase()" />
-        </div>
-        <div>
-          <label class="block text-xs text-base-content/50 mb-1">Description <span class="text-base-content/30">(optional)</span></label>
-          <input type="text" name="description" placeholder="What does this team work on?"
-                 class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary" />
-        </div>
-        <div x-data="{ mode: 'scrum' }">
-          <label class="block text-xs text-base-content/50 mb-2">Board type</label>
-          <input type="hidden" name="mode" :value="mode" />
-          <div class="grid grid-cols-3 gap-2">
-            <button type="button" @click="mode = 'scrum'"
-                    :class="mode === 'scrum' ? 'border-primary bg-primary/10 text-base-content' : 'border-base-300 text-base-content/50 hover:border-base-content/30'"
-                    class="flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center transition-colors">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
-              <span class="text-xs font-medium">Scrum</span>
-              <span class="text-[10px] text-base-content/40 leading-tight">Sprints + backlog</span>
-            </button>
-            <button type="button" @click="mode = 'kanban'"
-                    :class="mode === 'kanban' ? 'border-primary bg-primary/10 text-base-content' : 'border-base-300 text-base-content/50 hover:border-base-content/30'"
-                    class="flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center transition-colors">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15M3 8.25h18M3 12h18M3 15.75h18"/></svg>
-              <span class="text-xs font-medium">Kanban</span>
-              <span class="text-[10px] text-base-content/40 leading-tight">Continuous flow</span>
-            </button>
-            <button type="button" @click="mode = 'blank'"
-                    :class="mode === 'blank' ? 'border-primary bg-primary/10 text-base-content' : 'border-base-300 text-base-content/50 hover:border-base-content/30'"
-                    class="flex flex-col items-center gap-1.5 p-3 rounded-lg border text-center transition-colors">
-              <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-              <span class="text-xs font-medium">Blank</span>
-              <span class="text-[10px] text-base-content/40 leading-tight">Start from scratch</span>
-            </button>
+        <div class="flex items-center gap-3 min-w-0">
+          <!-- Key badge — color derived from team key -->
+          <span class="w-9 h-9 rounded-md inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0"
+                style="background-color:{{hashColor $team.Key}}18; border:1px solid {{hashColor $team.Key}}40; color:{{hashColor $team.Key}}">{{$team.Key}}</span>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-[15px] font-medium text-base-950 leading-tight truncate">{{$team.Name}}</span>
+              <span class="mono text-[12px] text-base-600 font-normal shrink-0">{{$team.Slug}}</span>
+            </div>
+            {{if $board}}<div class="mono text-[13px] text-base-600 capitalize">{{$board.Mode}} board</div>{{end}}
           </div>
         </div>
-        <div class="flex gap-2 pt-1">
-          <button type="submit" class="flex-1 px-4 py-2 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Create team</button>
-          <button type="button" @click="closeNewTeam()" class="px-4 py-2 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
+        <!-- Visibility -->
+        <span class="inline-flex items-center gap-1.5 mono text-[13px] text-base-600 shrink-0">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="7" width="10" height="7" rx="1"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2"/></svg>
+          Private
+        </span>
+      </div>
+
+      {{if $team.Description}}
+      <p class="text-[14px] text-base-700 leading-snug">{{$team.Description}}</p>
+      {{else}}
+      <p class="text-[14px] text-base-600 leading-snug italic">No description</p>
+      {{end}}
+
+      <div class="flex items-center justify-between pt-2 border-t border-base-300">
+        <!-- Member avatar stack -->
+        <span class="inline-flex items-center -space-x-1.5">
+          {{range $members}}
+          <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold ring-1 ring-base-200">{{initials .Name}}</span>
+          {{end}}
+          {{if not $members}}<span class="mono text-[13px] text-base-600">no members</span>{{end}}
+        </span>
+        <!-- Ticket count -->
+        <div class="flex items-center gap-1.5 mono text-[13px]">
+          <span class="text-base-800">{{$team.TicketCounter}}</span>
+          <span class="text-base-600">tickets</span>
+          {{if $sprint}}
+          <span class="text-base-500">·</span>
+          <span class="text-base-700">{{$sprint.Name}}</span>
+          {{end}}
         </div>
-      </form>
-    </div>
+      </div>
+    </a>
+    {{end}}
   </div>
 
+  {{else}}
+  <div class="flex flex-col items-center justify-center py-16 text-center">
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">no workspaces yet</div>
+    <p class="text-[14px] text-base-700 mb-5">Create your first workspace to start tracking work.</p>
+    <button x-data @click="$dispatch('open-new-workspace')"
+            class="h-8 px-3 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] rounded shadow-lift">
+      New workspace
+    </button>
+  </div>
+  {{end}}
+
+</div>
+</div>
+
+<!-- New workspace modal -->
+<div x-data="{open: false}"
+     @open-new-workspace.window="open=true"
+     x-show="open" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center p-4"
+     @click.self="open=false">
+  <div class="absolute inset-0 bg-black/60" @click="open=false"></div>
+  <div class="relative w-full max-w-[480px] bg-base-200 border border-base-300 rounded-lg shadow-pop">
+    <div class="h-12 px-4 flex items-center border-b border-base-300 shrink-0">
+      <span class="text-[15px] font-medium text-base-950">New workspace</span>
+      <button @click="open=false" class="ml-auto text-base-600 hover:text-base-900 w-7 h-7 rounded hover:bg-base-250 inline-flex items-center justify-center">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="m3 3 10 10M13 3 3 13"/>
+        </svg>
+      </button>
+    </div>
+    <form action="/workspaces" method="POST" class="p-5 space-y-4">
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Name</label>
+          <input type="text" name="name" placeholder="Backend" required autofocus
+                 class="w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
+        </div>
+        <div>
+          <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Key</label>
+          <input type="text" name="key" placeholder="BE" maxlength="6" required
+                 class="w-full bg-base-150 border border-base-300 rounded px-3 py-2 mono text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 uppercase" />
+        </div>
+      </div>
+      <div>
+        <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Description <span class="normal-case tracking-normal text-base-500">(optional)</span></label>
+        <input type="text" name="description" placeholder="What this workspace is for…"
+               class="w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
+      </div>
+      <div>
+        <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Board mode</label>
+        <div class="grid grid-cols-3 gap-2">
+          {{range slice "scrum" "kanban" "blank"}}
+          <label class="flex flex-col items-center gap-1 p-2.5 border border-base-300 rounded cursor-pointer hover:bg-base-250 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-500/10">
+            <input type="radio" name="mode" value="{{.}}" class="sr-only" {{if eq . "scrum"}}checked{{end}} />
+            <span class="mono text-[13px] text-base-900 capitalize">{{.}}</span>
+          </label>
+          {{end}}
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" @click="open=false"
+                class="h-8 px-3 text-[14px] text-base-600 hover:text-base-900">Cancel</button>
+        <button type="submit"
+                class="h-8 px-3 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] rounded shadow-lift">Create workspace</button>
+      </div>
+    </form>
+  </div>
 </div>
 {{end}}

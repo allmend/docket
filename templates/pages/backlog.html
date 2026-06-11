@@ -1,199 +1,229 @@
 {{template "base" .}}
 
-{{define "title"}}{{if .InitRefineMode}}Backlog Refinement{{else}}Backlog{{end}}{{if .Team}} — {{.Team.Name}}{{end}} — Docket{{end}}
-
-{{define "scripts"}}<script src="/static/board.js"></script>{{end}}
+{{define "title"}}{{if .InitRefineMode}}Backlog Refinement{{else}}Backlog{{end}} — Docket{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6"
+{{$board := .Board}}
+{{$team  := .Team}}
+
+<div class="flex-1 min-h-0 flex flex-col overflow-hidden"
      x-data="{
-       selected: [],
        refineMode: {{if .InitRefineMode}}true{{else}}false{{end}},
-       refineTicketID: '',
-       init() { window._docketRefineMode = this.refineMode; },
-       selectRefine(id) {
-         this.refineTicketID = id;
-         window._docketRefineTicketID = id;
-         window.dispatchEvent(new CustomEvent('refine-selected', {detail: {id}}));
-         htmx.ajax('GET', '/tickets/' + id + '/quick', {target: '#refine-panel', swap: 'innerHTML'});
-       },
-       ticketClick(id) {
-         if (this.refineMode) {
-           this.selectRefine(id);
-         } else {
-           htmx.ajax('GET', '/tickets/' + id + '/quick', {target: '#modal-body', swap: 'innerHTML'});
-           window.dispatchEvent(new CustomEvent('open-ticket-modal'));
-         }
-       },
-       navigateRefine(dir, e) {
-         if (e && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable)) return;
-         if (!this.refineMode) return;
-         if (e) e.preventDefault();
-         const rows = [...document.querySelectorAll('[data-ticket-id]')].filter(r => r.offsetParent !== null);
-         const ids = rows.map(r => r.dataset.ticketId);
-         const idx = ids.indexOf(this.refineTicketID);
-         const next = idx + dir;
-         if (next >= 0 && next < ids.length) this.selectRefine(ids[next]);
+       filterRows(q) {
+         const v = q.toLowerCase();
+         document.querySelectorAll('.backlog-ticket-row').forEach(row => {
+           row.style.display = (!v || row.textContent.toLowerCase().includes(v)) ? '' : 'none';
+         });
        }
-     }"
-     @ticket-click.window="ticketClick($event.detail.ticketID)"
-     @keydown.arrow-down.window="navigateRefine(1, $event)"
-     @keydown.arrow-up.window="navigateRefine(-1, $event)"
-     @keydown.j.window="navigateRefine(1, $event)"
-     @keydown.k.window="navigateRefine(-1, $event)">
+     }">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <nav class="text-sm text-base-content/50 mb-1">
-        <a href="/teams" class="hover:text-primary">Teams</a>
-        {{if .Team}}
-        <span class="mx-1">/</span>
-        <a href="/teams/{{.Team.ID}}" class="hover:text-primary"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
-        {{end}}
-        <span class="mx-1">/</span>
-        <a :href="window.location.pathname.replace('/refinement','')" class="hover:text-primary" :class="refineMode ? 'text-base-content/50' : 'text-base-content/70'">Backlog</a>
-        <span x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="mx-1">/</span>
-        <span x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="text-base-content/70">Backlog Refinement</span>
-      </nav>
-      <div class="flex items-center gap-2">
-        <h1 class="text-2xl font-semibold" x-text="refineMode ? 'Backlog Refinement' : 'Backlog'">{{if .InitRefineMode}}Backlog Refinement{{else}}Backlog{{end}}</h1>
+  <!-- Refinement context bar -->
+  <div {{if not .InitRefineMode}}style="display:none"{{end}}
+       x-show="refineMode"
+       class="shrink-0 h-12 bg-base-200 border-b border-base-300 flex items-center gap-4 px-4 whitespace-nowrap overflow-x-auto">
+    <div class="flex items-center gap-2.5 shrink-0">
+      <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">refinement</span>
+      <span class="text-[15px] font-medium text-base-950">{{if $board}}{{$board.Name}}{{else}}Backlog{{end}}</span>
+    </div>
+    <div class="flex items-center gap-2 mono text-[13px] text-base-700 shrink-0">
+      <span>ticket <span id="refine-pos">—</span> / {{.BacklogCount}}</span>
+      <span class="text-base-500">·</span>
+      <div class="w-24 h-1 bg-base-300 rounded-sm overflow-hidden">
+        <div id="refine-progress" class="h-full bg-primary-500" style="width:0%"></div>
       </div>
     </div>
-
-    <!-- Refine toggle -->
-    <button @click="refineMode = !refineMode; window._docketRefineMode = refineMode; window.dispatchEvent(new CustomEvent('refine-mode', {detail: {active: refineMode}})); if (refineMode) { history.pushState({}, '', window.location.pathname + '/refinement'); document.title = 'Backlog Refinement{{if .Team}} — {{.Team.Name}}{{end}} — Docket'; } else { history.pushState({}, '', window.location.pathname.replace('/refinement', '')); document.title = 'Backlog{{if .Team}} — {{.Team.Name}}{{end}} — Docket'; refineTicketID = ''; window._docketRefineTicketID = ''; window.dispatchEvent(new CustomEvent('refine-selected', {detail: {id: ''}})); }"
-            :class="refineMode ? '!bg-primary !text-base-100 !border-primary' : '!bg-transparent !text-base-content/60 !border-base-300 hover:border-primary/40 hover:text-primary'"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-md transition-colors {{if .InitRefineMode}}bg-primary text-base-100 border-primary{{else}}text-base-content/60 border-base-300{{end}}">
-      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-      </svg>
-      <span x-text="refineMode ? 'Back to Backlog' : 'Refine'">{{if .InitRefineMode}}Back to Backlog{{else}}Refine{{end}}</span>
-    </button>
-  </div>
-
-  <!-- Refine mode hint -->
-  <div x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="flex items-center gap-2 text-xs text-base-content/40 -mt-4">
-    <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-    </svg>
-    Click a ticket to refine it. Use ↑ ↓ or j / k to navigate.
-  </div>
-
-  <!-- Main layout -->
-  <div class="flex gap-6 items-start">
-
-    <!-- Left: backlog ticket list -->
-    <div class="{{if .InitRefineMode}}w-80 shrink-0{{else}}flex-1 min-w-0{{end}}"
-         :style="refineMode ? 'flex: none; width: 20rem' : 'flex: 1; min-width: 0'">
-      {{template "backlog-ticket-list" (dict "Board" .Board "Tickets" (index .Columns 0).Tickets "SprintViews" .SprintViews "InitRefineMode" .InitRefineMode "ActiveSprintSection" .ActiveSprintSection "FirstColumnID" (index .Columns 0).Column.ID)}}
+    <div class="ml-auto flex items-center gap-2 shrink-0">
+      <button onclick="advanceRefine()"
+              class="h-8 px-3 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-900">Skip</button>
+      <button onclick="advanceRefine()"
+              class="h-8 px-3 inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 8.5l3.2 3.2L13 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Mark refined
+      </button>
+      <a href="{{if $team}}/workspaces/{{$team.Slug}}/backlog{{else}}/{{end}}"
+         class="h-8 px-3 inline-flex items-center bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-700 hover:text-base-900">Exit</a>
     </div>
+  </div>
 
-    <!-- Center: refine detail panel (refine mode only) -->
-    <div x-show="refineMode" {{if not .InitRefineMode}}x-cloak{{end}} class="flex-1 min-w-0 bg-base-200 border border-base-300 rounded-lg overflow-hidden">
-      <div id="refine-panel" class="h-full">
-        <div class="flex flex-col items-center justify-center gap-2 py-16 text-center">
-          <svg class="h-8 w-8 text-base-content/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
-          </svg>
-          <p class="text-sm text-base-content/30">Select a ticket to refine</p>
-          <p class="text-xs text-base-content/20">Use ↑ ↓ or j / k to navigate between tickets</p>
+  <!-- Split pane -->
+  <div class="flex-1 min-h-0 flex overflow-hidden">
+
+  <!-- Backlog list pane -->
+  <div :style="refineMode ? 'flex: none; width: 300px' : 'flex: 1; min-width: 0'"
+       class="{{if .InitRefineMode}}w-[300px] shrink-0{{else}}flex-1 min-w-0{{end}} overflow-y-auto bg-base-100">
+    <div class="{{if .InitRefineMode}}{{else}}max-w-[1320px] mx-auto px-8 py-6{{end}}"
+         :class="refineMode ? '' : 'max-w-[1320px] mx-auto px-8 py-6'">
+
+      <!-- Page header (hidden in refine mode — irrelevant in the narrow pane) -->
+      <div class="flex items-end justify-between mb-5"
+           {{if .InitRefineMode}}style="display:none"{{end}}
+           x-show="!refineMode">
+        <div>
+          <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950"
+              x-text="refineMode ? 'Backlog Refinement' : 'Backlog'">{{if .InitRefineMode}}Backlog Refinement{{else}}Backlog{{end}}</h1>
+          <div class="mono text-[14px] text-base-700 mt-0.5">
+            {{if .BacklogCount}}
+            {{.BacklogCount}} tickets{{if .BacklogPoints}} · {{.BacklogPoints}} pt{{end}}{{if .UnestimatedCount}} · <span class="text-warn">{{.UnestimatedCount}} unestimated</span>{{end}}
+            {{else}}backlog is empty{{end}}
+          </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Right: sprints sidebar (hidden in refine mode) -->
-    <div x-show="!refineMode" {{if .InitRefineMode}}x-cloak{{end}} class="w-72 shrink-0 flex flex-col gap-3" x-data="{ newSprint: false }">
-
-      <!-- Section header -->
-      <div class="flex items-center justify-between mb-1">
-        <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Sprints</span>
-        <button @click="newSprint = !newSprint" class="flex items-center gap-1 text-xs text-primary hover:opacity-80">
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-          New sprint
-        </button>
-      </div>
-
-      <!-- Inline new sprint form -->
-      <div x-show="newSprint" x-cloak class="bg-base-200 border border-base-300 rounded-lg p-3 flex flex-col gap-2">
-        <form method="POST" action="/boards/{{.Board.ID}}/sprints" class="flex flex-col gap-2">
-          <input type="text" name="name" required placeholder="Sprint name…"
-                 class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:border-primary" />
-          <div class="flex gap-2">
-            <input type="date" name="start_date" class="flex-1 bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
-            <input type="date" name="end_date" class="flex-1 bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 h-8 shadow-sunk w-[200px]"
+               x-show="!refineMode" x-cloak>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0" aria-hidden="true">
+              <circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/>
+            </svg>
+            <input placeholder="Filter backlog…"
+                   @input="filterRows($el.value)"
+                   class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0" />
           </div>
-          <div class="flex gap-2">
-            <button type="submit" class="flex-1 px-3 py-1.5 bg-primary text-base-100 text-xs font-medium rounded hover:opacity-90">Create</button>
-            <button type="button" @click="newSprint = false" class="px-3 py-1.5 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Sprint cards -->
-      {{range .Sprints}}
-      {{if not (.Status.IsCompleted)}}
-      <div class="bg-base-200 border border-base-300 rounded-lg p-4 flex flex-col gap-3"
-           x-data="{ showCapacity: false }">
-        <div class="flex items-start justify-between">
-          <div>
-            <div class="flex items-center gap-2 mb-0.5">
-              <span class="font-medium text-sm">{{.Name}}</span>
-              {{if .Status.IsActive}}
-              <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5">Active</span>
-              {{else if .Status.IsPlanning}}
-              <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5">Planning</span>
-              {{end}}
-            </div>
-            {{if and .StartDate .EndDate}}
-            <span class="font-mono text-xs text-base-content/40">{{.StartDate.Format "Jan 2"}} – {{.EndDate.Format "Jan 2"}}</span>
-            {{end}}
-          </div>
-          <!-- Capacity toggle -->
-          <button @click="showCapacity = !showCapacity"
-                  class="text-xs text-base-content/40 hover:text-primary transition-colors shrink-0 ml-2"
-                  title="Toggle capacity">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          <button class="h-8 px-3 inline-flex items-center gap-1.5 bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-900"
+                  x-show="!refineMode" x-cloak>
+            Sort: rank
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" class="text-base-600" aria-hidden="true">
+              <path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </button>
+          {{if and $board (eq $board.Mode "scrum")}}
+          {{if .InitRefineMode}}
+          <a href="{{if $team}}/workspaces/{{$team.Slug}}/backlog{{else}}/{{end}}"
+             class="h-8 px-3 inline-flex items-center gap-2 rounded text-[14px] bg-base-250 hover:bg-base-300 border border-base-350 text-base-900">← Exit refinement</a>
+          {{else}}
+          <a href="{{if $team}}/workspaces/{{$team.Slug}}/backlog/refinement{{else}}/{{end}}"
+             class="h-8 px-3 inline-flex items-center gap-2 rounded text-[14px] bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium shadow-lift">
+            Start refinement
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+              <path d="M3 8h9M9 5l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          {{end}}
+          {{end}}
         </div>
+      </div>
 
-        <!-- Capacity section (lazy-loaded) -->
-        <div x-show="showCapacity" x-cloak>
-          <div class="border-t border-base-300 pt-3 pb-1">
-            <p class="text-xs uppercase tracking-widest text-base-content/30 font-medium mb-2">Capacity</p>
-            <div hx-get="/boards/{{$.Board.ID}}/sprints/{{.ID}}/capacity"
-                 hx-trigger="intersect once"
-                 hx-swap="outerHTML">
-              <div class="text-xs text-base-content/30 text-center py-2">Loading…</div>
+      <!-- Active sprint section -->
+      {{if .ActiveSprintSection}}
+      {{$as := .ActiveSprintSection}}
+      <div x-show="!refineMode" x-cloak class="bg-base-200 border border-base-300 rounded-md overflow-hidden mb-4">
+        <div x-data="{open:true}">
+          <div class="flex items-center gap-2 px-4 h-10 cursor-pointer hover:bg-base-250/40 border-b border-base-300" @click="open=!open">
+            <svg class="w-3 h-3 text-base-600 shrink-0 transition-transform" :class="open ? 'rotate-90' : ''" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M4.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">{{$as.Sprint.Name}}</span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-success/15 border border-success/30 mono text-[11px] uppercase tracking-wider text-success">active</span>
+            <span class="ml-auto mono text-[13px] text-base-600">{{$as.Done}}/{{$as.Total}}</span>
+            {{if $team}}<a href="/workspaces/{{$team.Slug}}/board" class="mono text-[13px] text-primary-400 hover:text-primary-300 ml-3" @click.stop>Board →</a>{{end}}
+          </div>
+          <div x-show="open" x-cloak class="divide-y divide-base-300">
+            {{range $as.Columns}}{{range .Tickets}}
+            <div class="flex items-center gap-3 px-4 h-10 hover:bg-base-250/40 cursor-pointer"
+                 hx-get="/tickets/{{.ID}}/quick" hx-target="#modal-body" hx-swap="innerHTML"
+                 hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
+              <span class="w-1 h-2.5 rounded-sm shrink-0 {{if eq .Priority.String "critical"}}bg-p0{{else if eq .Priority.String "high"}}bg-p1{{else if eq .Priority.String "medium"}}bg-p2{{else if eq .Priority.String "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+              <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
+              <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>
+            </div>
+            {{end}}{{end}}
+          </div>
+        </div>
+      </div>
+      {{end}}
+
+      <!-- Planning sprint sections -->
+      {{range .SprintViews}}
+      {{$sv := .}}
+      <div x-show="!refineMode" x-cloak class="bg-base-200 border border-base-300 rounded-md overflow-hidden mb-4">
+        <div x-data="{open:true}">
+          <div class="flex items-center gap-2 px-4 h-10 cursor-pointer hover:bg-base-250/40 border-b border-base-300" @click="open=!open">
+            <svg class="w-3 h-3 text-base-600 shrink-0 transition-transform" :class="open ? 'rotate-90' : ''" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M4.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">{{$sv.Sprint.Name}}</span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-info/15 border border-info/30 mono text-[11px] uppercase tracking-wider text-info">planning</span>
+            <span class="ml-auto mono text-[13px] text-base-600">{{len $sv.Tickets}} tickets</span>
+          </div>
+          <div x-show="open" x-cloak>
+            <div class="sprint-list divide-y divide-base-300"
+                 data-sprint-id="{{$sv.Sprint.ID}}"
+                 data-sprint-status="planning"
+                 data-board-id="{{if $board}}{{$board.ID}}{{end}}">
+              {{range $sv.Tickets}}
+              <div class="sprint-ticket flex items-center gap-3 px-4 h-10 hover:bg-base-250/40 cursor-pointer"
+                   data-ticket-id="{{.ID}}" data-position="{{.Position}}"
+                   hx-get="/tickets/{{.ID}}/quick" hx-target="#modal-body" hx-swap="innerHTML"
+                   hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
+                <span class="w-1 h-2.5 rounded-sm shrink-0 {{if eq .Priority.String "critical"}}bg-p0{{else if eq .Priority.String "high"}}bg-p1{{else if eq .Priority.String "medium"}}bg-p2{{else if eq .Priority.String "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+                {{if .StoryPoints}}<span class="mono text-[13px] text-base-700 bg-primary-500/10 border border-primary-500/20 rounded-sm px-1 shrink-0">{{deref .StoryPoints}}</span>{{end}}
+                <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
+                <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>
+              </div>
+              {{end}}
             </div>
           </div>
         </div>
-
-        <!-- Move selected tickets to this sprint -->
-        <form method="POST" action="/boards/{{$.Board.ID}}/sprints/{{.ID}}/assign">
-          <template x-for="id in selected" :key="id">
-            <input type="hidden" name="ticket_ids" :value="id" />
-          </template>
-          <button type="submit"
-                  :disabled="selected.length === 0"
-                  class="w-full text-center text-xs border border-base-300 text-base-content/20 cursor-not-allowed rounded py-1.5 transition-colors"
-                  :class="selected.length > 0 ? '!text-primary !border-primary/30 hover:bg-primary/10 !cursor-pointer' : ''">
-            <span x-text="selected.length > 0 ? 'Move ' + selected.length + ' ticket' + (selected.length > 1 ? 's' : '') + ' to {{.Name}}' : 'Move selected to {{.Name}}'">Move selected to {{.Name}}</span>
-          </button>
-        </form>
       </div>
       {{end}}
-      {{end}}
 
-      {{if not .Sprints}}
-      <p class="text-sm text-base-content/30 text-center py-4">No sprints yet.</p>
-      {{end}}
+      <!-- Backlog ticket list (polling partial) -->
+      {{template "backlog-ticket-list" .}}
+
+      <!-- Footer hint -->
+      <div class="mono text-[13px] text-base-600 mt-3"
+           x-show="!refineMode" x-cloak>
+        Drag to reorder priority · ↵ to open · <span class="text-base-700">Start refinement</span> to walk the list one ticket at a time.
+      </div>
 
     </div>
-
   </div>
 
-</div>
+  <!-- Refinement detail pane -->
+  <div x-show="refineMode" x-cloak
+       class="flex-1 min-w-0 border-l border-base-300 overflow-y-auto bg-base-100"
+       id="refine-detail-pane">
+    <div class="flex flex-col items-center justify-center h-full text-center px-6 py-16">
+      <div class="w-10 h-10 rounded-md bg-base-200 border border-base-300 inline-flex items-center justify-center mb-4">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><path d="M2 4h12M2 8h8M2 12h5" stroke-linecap="round"/></svg>
+      </div>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">← select a ticket</div>
+      <p class="text-[14px] text-base-700 max-w-[28ch]">Use <code class="mono text-[13px] bg-base-300 px-1 py-px rounded-sm text-base-900">j</code> / <code class="mono text-[13px] bg-base-300 px-1 py-px rounded-sm text-base-900">k</code> to navigate between tickets. Changes save automatically.</p>
+    </div>
+  </div>
+
+  </div><!-- end split pane -->
+</div><!-- end outer x-data wrapper -->
+
+<script>
+window._docketRefineMode = {{if .InitRefineMode}}true{{else}}false{{end}};
+window._docketRefineTotal = {{.BacklogCount}};
+
+function _updateRefineCounter(rank) {
+  const pos = document.getElementById('refine-pos');
+  const bar = document.getElementById('refine-progress');
+  if (pos) pos.textContent = rank;
+  if (bar && window._docketRefineTotal > 0) {
+    bar.style.width = Math.round(rank / window._docketRefineTotal * 100) + '%';
+  }
+}
+
+function advanceRefine() {
+  const rows = Array.from(document.querySelectorAll('.backlog-ticket-row')).filter(r => r.offsetParent !== null);
+  const active = document.querySelector('.backlog-ticket-row.border-info');
+  let idx = active ? rows.indexOf(active) : -1;
+  idx = Math.min(idx + 1, rows.length - 1);
+  if (rows[idx]) rows[idx].click();
+}
+
+document.addEventListener('keydown', function(e) {
+  if (!window._docketRefineMode) return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key !== 'j' && e.key !== 'k') return;
+  e.preventDefault();
+  const rows = Array.from(document.querySelectorAll('.backlog-ticket-row')).filter(r => r.offsetParent !== null);
+  const active = document.querySelector('.backlog-ticket-row.border-info');
+  let idx = active ? rows.indexOf(active) : -1;
+  idx = e.key === 'j' ? Math.min(idx + 1, rows.length - 1) : Math.max(idx - 1, 0);
+  if (rows[idx]) rows[idx].click();
+});
+</script>
 {{end}}

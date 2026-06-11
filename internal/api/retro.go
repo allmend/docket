@@ -5,23 +5,20 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 func (h *Handler) SprintReviewPage(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	_, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+	sprintID, ok := pathUUID(w, r, "sprintID")
+	if !ok {
 		return
 	}
-	data, err := h.retro.GetSprintReviewData(r.Context(), orgID, boardID, sprintID)
+	data, err := h.retro.GetSprintReviewData(r.Context(), orgID, board.ID, sprintID)
 	if err != nil {
 		http.Error(w, "failed to load sprint review", http.StatusInternalServerError)
 		return
@@ -34,14 +31,12 @@ func (h *Handler) SprintReviewPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CloseSprintAndStartRetro(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
+	sprintID, ok := pathUUID(w, r, "sprintID")
+	if !ok {
 		return
 	}
 
@@ -50,32 +45,35 @@ func (h *Handler) CloseSprintAndStartRetro(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Create (or find) the retro for this sprint and redirect to it.
+	board, _ := h.boards.GetBoard(r.Context(), orgID, boardID)
+	slug := h.teamSlugForBoard(r, orgID, board)
+
 	rb, err := h.retro.GetOrCreateRetroBoard(r.Context(), orgID, boardID, &sprintID)
 	if err != nil {
-		// Fallback to board if retro creation fails.
-		http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
+		if slug != "" {
+			http.Redirect(w, r, "/workspaces/"+slug+"/board", http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/", http.StatusSeeOther)
+		}
 		return
 	}
-	http.Redirect(w, r, "/boards/"+boardID.String()+"/retro/"+rb.ID.String(), http.StatusSeeOther)
+	if slug != "" {
+		http.Redirect(w, r, "/workspaces/"+slug+"/retros/"+rb.ID.String(), http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
 }
 
 func (h *Handler) RetrosListPage(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
-	retros, err := h.retro.ListRetros(r.Context(), orgID, boardID)
+	retros, err := h.retro.ListRetros(r.Context(), orgID, board.ID)
 	if err != nil {
 		http.Error(w, "failed to list retros", http.StatusInternalServerError)
 		return
-	}
-	board, _ := h.boards.GetBoard(r.Context(), orgID, boardID)
-	var team *model.Team
-	if board != nil && board.TeamID != nil {
-		team, _ = h.teams.GetTeam(r.Context(), orgID, *board.TeamID)
 	}
 	h.render(w, "retros.html", h.pageData(r, map[string]any{
 		"Retros": retros,
@@ -87,34 +85,36 @@ func (h *Handler) RetrosListPage(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CloseRetroBoard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
 	if err := h.retro.CloseRetroBoard(r.Context(), orgID, retroBoardID, userID); err != nil {
 		http.Error(w, "failed to close retro", http.StatusInternalServerError)
 		return
 	}
-	http.Redirect(w, r, "/boards/"+boardID.String()+"/retros", http.StatusSeeOther)
+	board, _ := h.boards.GetBoard(r.Context(), orgID, boardID)
+	slug := h.teamSlugForBoard(r, orgID, board)
+	if slug != "" {
+		http.Redirect(w, r, "/workspaces/"+slug+"/retros", http.StatusSeeOther)
+	} else {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+	}
 }
 
 func (h *Handler) RetroBoardPage(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
 
@@ -124,29 +124,25 @@ func (h *Handler) RetroBoardPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, err := h.retro.GetRetroView(r.Context(), orgID, boardID, rb.SprintID)
+	view, err := h.retro.GetRetroView(r.Context(), orgID, board.ID, rb.SprintID)
 	if err != nil {
 		http.Error(w, "failed to load retro", http.StatusInternalServerError)
 		return
 	}
 
-	var team *model.Team
-	if view.Board.TeamID != nil {
-		team, _ = h.teams.GetTeam(r.Context(), orgID, *view.Board.TeamID)
-	}
 	h.render(w, "retro.html", h.pageData(r, map[string]any{
 		"RetroView":     view,
 		"CurrentUserID": userID.String(),
 		"Team":          team,
+		"Board":         board,
 	}))
 }
 
 func (h *Handler) CreateRetroCard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -161,9 +157,8 @@ func (h *Handler) CreateRetroCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
 
@@ -178,19 +173,16 @@ func (h *Handler) CreateRetroCard(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteRetroCard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
-	cardID, err := uuid.Parse(chi.URLParam(r, "cardID"))
-	if err != nil {
-		http.Error(w, "invalid card ID", http.StatusBadRequest)
+	cardID, ok := pathUUID(w, r, "cardID")
+	if !ok {
 		return
 	}
 
@@ -205,19 +197,16 @@ func (h *Handler) DeleteRetroCard(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AssignRetroCardOwner(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
-	cardID, err := uuid.Parse(chi.URLParam(r, "cardID"))
-	if err != nil {
-		http.Error(w, "invalid card ID", http.StatusBadRequest)
+	cardID, ok := pathUUID(w, r, "cardID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -241,19 +230,16 @@ func (h *Handler) AssignRetroCardOwner(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) StackRetroCard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
-	cardID, err := uuid.Parse(chi.URLParam(r, "cardID"))
-	if err != nil {
-		http.Error(w, "invalid card ID", http.StatusBadRequest)
+	cardID, ok := pathUUID(w, r, "cardID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -275,19 +261,16 @@ func (h *Handler) StackRetroCard(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UnstackRetroCard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
-	retroBoardID, err := uuid.Parse(chi.URLParam(r, "retroBoardID"))
-	if err != nil {
-		http.Error(w, "invalid retro board ID", http.StatusBadRequest)
+	retroBoardID, ok := pathUUID(w, r, "retroBoardID")
+	if !ok {
 		return
 	}
-	cardID, err := uuid.Parse(chi.URLParam(r, "cardID"))
-	if err != nil {
-		http.Error(w, "invalid card ID", http.StatusBadRequest)
+	cardID, ok := pathUUID(w, r, "cardID")
+	if !ok {
 		return
 	}
 	if err := h.retro.UnstackCard(r.Context(), orgID, cardID); err != nil {

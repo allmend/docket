@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 )
 
-
 type RetroService struct {
 	store   *store.Store
 	tickets *TicketService

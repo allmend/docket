@@ -1,33 +1,87 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
+// boardByTeamSlug resolves {teamSlug} → team + board, writing errors on failure.
+func (h *Handler) boardByTeamSlug(w http.ResponseWriter, r *http.Request, orgID uuid.UUID) (*model.Team, *model.Board, bool) {
+	team, ok := h.teamBySlug(w, r, orgID)
+	if !ok {
+		return nil, nil, false
+	}
+	board, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return nil, nil, false
+	}
+	return team, board, true
+}
+
+// teamSlugForBoard looks up the workspace slug for a board's owning team.
+// Returns empty string when the board has no team or the lookup fails.
+func (h *Handler) teamSlugForBoard(r *http.Request, orgID uuid.UUID, board *model.Board) string {
+	if board == nil || board.TeamID == nil {
+		return ""
+	}
+	team, err := h.teams.GetTeam(r.Context(), orgID, *board.TeamID)
+	if err != nil {
+		return ""
+	}
+	return team.Slug
+}
+
+// workspacePageURL builds the slug-based URL for a workspace page ("board",
+// "planning", "backlog"), falling back to the UUID board route if the board
+// has no team (should not happen in normal use).
+func (h *Handler) workspacePageURL(r *http.Request, orgID, boardID uuid.UUID, page string) string {
+	board, _ := h.boards.GetBoard(r.Context(), orgID, boardID)
+	if slug := h.teamSlugForBoard(r, orgID, board); slug != "" {
+		return "/workspaces/" + slug + "/" + page
+	}
+	return "/boards/" + boardID.String()
+}
+
+func (h *Handler) redirectToBoard(w http.ResponseWriter, r *http.Request, orgID, boardID uuid.UUID) {
+	http.Redirect(w, r, h.workspacePageURL(r, orgID, boardID, "board"), http.StatusSeeOther)
+}
+
+func (h *Handler) redirectToPlanning(w http.ResponseWriter, r *http.Request, orgID, boardID uuid.UUID) {
+	http.Redirect(w, r, h.workspacePageURL(r, orgID, boardID, "planning"), http.StatusSeeOther)
+}
+
+func (h *Handler) redirectToBacklog(w http.ResponseWriter, r *http.Request, orgID, boardID uuid.UUID) {
+	http.Redirect(w, r, h.workspacePageURL(r, orgID, boardID, "backlog"), http.StatusSeeOther)
+}
+
+// hxRedirectToPage tells an HTMX poll to do a full-page navigation, used when
+// the sprint state changed in another tab and the current page no longer applies.
+func (h *Handler) hxRedirectToPage(w http.ResponseWriter, r *http.Request, orgID, boardID uuid.UUID, page string) {
+	w.Header().Set("HX-Redirect", h.workspacePageURL(r, orgID, boardID, page))
+	w.WriteHeader(http.StatusNoContent)
+}
 
 // boardViewData expands a BoardView struct into a template data map that also
 // includes NavTeams so the sidebar can render the team list.
 // SprintID is the active sprint ID (or first planning sprint ID) for drag-from-backlog support.
 func (h *Handler) boardViewData(r *http.Request, view *model.BoardView) map[string]any {
 	sprintID := ""
+	hasPlanningSprint := false
+	for _, s := range view.Sprints {
+		if s.Status == model.SprintStatusPlanning {
+			if sprintID == "" {
+				sprintID = s.ID.String()
+			}
+			hasPlanningSprint = true
+		}
+	}
 	if view.ActiveSprint != nil {
 		sprintID = view.ActiveSprint.ID.String()
-	} else {
-		for _, s := range view.Sprints {
-			if s.Status == model.SprintStatusPlanning {
-				sprintID = s.ID.String()
-				break
-			}
-		}
 	}
 	return h.pageData(r, map[string]any{
 		"Board":               view.Board,
@@ -35,18 +89,157 @@ func (h *Handler) boardViewData(r *http.Request, view *model.BoardView) map[stri
 		"Columns":             view.Columns,
 		"ActiveSprint":        view.ActiveSprint,
 		"Sprints":             view.Sprints,
+		"SprintViews":         view.SprintViews,
 		"BacklogCount":        view.BacklogCount,
+		"BacklogPoints":       view.BacklogPoints,
+		"UnestimatedCount":    view.UnestimatedCount,
 		"FirstColumnID":       view.FirstColumnID,
 		"SprintID":            sprintID,
 		"ActiveSprintSection": view.ActiveSprintSection,
+		"HasPlanningSprint":   hasPlanningSprint,
 	})
+}
+
+// TrackPage renders the track (tag) detail page showing all tickets with that tag.
+func (h *Handler) TrackPage(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
+		return
+	}
+
+	tagID, ok := pathUUID(w, r, "tagID")
+	if !ok {
+		return
+	}
+
+	tag, err := h.boards.GetTag(r.Context(), orgID, tagID)
+	if err != nil {
+		http.Error(w, "tag not found", http.StatusNotFound)
+		return
+	}
+
+	tickets, _ := h.boards.ListTicketsByTag(r.Context(), orgID, tagID)
+	columns, _ := h.boards.ListColumns(r.Context(), orgID, board.ID)
+
+	// Build column name lookup
+	colNames := make(map[uuid.UUID]string)
+	for _, c := range columns {
+		colNames[c.ID] = c.Name
+	}
+
+	// Group by column
+	type trackGroup struct {
+		Name    string
+		Tickets []model.Ticket
+	}
+	seen := make(map[uuid.UUID]int)
+	var groups []trackGroup
+	inProgress, inReview, done, open, totalPts := 0, 0, 0, 0, 0
+
+	for _, t := range tickets {
+		name := colNames[t.ColumnID]
+		if name == "" {
+			name = "Backlog"
+		}
+		if idx, ok := seen[t.ColumnID]; ok {
+			groups[idx].Tickets = append(groups[idx].Tickets, t)
+		} else {
+			seen[t.ColumnID] = len(groups)
+			groups = append(groups, trackGroup{Name: name, Tickets: []model.Ticket{t}})
+		}
+		col := strings.ToLower(name)
+		switch {
+		case strings.Contains(col, "progress"):
+			inProgress++
+		case strings.Contains(col, "review"):
+			inReview++
+		case t.ClosedAt != nil:
+			done++
+		}
+		if t.StoryPoints != nil {
+			totalPts += int(*t.StoryPoints)
+		}
+	}
+	open = len(tickets) - done
+
+	h.render(w, "track.html", h.pageData(r, map[string]any{
+		"Tag":        tag,
+		"Board":      board,
+		"Team":       team,
+		"Groups":     groups,
+		"Open":       open,
+		"InProgress": inProgress,
+		"InReview":   inReview,
+		"Done":       done,
+		"TotalPts":   totalPts,
+	}))
 }
 
 func (h *Handler) BoardView(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
+		return
+	}
+	view, err := h.boards.GetBoardView(r.Context(), orgID, board.ID)
 	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+	// A scrum board without an active sprint has nothing to show — planning is
+	// the only meaningful view, so go straight there.
+	if board.Mode.IsScrum() && view.ActiveSprint == nil {
+		http.Redirect(w, r, "/workspaces/"+team.Slug+"/planning", http.StatusSeeOther)
+		return
+	}
+	h.render(w, "board.html", h.boardViewData(r, view))
+}
+
+// BoardPlanning renders the sprint planning page. One URL, one view: while a
+// sprint is active (or the board is not scrum) it redirects to the board.
+// Visiting with no draft sprint starts one automatically — there is never an
+// empty placeholder between sprints.
+func (h *Handler) BoardPlanning(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
+		return
+	}
+	view, err := h.boards.GetBoardView(r.Context(), orgID, board.ID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+	if !board.Mode.IsScrum() || view.ActiveSprint != nil {
+		http.Redirect(w, r, "/workspaces/"+team.Slug+"/board", http.StatusSeeOther)
+		return
+	}
+	data := h.boardViewData(r, view)
+	if data["HasPlanningSprint"] != true {
+		name := h.nextSprintName(r, orgID, board.ID)
+		if _, err := h.boards.CreateSprint(r.Context(), orgID, board.ID, userID, name, "", nil, nil); err != nil {
+			http.Error(w, "failed to create sprint", http.StatusInternalServerError)
+			return
+		}
+		view, err = h.boards.GetBoardView(r.Context(), orgID, board.ID)
+		if err != nil {
+			http.Error(w, "board not found", http.StatusNotFound)
+			return
+		}
+		data = h.boardViewData(r, view)
+	}
+	h.render(w, "planning.html", data)
+}
+
+// PlanningColumnsPartial serves the inner HTML of #board-columns on the
+// planning page for HTMX polling. If the sprint was started or cancelled in
+// another tab, it redirects the client back to the board.
+func (h *Handler) PlanningColumnsPartial(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
 
@@ -56,14 +249,41 @@ func (h *Handler) BoardView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.render(w, "board.html", h.boardViewData(r, view))
+	data := h.boardViewData(r, view)
+	if view.ActiveSprint != nil || data["HasPlanningSprint"] != true {
+		h.hxRedirectToPage(w, r, orgID, boardID, "board")
+		return
+	}
+	h.render(w, "planning-columns.html", data)
+}
+
+// BoardColumnsPartial serves the inner HTML of #board-columns for HTMX polling.
+func (h *Handler) BoardColumnsPartial(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
+		return
+	}
+
+	view, err := h.boards.GetBoardView(r.Context(), orgID, boardID)
+	if err != nil {
+		http.Error(w, "board not found", http.StatusNotFound)
+		return
+	}
+
+	// Sprint closed in another tab — move this tab to planning on the next poll.
+	if view.Board.Mode.IsScrum() && view.ActiveSprint == nil {
+		h.hxRedirectToPage(w, r, orgID, boardID, "planning")
+		return
+	}
+
+	h.render(w, "board-columns.html", h.boardViewData(r, view))
 }
 
 func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
 
@@ -72,7 +292,7 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = h.boards.UpdateBoard(r.Context(), orgID, boardID, r.FormValue("name"), r.FormValue("description"))
+	_, err := h.boards.UpdateBoard(r.Context(), orgID, boardID, r.FormValue("name"), r.FormValue("description"))
 	if err != nil {
 		http.Error(w, "failed to update board", http.StatusInternalServerError)
 		return
@@ -84,9 +304,8 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
 
@@ -101,288 +320,21 @@ func (h *Handler) DeleteBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	redirectTo := "/teams"
-	if board.TeamID != nil {
-		redirectTo = "/teams/" + board.TeamID.String()
+	redirectTo := "/"
+	if slug := h.teamSlugForBoard(r, orgID, board); slug != "" {
+		redirectTo = "/workspaces/" + slug
 	}
 	w.Header().Set("HX-Redirect", redirectTo)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) CreateColumn(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-
-	name := r.FormValue("name")
-	if name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
-		return
-	}
-
-	_, err = h.boards.AddColumn(r.Context(), orgID, boardID, name)
-	if err != nil {
-		http.Error(w, "failed to create column", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("HX-Trigger", "boardUpdated")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) RenameColumn(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	columnID, err := uuid.Parse(chi.URLParam(r, "columnID"))
-	if err != nil {
-		http.Error(w, "invalid column ID", http.StatusBadRequest)
-		return
-	}
-
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	name := r.FormValue("name")
-	if name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
-		return
-	}
-
-	if _, err = h.boards.RenameColumn(r.Context(), orgID, columnID, name); err != nil {
-		http.Error(w, "failed to rename column", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("HX-Trigger", "boardUpdated")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) DeleteColumn(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	columnID, err := uuid.Parse(chi.URLParam(r, "columnID"))
-	if err != nil {
-		http.Error(w, "invalid column ID", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.boards.DeleteColumn(r.Context(), orgID, columnID); err != nil {
-		http.Error(w, "failed to delete column", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("HX-Trigger", "boardUpdated")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// --- Sprint handlers ---
-
-func (h *Handler) CreateSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	name := r.FormValue("name")
-	if name == "" {
-		http.Error(w, "name is required", http.StatusBadRequest)
-		return
-	}
-	var startDate, endDate *time.Time
-	if v := r.FormValue("start_date"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err == nil {
-			startDate = &t
-		}
-	}
-	if v := r.FormValue("end_date"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err == nil {
-			endDate = &t
-		}
-	}
-	_, err = h.boards.CreateSprint(r.Context(), orgID, boardID, userID, name, r.FormValue("goal"), startDate, endDate)
-	if err != nil {
-		http.Error(w, "failed to create sprint", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
-}
-
-func (h *Handler) UpdateSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	var startDate, endDate *time.Time
-	if v := r.FormValue("start_date"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err == nil {
-			startDate = &t
-		}
-	}
-	if v := r.FormValue("end_date"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
-		if err == nil {
-			endDate = &t
-		}
-	}
-	_, err = h.boards.UpdateSprint(r.Context(), orgID, sprintID, r.FormValue("name"), r.FormValue("goal"), startDate, endDate)
-	if err != nil {
-		http.Error(w, "failed to update sprint", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("HX-Trigger", "sprintUpdated")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (h *Handler) StartSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	if _, err := h.boards.StartSprint(r.Context(), orgID, sprintID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
-}
-
-func (h *Handler) CloseSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	userID := service.UserIDFromContext(r.Context())
-	if _, err := h.boards.CloseSprint(r.Context(), orgID, sprintID, userID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
-}
-
-func (h *Handler) DeleteSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	if err := h.boards.DeleteSprint(r.Context(), orgID, sprintID); err != nil {
-		http.Error(w, "failed to delete sprint", http.StatusInternalServerError)
-		return
-	}
-	http.Redirect(w, r, "/boards/"+boardID.String(), http.StatusSeeOther)
-}
-
-func (h *Handler) AssignTicketToSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	var sprintID *uuid.UUID
-	if v := r.FormValue("sprint_id"); v != "" && v != "backlog" {
-		id, err := uuid.Parse(v)
-		if err != nil {
-			http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-			return
-		}
-		sprintID = &id
-	}
-	if err := h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, sprintID); err != nil {
-		http.Error(w, "failed to assign ticket", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("HX-Trigger", `{"backlogUpdated":true,"boardUpdated":true}`)
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// AssignTicketsToSprint bulk-assigns selected backlog tickets to a sprint.
-// Called from the backlog page "Move selected to Sprint N" button.
-func (h *Handler) AssignTicketsToSprint(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	for _, raw := range r.Form["ticket_ids"] {
-		ticketID, err := uuid.Parse(raw)
-		if err != nil {
-			continue
-		}
-		_ = h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, &sprintID)
-	}
-	http.Redirect(w, r, "/boards/"+boardID.String()+"/backlog", http.StatusSeeOther)
-}
-
 func (h *Handler) BoardRoadmap(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
-	board, err := h.boards.GetBoard(r.Context(), orgID, boardID)
-	if err != nil {
-		http.Error(w, "board not found", http.StatusNotFound)
-		return
-	}
-	var team *model.Team
-	if board.TeamID != nil {
-		team, _ = h.teams.GetTeam(r.Context(), orgID, *board.TeamID)
-	}
-	sprints, err := h.boards.GetRoadmap(r.Context(), orgID, boardID)
+	sprints, err := h.boards.GetRoadmap(r.Context(), orgID, board.ID)
 	if err != nil {
 		http.Error(w, "roadmap not found", http.StatusInternalServerError)
 		return
@@ -396,12 +348,11 @@ func (h *Handler) BoardRoadmap(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	_, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
-	view, err := h.boards.GetBacklog(r.Context(), orgID, boardID)
+	view, err := h.boards.GetBacklog(r.Context(), orgID, board.ID)
 	if err != nil {
 		http.Error(w, "backlog not found", http.StatusNotFound)
 		return
@@ -415,12 +366,11 @@ func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) BoardRefinement(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	_, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
-	view, err := h.boards.GetBacklog(r.Context(), orgID, boardID)
+	view, err := h.boards.GetBacklog(r.Context(), orgID, board.ID)
 	if err != nil {
 		http.Error(w, "backlog not found", http.StatusNotFound)
 		return
@@ -432,11 +382,11 @@ func (h *Handler) BoardRefinement(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) BoardDailyScrum(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	_, board, ok := h.boardByTeamSlug(w, r, orgID)
+	if !ok {
 		return
 	}
+	boardID := board.ID
 	filters := model.DailyScrumFilters{
 		Q:                r.URL.Query().Get("q"),
 		AssigneeIDs:      r.URL.Query()["assignee_id"],
@@ -463,14 +413,14 @@ func (h *Handler) BoardDailyScrum(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) BoardDailyScrumTickets(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
+	assigneeIDs := r.URL.Query()["assignee_id"]
 	filters := model.DailyScrumFilters{
 		Q:                r.URL.Query().Get("q"),
-		AssigneeIDs:      r.URL.Query()["assignee_id"],
+		AssigneeIDs:      assigneeIDs,
 		TagIDs:           r.URL.Query()["tag_id"],
 		Priorities:       r.URL.Query()["priority"],
 		FilterUnassigned: r.URL.Query().Get("unassigned") == "1",
@@ -480,370 +430,37 @@ func (h *Handler) BoardDailyScrumTickets(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	h.render(w, "daily-tickets.html", map[string]any{
-		"Board":      view.Board,
-		"Groups":     view.Groups,
-		"Unassigned": view.Unassigned,
-		"Filters":    view.Filters,
-	})
-}
 
-// --- Tag handlers ---
-
-func filterUnusedTags(all, applied []model.Tag) []model.Tag {
-	used := make(map[uuid.UUID]bool, len(applied))
-	for _, t := range applied {
-		used[t.ID] = true
-	}
-	out := make([]model.Tag, 0, len(all))
-	for _, t := range all {
-		if !used[t.ID] {
-			out = append(out, t)
+	// Speaker mode: exactly one assignee → render the speaker panel partial
+	if len(assigneeIDs) == 1 && assigneeIDs[0] != "" {
+		speakerID, err := uuid.Parse(assigneeIDs[0])
+		if err == nil {
+			activity, _ := h.tickets.ListActivityByActor(r.Context(), orgID, speakerID)
+			// Find the speaker's User from AllAssignees
+			var speakerUser *model.User
+			for i, u := range view.AllAssignees {
+				if u.ID == speakerID {
+					uu := view.AllAssignees[i]
+					speakerUser = &uu
+					break
+				}
+			}
+			h.render(w, "daily-speaker.html", map[string]any{
+				"Board":       view.Board,
+				"Groups":      view.Groups,
+				"Unassigned":  view.Unassigned,
+				"SpeakerUser": speakerUser,
+				"Activity":    activity,
+			})
+			return
 		}
 	}
-	return out
-}
 
-func (h *Handler) BoardTagsJSON(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
-	type tagResult struct {
-		ID    string `json:"id"`
-		Name  string `json:"name"`
-		Color string `json:"color"`
-	}
-	out := make([]tagResult, 0, len(tags))
-	for _, t := range tags {
-		out = append(out, tagResult{ID: t.ID.String(), Name: t.Name, Color: t.Color})
-	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(out)
-}
-
-func (h *Handler) BoardTagsPanel(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
-	h.render(w, "board-tags-panel.html", map[string]any{
-		"BoardID": boardID,
-		"Tags":    tags,
+	h.render(w, "daily-tickets.html", map[string]any{
+		"Board":        view.Board,
+		"Groups":       view.Groups,
+		"Unassigned":   view.Unassigned,
+		"Filters":      view.Filters,
+		"ActiveSprint": view.ActiveSprint,
 	})
 }
-
-func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	name := r.FormValue("name")
-	color := r.FormValue("color")
-	if name == "" || color == "" {
-		http.Error(w, "name and color required", http.StatusBadRequest)
-		return
-	}
-	if _, err := h.boards.CreateTag(r.Context(), orgID, boardID, name, color); err != nil {
-		http.Error(w, "failed to create tag", http.StatusInternalServerError)
-		return
-	}
-	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
-	h.render(w, "board-tags-panel.html", map[string]any{
-		"BoardID": boardID,
-		"Tags":    tags,
-	})
-}
-
-func (h *Handler) DeleteTag(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	tagID, err := uuid.Parse(chi.URLParam(r, "tagID"))
-	if err != nil {
-		http.Error(w, "invalid tag ID", http.StatusBadRequest)
-		return
-	}
-	_ = h.boards.DeleteTag(r.Context(), orgID, tagID)
-	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)
-	h.render(w, "board-tags-panel.html", map[string]any{
-		"BoardID": boardID,
-		"Tags":    tags,
-	})
-}
-
-func (h *Handler) AddTagToTicket(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	tagID, err := uuid.Parse(r.FormValue("tag_id"))
-	if err != nil {
-		http.Error(w, "invalid tag ID", http.StatusBadRequest)
-		return
-	}
-	_ = h.boards.AddTagToTicket(r.Context(), orgID, ticketID, tagID)
-	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticketID)
-	var boardTags []model.Tag
-	if ticket != nil {
-		all, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
-		boardTags = filterUnusedTags(all, tags)
-	}
-	w.Header().Set("HX-Trigger", "boardUpdated")
-	h.render(w, "ticket-tags.html", map[string]any{
-		"Ticket":    ticket,
-		"Tags":      tags,
-		"BoardTags": boardTags,
-	})
-}
-
-func (h *Handler) RemoveTagFromTicket(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
-		return
-	}
-	tagID, err := uuid.Parse(chi.URLParam(r, "tagID"))
-	if err != nil {
-		http.Error(w, "invalid tag ID", http.StatusBadRequest)
-		return
-	}
-	_ = h.boards.RemoveTagFromTicket(r.Context(), orgID, ticketID, tagID)
-	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticketID)
-	var boardTags []model.Tag
-	if ticket != nil {
-		all, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
-		boardTags = filterUnusedTags(all, tags)
-	}
-	w.Header().Set("HX-Trigger", "boardUpdated")
-	h.render(w, "ticket-tags.html", map[string]any{
-		"Ticket":    ticket,
-		"Tags":      tags,
-		"BoardTags": boardTags,
-	})
-}
-
-// BoardDodPanel renders the DoD management panel for a board.
-func (h *Handler) BoardDodPanel(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)
-	h.render(w, "board-dod-panel.html", map[string]any{
-		"BoardID": boardID,
-		"Items":   items,
-	})
-}
-
-// CreateDodItem adds a new DoD item to a board.
-func (h *Handler) CreateDodItem(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	text := r.FormValue("text")
-	if text == "" {
-		http.Error(w, "text is required", http.StatusBadRequest)
-		return
-	}
-	if _, err := h.boards.CreateDodItem(r.Context(), orgID, boardID, text); err != nil {
-		http.Error(w, "failed to create item", http.StatusInternalServerError)
-		return
-	}
-	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)
-	h.render(w, "board-dod-panel.html", map[string]any{
-		"BoardID": boardID,
-		"Items":   items,
-	})
-}
-
-// DeleteDodItem removes a DoD item from a board.
-func (h *Handler) DeleteDodItem(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	itemID, err := uuid.Parse(chi.URLParam(r, "itemID"))
-	if err != nil {
-		http.Error(w, "invalid item ID", http.StatusBadRequest)
-		return
-	}
-	_ = h.boards.DeleteDodItem(r.Context(), orgID, itemID)
-	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)
-	h.render(w, "board-dod-panel.html", map[string]any{
-		"BoardID": boardID,
-		"Items":   items,
-	})
-}
-
-// TicketDodPartial renders the DoD checklist for a ticket (HTMX swap target).
-func (h *Handler) TicketDodPartial(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
-		return
-	}
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
-		return
-	}
-	items, _ := h.boards.GetTicketDod(r.Context(), orgID, ticket.BoardID, ticketID)
-	h.render(w, "ticket-dod-partial.html", map[string]any{
-		"TicketID": ticketID,
-		"BoardID":  ticket.BoardID,
-		"Items":    items,
-		"IsClosed": ticket.ClosedAt != nil,
-	})
-}
-
-// ToggleDodCheck checks or unchecks a DoD item for a ticket.
-func (h *Handler) ToggleDodCheck(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
-		return
-	}
-	itemID, err := uuid.Parse(chi.URLParam(r, "itemID"))
-	if err != nil {
-		http.Error(w, "invalid item ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	checked := r.FormValue("checked") == "true"
-	if err := h.boards.ToggleDodCheck(r.Context(), orgID, ticketID, itemID, checked); err != nil {
-		http.Error(w, "failed to toggle check", http.StatusInternalServerError)
-		return
-	}
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
-		return
-	}
-	items, _ := h.boards.GetTicketDod(r.Context(), orgID, ticket.BoardID, ticketID)
-	h.render(w, "ticket-dod-partial.html", map[string]any{
-		"TicketID": ticketID,
-		"BoardID":  ticket.BoardID,
-		"Items":    items,
-		"IsClosed": ticket.ClosedAt != nil,
-	})
-}
-
-// SprintCapacityPartial renders the capacity section for one sprint (HTMX swap target).
-func (h *Handler) SprintCapacityPartial(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	cap, err := h.boards.GetSprintCapacity(r.Context(), orgID, boardID, sprintID)
-	if err != nil {
-		http.Error(w, "capacity not found", http.StatusInternalServerError)
-		return
-	}
-	sprint, err := h.boards.GetSprint(r.Context(), orgID, sprintID)
-	if err != nil {
-		http.Error(w, "sprint not found", http.StatusNotFound)
-		return
-	}
-	h.render(w, "sprint-capacity-partial.html", map[string]any{
-		"Capacity": cap,
-		"Sprint":   sprint,
-		"BoardID":  boardID,
-	})
-}
-
-// UpdateMemberCapacity sets one member's focus_pct for a sprint.
-func (h *Handler) UpdateMemberCapacity(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
-		return
-	}
-	sprintID, err := uuid.Parse(chi.URLParam(r, "sprintID"))
-	if err != nil {
-		http.Error(w, "invalid sprint ID", http.StatusBadRequest)
-		return
-	}
-	userID, err := uuid.Parse(chi.URLParam(r, "userID"))
-	if err != nil {
-		http.Error(w, "invalid user ID", http.StatusBadRequest)
-		return
-	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
-		return
-	}
-	var focusPct int
-	if _, err := fmt.Sscanf(r.FormValue("focus_pct"), "%d", &focusPct); err != nil {
-		http.Error(w, "invalid focus_pct", http.StatusBadRequest)
-		return
-	}
-	if err := h.boards.SetMemberCapacity(r.Context(), orgID, sprintID, userID, focusPct); err != nil {
-		http.Error(w, "failed to update capacity", http.StatusInternalServerError)
-		return
-	}
-	cap, err := h.boards.GetSprintCapacity(r.Context(), orgID, boardID, sprintID)
-	if err != nil {
-		http.Error(w, "capacity not found", http.StatusInternalServerError)
-		return
-	}
-	sprint, err := h.boards.GetSprint(r.Context(), orgID, sprintID)
-	if err != nil {
-		http.Error(w, "sprint not found", http.StatusNotFound)
-		return
-	}
-	h.render(w, "sprint-capacity-partial.html", map[string]any{
-		"Capacity": cap,
-		"Sprint":   sprint,
-		"BoardID":  boardID,
-	})
-}
-

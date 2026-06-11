@@ -5,8 +5,6 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
@@ -62,9 +60,8 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	tokenID, err := uuid.Parse(chi.URLParam(r, "tokenID"))
-	if err != nil {
-		http.Error(w, "invalid token ID", http.StatusBadRequest)
+	tokenID, ok := pathUUID(w, r, "tokenID")
+	if !ok {
 		return
 	}
 
@@ -124,9 +121,8 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	targetID, err := uuid.Parse(chi.URLParam(r, "userID"))
-	if err != nil {
-		http.Error(w, "invalid user ID", http.StatusBadRequest)
+	targetID, ok := pathUUID(w, r, "userID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {

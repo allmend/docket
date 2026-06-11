@@ -28,7 +28,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
+func (h *Handler) ProfilePage(w http.ResponseWriter, r *http.Request) {
+	h.render(w, "profile.html", h.pageData(r, nil))
+}
+
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
+	if c, err := r.Cookie("refresh_token"); err == nil {
+		h.auth.RevokeRefreshToken(r.Context(), c.Value)
+	}
 	clearTokenCookies(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

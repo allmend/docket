@@ -9,8 +9,8 @@ import (
 	chromahtml "github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/extension"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
+	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
 )
 
@@ -84,4 +84,3 @@ func Render(src string) template.HTML {
 	safe := policy.SanitizeBytes(buf.Bytes())
 	return template.HTML(safe)
 }
-

@@ -3,49 +3,133 @@
 {{define "title"}}Sign in — Docket{{end}}
 
 {{define "content"}}
-<div class="w-full max-w-sm px-4">
-  <div class="bg-base-200 border border-base-300 rounded-lg p-8 flex flex-col gap-6 shadow-xl">
+<div class="min-h-screen grid lg:grid-cols-[1.05fr_1fr]">
 
-    <!-- Logo -->
-    <div class="flex items-center gap-2">
-      <svg class="w-7 h-7 text-primary" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-        <rect x="2"  y="2"  width="7" height="7" rx="1"/>
-        <rect x="11" y="2"  width="7" height="7" rx="1"/>
-        <rect x="2"  y="11" width="7" height="7" rx="1"/>
-        <rect x="11" y="11" width="7" height="7" rx="1"/>
-      </svg>
-      <h1 class="text-xl font-semibold">Docket</h1>
+  <!-- Brand panel, desktop only -->
+  <aside class="hidden lg:flex flex-col justify-between gridbg border-r border-base-300 px-12 py-10 relative overflow-hidden">
+    <div class="absolute -top-24 -right-24 w-[360px] h-[360px] rounded-full"
+         style="background:radial-gradient(closest-side, rgba(16,185,129,0.14), transparent)"></div>
+
+    <div class="relative flex items-center gap-2 mono text-[12px] uppercase tracking-[0.18em] text-base-600">
+      <span class="w-1.5 h-1.5 rounded-full bg-primary-500"></span>
+      self-hosted · open-source
     </div>
 
-    {{if .Error}}
-    <div class="flex items-center gap-2 bg-red-900/20 border border-red-800 text-red-400 rounded-lg px-3 py-2.5 text-sm">
-      <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-      </svg>
-      <span>{{.Error}}</span>
+    <div class="relative max-w-[440px] mx-auto">
+      <div class="flex items-center gap-4">
+        <svg viewBox="0 0 16 16" width="60" height="60" shape-rendering="crispEdges" class="shrink-0" aria-hidden="true">
+          <rect x="2" y="3"  width="12" height="2" fill="#10B981"/>
+          <rect x="2" y="7"  width="12" height="2" fill="#10B981" opacity="0.45"/>
+          <rect x="2" y="11" width="8"  height="2" fill="#10B981" opacity="0.20"/>
+        </svg>
+        <h1 class="text-[52px] leading-none font-semibold tracking-[-0.02em] text-base-950">Docket</h1>
+      </div>
+      <p class="text-[16px] leading-relaxed text-base-700 mt-6">
+        Sprints, backlogs, retros and standups for teams who'd rather ship than click through wizards.
+        Open-source, runs on your own metal.
+      </p>
     </div>
-    {{end}}
 
-    <form method="POST" action="/login" class="flex flex-col gap-4">
+    <div class="relative mono text-[12px] text-base-600 flex items-center gap-4">
+      <span>v0.1.0</span>
+      <span class="text-base-500">·</span>
+      <a href="https://codeberg.org/allmend/docket" target="_blank" rel="noopener" class="hover:text-base-800">docs</a>
+      <span class="text-base-500">·</span>
+      <span class="inline-flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-primary-500"></span>
+        all systems operational
+      </span>
+    </div>
+  </aside>
 
-      <div class="flex flex-col gap-1">
-        <label class="text-xs uppercase tracking-wide text-base-content/60">Username</label>
-        <input type="text" name="username" required placeholder="username" autocomplete="username"
-               class="w-full bg-base-100 border border-base-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+  <!-- Sign-in form -->
+  <main class="flex items-center justify-center px-6 py-10">
+    <div class="w-full max-w-[380px]">
+
+      <!-- Mobile logo -->
+      <div class="lg:hidden flex items-center gap-2.5 mb-8">
+        <svg viewBox="0 0 16 16" width="20" height="20" shape-rendering="crispEdges" aria-hidden="true">
+          <rect x="2" y="3"  width="12" height="2" fill="#10B981"/>
+          <rect x="2" y="7"  width="12" height="2" fill="#10B981" opacity="0.45"/>
+          <rect x="2" y="11" width="8"  height="2" fill="#10B981" opacity="0.20"/>
+        </svg>
+        <span class="text-[16px] font-semibold tracking-tightish">Docket</span>
       </div>
 
-      <div class="flex flex-col gap-1">
-        <label class="text-xs uppercase tracking-wide text-base-content/60">Password</label>
-        <input type="password" name="password" required autocomplete="current-password"
-               class="w-full bg-base-100 border border-base-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+      <h2 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Sign in</h2>
+      {{if .OrgName}}
+      <p class="text-[15px] text-base-700 mt-1">to your <span class="mono text-base-900">{{.OrgName}}</span> organization</p>
+      {{end}}
+
+      {{if .Error}}
+      <div class="flex items-center gap-2 bg-danger/15 border border-danger/30 text-danger rounded px-3 py-2.5 mono text-[13px] mt-5">
+        <svg class="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        {{.Error}}
       </div>
+      {{end}}
 
-      <button type="submit"
-              class="w-full mt-2 px-4 py-2 bg-primary text-base-100 text-sm font-medium rounded-lg hover:opacity-90 transition-opacity">
-        Sign in
-      </button>
+      <form method="POST" action="/login" class="grid gap-3.5 mt-6">
 
-    </form>
-  </div>
+        <div>
+          <label for="username" class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Username or email</label>
+          <input id="username" name="username" type="text" required autofocus autocomplete="username"
+                 class="mono block w-full h-10 bg-base-150 border border-base-300 rounded px-3 text-[15px] text-base-900 shadow-sunk
+                        hover:border-base-400 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-colors"
+                 placeholder="you@example.com" />
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5">
+            <label for="password" class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Password</label>
+            <a class="mono text-[13px] lowercase tracking-normal text-primary-400 hover:text-primary-300 cursor-pointer">forgot?</a>
+          </div>
+          <div class="relative" x-data="{ show: false }">
+            <input id="password" name="password" type="password" :type="show ? 'text' : 'password'" required autocomplete="current-password"
+                   class="mono block w-full h-10 bg-base-150 border border-base-300 rounded px-3 pr-10 text-[15px] text-base-900 shadow-sunk
+                          hover:border-base-400 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-colors"
+                   placeholder="••••••••••" />
+            <button type="button" @click="show = !show"
+                    class="absolute right-1 top-1 h-8 w-8 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-250"
+                    :aria-label="show ? 'Hide password' : 'Show password'">
+              <svg x-show="!show" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z"/>
+                <circle cx="8" cy="8" r="2"/>
+              </svg>
+              <svg x-show="show" x-cloak width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+                <path d="M1.5 8S4 3.5 8 3.5c1 0 1.9.2 2.7.6M14.5 8S12 12.5 8 12.5c-1 0-1.9-.2-2.7-.6"/>
+                <path d="M2 2l12 12" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between pt-0.5">
+          <label class="inline-flex items-center gap-2 text-[14px] text-base-800 cursor-pointer select-none">
+            <input type="checkbox" name="remember_me" value="1" class="w-4 h-4 rounded-sm border-base-400 bg-base-150 text-primary-500 focus:ring-primary-500/20" checked />
+            Keep me signed in
+          </label>
+          <span class="mono text-[12px] text-base-600">30 days</span>
+        </div>
+
+        <button type="submit"
+                class="mt-1 h-10 inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-400 active:bg-primary-600 text-[#062b1d] font-semibold rounded text-[15px] shadow-lift transition-colors">
+          Sign in
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+            <path d="M3 8h9M9 5l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+
+      </form>
+
+      <p class="mt-8 text-center text-[13px] text-base-600 leading-relaxed">
+        Docket is invite-only. Need access?<br/>
+        Ask a workspace admin to send you an invite.
+      </p>
+
+    </div>
+  </main>
+
 </div>
 {{end}}

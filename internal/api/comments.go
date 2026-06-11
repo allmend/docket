@@ -5,8 +5,6 @@ import (
 	"regexp"
 
 	"github.com/allmend/docket/internal/service"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 )
 
 var mentionRe = regexp.MustCompile(`@(\w+)`)
@@ -14,9 +12,8 @@ var mentionRe = regexp.MustCompile(`@(\w+)`)
 func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -61,9 +58,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CommentEditForm(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	commentID, err := uuid.Parse(chi.URLParam(r, "commentID"))
-	if err != nil {
-		http.Error(w, "invalid comment ID", http.StatusBadRequest)
+	commentID, ok := pathUUID(w, r, "commentID")
+	if !ok {
 		return
 	}
 
@@ -78,9 +74,8 @@ func (h *Handler) CommentEditForm(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	commentID, err := uuid.Parse(chi.URLParam(r, "commentID"))
-	if err != nil {
-		http.Error(w, "invalid comment ID", http.StatusBadRequest)
+	commentID, ok := pathUUID(w, r, "commentID")
+	if !ok {
 		return
 	}
 
@@ -100,9 +95,8 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	commentID, err := uuid.Parse(chi.URLParam(r, "commentID"))
-	if err != nil {
-		http.Error(w, "invalid comment ID", http.StatusBadRequest)
+	commentID, ok := pathUUID(w, r, "commentID")
+	if !ok {
 		return
 	}
 
@@ -116,9 +110,8 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CommentView(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	commentID, err := uuid.Parse(chi.URLParam(r, "commentID"))
-	if err != nil {
-		http.Error(w, "invalid comment ID", http.StatusBadRequest)
+	commentID, ok := pathUUID(w, r, "commentID")
+	if !ok {
 		return
 	}
 
@@ -130,4 +123,3 @@ func (h *Handler) CommentView(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "comment.html", comment)
 }
-

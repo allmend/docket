@@ -1,136 +1,113 @@
-{{define "title"}}Retrospectives — {{.Board.Name}}{{end}}
+{{template "base" .}}
+
+{{define "title"}}Retros — Docket{{end}}
+
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Retros</span>
+{{end}}
 
 {{define "content"}}
-<div class="flex flex-col gap-6 p-6">
+{{$team := .Team}}
+{{$board := .Board}}
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[960px] mx-auto px-8 py-6">
 
-  <!-- Header -->
-  <div class="flex flex-col gap-1">
-    <nav class="mb-1">
-      <ol class="flex items-center gap-1 text-sm text-base-content/50">
-        <li><a href="/teams" class="hover:text-base-content">Teams</a></li>
-        {{if .Team}}
-        <li class="flex items-center gap-1">
-          <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-          <a href="/teams/{{.Team.ID}}" class="hover:text-base-content"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
-        </li>
-        {{end}}
-        <li class="flex items-center gap-1">
-          <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-          <a href="/boards/{{.Board.ID}}" class="hover:text-base-content">{{.Board.Name}}</a>
-        </li>
-        <li class="flex items-center gap-1">
-          <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-          <span class="text-base-content/30">Retrospectives</span>
-        </li>
-      </ol>
-    </nav>
-    <h1 class="text-2xl font-semibold">Retrospectives</h1>
-  </div>
-
-  {{if .Retros}}
-  <div class="flex flex-col gap-2">
-    {{range .Retros}}
-    <a href="/boards/{{$.Board.ID}}/retro/{{.RetroBoard.ID}}"
-       class="flex items-center gap-6 px-5 py-4 bg-base-200 border border-base-300 rounded-lg hover:bg-base-300 transition-colors group">
-
-      <!-- Status indicator -->
-      <div class="shrink-0 flex flex-col items-center gap-1">
-        {{if .RetroBoard.IsClosed}}
-        <span class="w-2 h-2 rounded-full bg-base-content/20 block"></span>
-        {{else}}
-        <span class="w-2 h-2 rounded-full bg-primary block animate-pulse"></span>
-        {{end}}
+    <!-- Header -->
+    <div class="flex items-end justify-between mb-6">
+      <div>
+        <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Retrospectives</h1>
+        <div class="mono text-[14px] text-base-700 mt-0.5">{{len .Retros}} sessions</div>
       </div>
+    </div>
 
-      <!-- Sprint name + status -->
-      <div class="flex flex-col gap-0.5 w-48 shrink-0">
-        <p class="text-sm font-semibold text-base-content group-hover:text-primary transition-colors">
-          {{if .SprintName}}{{.SprintName}}{{else}}Sprint Retrospective{{end}}
-        </p>
-        {{if .RetroBoard.IsClosed}}
-        <p class="text-xs text-base-content/30">Closed</p>
-        {{else}}
-        <p class="text-xs text-primary/70 font-medium">Open</p>
-        {{end}}
+    {{if .Retros}}
+
+    <!-- Stats strip -->
+    {{$totalActions := 0}}
+    {{range .Retros}}{{$totalActions = add $totalActions .ActionItemCount}}{{end}}
+    <div class="grid grid-cols-3 bg-base-200 border border-base-300 rounded-md divide-x divide-base-300 mb-6">
+      <div class="px-5 py-3">
+        <div class="mono text-[24px] leading-none text-base-950">{{len .Retros}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">retros held</div>
       </div>
-
-      <!-- Card counts -->
-      <div class="flex items-center gap-3 w-56 shrink-0">
-        <span class="flex items-center gap-1 text-xs text-base-content/40">
-          <span class="w-2 h-2 rounded-full bg-emerald-500/60 shrink-0"></span>
-          {{.WentWellCount}}
-        </span>
-        <span class="flex items-center gap-1 text-xs text-base-content/40">
-          <span class="w-2 h-2 rounded-full bg-red-500/60 shrink-0"></span>
-          {{.DidntGoWellCount}}
-        </span>
-        <span class="flex items-center gap-1 text-xs text-base-content/40">
-          <span class="w-2 h-2 rounded-full bg-amber-500/60 shrink-0"></span>
-          {{.ActionItemCount}}
-        </span>
+      <div class="px-5 py-3">
+        <div class="mono text-[24px] leading-none text-base-950">{{$totalActions}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">action items</div>
       </div>
+      <div class="px-5 py-3">
+        <div class="mono text-[24px] leading-none text-base-700">—</div>
+        <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">open actions</div>
+      </div>
+    </div>
 
-      <!-- Sprint stats -->
-      {{if .Sprint}}
-      <div class="flex items-center gap-6 flex-1 min-w-0">
+    <!-- History -->
+    <h2 class="text-[17px] font-semibold tracking-tightish text-base-950 mb-3">History</h2>
+    <div class="bg-base-200 border border-base-300 rounded-md divide-y divide-base-300 overflow-hidden">
+      {{range .Retros}}
+      <a href="/workspaces/{{if $team}}{{$team.Slug}}{{end}}/retros/{{.RetroBoard.ID}}"
+         class="grid grid-cols-[1fr_auto_auto] items-center gap-5 px-4 h-[60px] hover:bg-base-250/40 cursor-pointer">
 
-        <!-- Ticket completion -->
-        <div class="flex flex-col gap-1 w-48">
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-base-content/40">Tickets</span>
-            <span class="font-mono text-base-content/60">
-              {{.Sprint.CompletedTickets}}/{{.Sprint.CommittedTickets}}
-              <span class="text-primary ml-1">{{.Sprint.CompletionPct}}%</span>
-            </span>
-          </div>
-          {{if gt .Sprint.CommittedTickets 0}}
-          <div class="h-1 bg-base-300 rounded-full overflow-hidden">
-            <div class="h-full bg-primary rounded-full" style="width:{{.Sprint.CompletionPct}}%"></div>
-          </div>
+        <!-- Sprint identity -->
+        <div class="flex items-center gap-3 min-w-0">
+          {{if .RetroBoard.IsClosed}}
+          <span class="w-9 h-9 rounded-md bg-base-250 border border-base-350 inline-flex items-center justify-center shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><path d="M8 1.5 14.5 13H1.5L8 1.5Z" stroke-linejoin="round"/><path d="M8 6.5v3M8 11.4h.01" stroke-linecap="round"/></svg>
+          </span>
+          {{else}}
+          <span class="w-9 h-9 rounded-md bg-primary-500/10 border border-primary-500/30 inline-flex items-center justify-center shrink-0">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="1.4"><path d="M8 1.5 14.5 13H1.5L8 1.5Z" stroke-linejoin="round"/><path d="M8 6.5v3M8 11.4h.01" stroke-linecap="round"/></svg>
+          </span>
           {{end}}
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-[15px] font-medium text-base-950 truncate">
+                {{if .SprintName}}{{.SprintName}}{{else}}Retro {{.RetroBoard.ID.String}}{{end}}
+              </span>
+              {{if .RetroBoard.IsClosed}}
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-base-300 border border-base-350 mono text-[11px] uppercase tracking-wider text-base-600 shrink-0">closed</span>
+              {{else}}
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-primary-500/15 border border-primary-500/30 mono text-[11px] uppercase tracking-wider text-primary-400 shrink-0">open</span>
+              {{end}}
+            </div>
+            {{if .ClosedAt}}
+            <div class="mono text-[13px] text-base-600 mt-0.5">{{.ClosedAt.Format "2 Jan 2006"}}</div>
+            {{end}}
+          </div>
         </div>
 
-        <!-- Story points -->
-        {{if gt .Sprint.CommittedPoints 0.0}}
-        <div class="flex flex-col gap-1 w-48">
-          <div class="flex items-center justify-between text-xs">
-            <span class="text-base-content/40">Points</span>
-            <span class="font-mono text-base-content/60">
-              {{printf "%.0f" .Sprint.CompletedPoints}}/{{printf "%.0f" .Sprint.CommittedPoints}}
-              <span class="text-primary ml-1">{{.Sprint.PointsPct}}%</span>
-            </span>
-          </div>
-          <div class="h-1 bg-base-300 rounded-full overflow-hidden">
-            <div class="h-full bg-primary rounded-full" style="width:{{.Sprint.PointsPct}}%"></div>
-          </div>
+        <!-- Column counts -->
+        <div class="flex items-center gap-3 mono text-[13px] shrink-0">
+          <span class="inline-flex items-center gap-1.5 text-base-700">
+            <span class="w-2 h-2 rounded-sm bg-success shrink-0"></span>{{.WentWellCount}}
+          </span>
+          <span class="inline-flex items-center gap-1.5 text-base-700">
+            <span class="w-2 h-2 rounded-sm bg-danger shrink-0"></span>{{.DidntGoWellCount}}
+          </span>
+          <span class="inline-flex items-center gap-1.5 text-base-700">
+            <span class="w-2 h-2 rounded-sm bg-info shrink-0"></span>{{.ActionItemCount}}
+          </span>
         </div>
-        {{end}}
 
-      </div>
-      {{else}}
-      <div class="flex-1"></div>
+        <!-- Actions count -->
+        <div class="mono text-[13px] text-base-600 w-20 text-right shrink-0">
+          {{if .ActionItemCount}}{{.ActionItemCount}} actions{{else}}<span class="text-base-500">—</span>{{end}}
+        </div>
+
+      </a>
       {{end}}
+    </div>
 
-      <!-- Date -->
-      <div class="shrink-0 text-xs text-base-content/30 font-mono">
-        {{if .ClosedAt}}
-        {{.ClosedAt.Format "2006-01-02"}}
-        {{else}}
-        {{.RetroBoard.CreatedAt.Format "2006-01-02"}}
-        {{end}}
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
+      <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="1.4"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke-linecap="round"/></svg>
       </div>
-
-      <svg class="h-4 w-4 text-base-content/20 group-hover:text-base-content/50 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-    </a>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No retros yet</div>
+      <p class="text-[14px] text-base-700">Retros are created when you close a sprint. Close your first sprint to get started.</p>
+    </div>
     {{end}}
-  </div>
-  {{else}}
-  <div class="flex flex-col items-center justify-center py-24 text-center">
-    <svg class="h-10 w-10 text-base-content/10 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-    <p class="text-sm text-base-content/30">No retrospectives yet.</p>
-    <p class="text-xs text-base-content/20 mt-1">Retrospectives are created automatically when you close a sprint.</p>
-  </div>
-  {{end}}
 
+  </div>
 </div>
 {{end}}

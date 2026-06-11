@@ -1,0 +1,160 @@
+{{define "daily-speaker"}}
+{{$board := .Board}}
+{{$user  := .SpeakerUser}}
+
+{{if and $user .Groups}}
+{{$group := index .Groups 0}}
+<div class="max-w-[760px] mx-auto px-8 py-6">
+
+  <!-- Speaker header -->
+  <div class="flex items-center gap-3.5 mb-6">
+    <span class="w-12 h-12 rounded-md bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[18px] font-semibold shrink-0">{{initials $user.Name}}</span>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2.5">
+        <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">{{$user.Name}}</h1>
+        <span class="inline-flex items-center gap-1.5 px-2 h-6 rounded-sm bg-info/15 border border-info/30 mono text-[12px] uppercase tracking-wider text-info">
+          <span class="w-1.5 h-1.5 rounded-full bg-info animate-pulse"></span>speaking
+        </span>
+      </div>
+        <div class="mono text-[14px] text-base-700 mt-0.5">{{len $group.Tickets}} tickets in flight</div>
+    </div>
+    <div class="text-right shrink-0" x-data="{t:0}" x-init="setInterval(()=>t++,1000)">
+      <div class="mono text-[13px] text-base-600">on the clock</div>
+      <div class="mono text-[20px] text-base-950"
+           x-text="String(Math.floor(t/60)).padStart(2,'0')+':'+String(t%60).padStart(2,'0')">00:00</div>
+    </div>
+  </div>
+
+  <!-- Since yesterday -->
+  {{if .Activity}}
+  <section class="mb-5">
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2.5">since yesterday</div>
+    <div class="bg-base-200 border border-base-300 rounded-md p-4 space-y-3">
+      {{range .Activity}}
+      <div class="flex gap-2.5 items-start">
+        <span class="mt-0.5 shrink-0">
+          {{if or (eq .Field "column") (eq .Field "status")}}
+          {{$cn := lower .NewValue}}
+          {{if or (eq $cn "done") (contains $cn "closed")}}
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="1.8"><path d="M3 8.5l3.2 3.2L13 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {{else}}
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#58a6ff" stroke-width="1.6"><path d="M3 8h9M9 5l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          {{end}}
+          {{else if eq .Field "comment"}}
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><path d="M3 3h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H5l-3 2.5V4a1 1 0 0 1 1-1Z" stroke-linejoin="round"/></svg>
+          {{else if eq .Field "story_points"}}
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#8b949e" stroke-width="1.5"><circle cx="4" cy="4" r="1.6"/><circle cx="4" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><path d="M4 5.6v4.8M12 10.4V8a2 2 0 0 0-2-2H7"/></svg>
+          {{else}}
+          <span class="w-2 h-2 rounded-full bg-base-500 mt-1.5 inline-block"></span>
+          {{end}}
+        </span>
+        <div class="min-w-0">
+          <div class="text-[14px] text-base-800 leading-snug">
+            {{if eq .Field "column"}}Moved <span class="text-base-950">{{.TicketDisplayID}}</span> to {{.NewValue}}
+            {{else if eq .Field "comment"}}Commented on <span class="text-base-950">{{.TicketDisplayID}}</span>
+            {{else if eq .Field "story_points"}}Estimated <span class="text-base-950">{{.TicketDisplayID}}</span> at {{.NewValue}} pt
+            {{else if eq .Field "priority"}}Changed priority on <span class="text-base-950">{{.TicketDisplayID}}</span>
+            {{else if eq .Field "title"}}Updated <span class="text-base-950">{{.TicketDisplayID}}</span>
+            {{else}}Updated <span class="text-base-950">{{.TicketDisplayID}}</span>
+            {{end}}
+            — {{.TicketTitle}}
+          </div>
+          <div class="mono text-[12px] text-base-600 mt-0.5">{{timeAgo .CreatedAt}}</div>
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </section>
+  {{end}}
+
+  <!-- Working on today -->
+  <section class="mb-5">
+    <div class="flex items-center justify-between mb-2.5">
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">working on today</div>
+      <span class="mono text-[13px] text-base-600">{{len $group.Tickets}} tickets</span>
+    </div>
+    <div class="grid grid-cols-2 gap-2.5">
+      {{range $group.Tickets}}
+      {{$col := lower .ColumnName}}
+      <div class="bg-base-250 border border-base-300 rounded-md p-3 hover:border-base-400 cursor-pointer"
+           hx-get="/tickets/{{.Ticket.ID}}/quick"
+           hx-target="#modal-body" hx-swap="innerHTML"
+           hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="mono text-[13px] text-primary-400">{{.Ticket.DisplayID}}</span>
+            {{if .Ticket.Priority.String}}
+            <span class="inline-flex items-center gap-1">
+              <span class="w-1 h-2.5 rounded-sm
+                {{if eq .Ticket.Priority.String "critical"}}bg-p0
+                {{else if eq .Ticket.Priority.String "high"}}bg-p1
+                {{else if eq .Ticket.Priority.String "medium"}}bg-p2
+                {{else if eq .Ticket.Priority.String "low"}}bg-p3
+                {{else}}bg-base-500{{end}}"></span>
+              <span class="mono text-[11px] text-base-600">{{if eq .Ticket.Priority.String "critical"}}P0{{else if eq .Ticket.Priority.String "high"}}P1{{else if eq .Ticket.Priority.String "medium"}}P2{{else if eq .Ticket.Priority.String "low"}}P3{{end}}</span>
+            </span>
+            {{end}}
+          </div>
+          <span class="inline-flex items-center px-1.5 h-5 rounded-sm mono text-[12px] uppercase tracking-wider shrink-0
+            {{if contains $col "progress"}}bg-info/15 border border-info/30 text-info
+            {{else if contains $col "review"}}bg-warn/15 border border-warn/30 text-warn
+            {{else if or (eq $col "done") (contains $col "closed")}}bg-success/15 border border-success/30 text-success
+            {{else}}bg-base-300 border border-base-350 text-base-600{{end}}">{{.ColumnName}}</span>
+        </div>
+        <p class="text-[14px] leading-[18px] text-base-900 mt-1.5 line-clamp-2">{{.Ticket.Title}}</p>
+        <div class="flex items-center justify-between mt-2 pt-2 border-t border-base-300">
+          {{if .Ticket.Tags}}
+          {{$tag := index .Ticket.Tags 0}}
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{$tag.Color}}"></span>
+            <span class="text-[13px] text-base-700">{{$tag.Name}}</span>
+          </span>
+          {{else}}<span></span>{{end}}
+          {{if .Ticket.StoryPoints}}
+          <span class="mono text-[13px] text-base-700 shrink-0">{{deref .Ticket.StoryPoints}} pt</span>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </section>
+
+  <!-- Blockers (check if any exist first) -->
+  {{$hasBlockers := false}}{{range $group.Tickets}}{{if .Ticket.IsBlocked}}{{$hasBlockers = true}}{{end}}{{end}}
+  {{if $hasBlockers}}
+  <section>
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2.5">blockers</div>
+    {{range $group.Tickets}}{{if .Ticket.IsBlocked}}
+    <div class="bg-danger/[0.07] border border-danger/30 rounded-md p-3.5 mb-2">
+      <div class="flex items-start gap-3">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="#f85149" stroke-width="1.6" class="shrink-0 mt-0.5"><path d="M8 1.5 14.5 13H1.5L8 1.5Z" stroke-linejoin="round"/><path d="M8 6.5v3M8 11.4h.01" stroke-linecap="round"/></svg>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="mono text-[13px] text-primary-400">{{.Ticket.DisplayID}}</span>
+            <span class="mono text-[11px] text-danger">{{if eq .Ticket.Priority.String "critical"}}P0{{else if eq .Ticket.Priority.String "high"}}P1{{else if eq .Ticket.Priority.String "medium"}}P2{{end}}</span>
+            {{if .Ticket.BlockedBy}}<span class="mono text-[12px] text-base-600">blocked by {{.Ticket.BlockedBy}}</span>{{end}}
+          </div>
+          <p class="text-[14px] text-base-800 leading-snug">{{.Ticket.Title}}</p>
+          <div class="flex items-center gap-2 mt-2.5">
+            <a href="/tickets/{{.Ticket.DisplayID}}"
+               class="h-7 px-2.5 inline-flex items-center gap-1.5 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[13px] text-base-900">Open ticket</a>
+          </div>
+        </div>
+      </div>
+    </div>
+    {{end}}{{end}}
+  </section>
+  {{end}}
+
+</div>
+{{else}}
+<!-- Empty state — no group data yet -->
+<div class="flex flex-col items-center justify-center h-full text-center px-6 py-16">
+  <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><circle cx="8" cy="5.5" r="2.4"/><path d="M3.5 13c0-2.3 2-3.6 4.5-3.6s4.5 1.3 4.5 3.6" stroke-linecap="round"/></svg>
+  </div>
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No tickets this sprint</div>
+  <p class="text-[14px] text-base-700">This person has no tickets in the active sprint.</p>
+</div>
+{{end}}
+{{end}}

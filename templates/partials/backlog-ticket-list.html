@@ -1,220 +1,201 @@
 {{define "backlog-ticket-list"}}
+{{$board  := .Board}}
+{{$sprints := .Sprints}}
+{{$navSlug := ""}}
+{{if .NavTeam}}{{$navSlug = .NavTeam.Slug}}{{else if .Team}}{{$navSlug = .Team.Slug}}{{end}}
+
 <div id="backlog-ticket-list"
-     hx-get="/boards/{{.Board.ID}}/backlog"
+     {{if $navSlug}}
+     hx-get="/workspaces/{{$navSlug}}/backlog"
      hx-select="#backlog-ticket-list"
      hx-trigger="boardUpdated from:body, every 30s"
      hx-swap="outerHTML"
-     x-data="{ ...backlogList(), refineMode: window._docketRefineMode || false }"
-     @refine-mode.window="refineMode = $event.detail.active">
+     {{end}}
+     x-data="backlogList()"
+     x-init="init()">
 
-  {{if .ActiveSprintSection}}
-  {{$s := .ActiveSprintSection}}
-  <div class="mb-4 rounded-lg border border-base-300 bg-base-200 overflow-hidden"
-       x-show="!refineMode"
-       {{if .InitRefineMode}}x-cloak{{end}}
-       x-data="{ open: JSON.parse(localStorage.getItem('sprint-section-open') ?? 'true') }"
-       x-effect="localStorage.setItem('sprint-section-open', JSON.stringify(open))">
+  {{/* Count backlog tickets */}}
+  {{$hasTickets := false}}
+  {{range .Columns}}{{if .IsBacklog}}{{if .Tickets}}{{$hasTickets = true}}{{end}}{{end}}{{end}}
 
-    <!-- Header row -->
-    <div class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none" @click="open = !open">
-      <svg class="h-3 w-3 text-base-content/30 shrink-0 transition-transform duration-150"
-           :class="open ? 'rotate-90' : ''"
-           fill="currentColor" viewBox="0 0 20 20">
-        <path fill-rule="evenodd" clip-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"/>
-      </svg>
-      <span class="text-xs font-medium text-base-content/70 flex-1 min-w-0 truncate">{{$s.Sprint.Name}}</span>
-      <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5 shrink-0">Active</span>
-      <span class="text-xs font-mono text-base-content/30 shrink-0">{{$s.Done}}/{{$s.Total}}</span>
-      <a href="/boards/{{.Board.ID}}" @click.stop
-         class="text-xs text-primary/60 hover:text-primary transition-colors shrink-0">Board →</a>
+  {{if $hasTickets}}
+
+  <!-- List card (card chrome removed in refine mode — the pane itself provides the border) -->
+  <div class="{{if not .InitRefineMode}}bg-base-200 border border-base-300 rounded-md overflow-hidden{{end}}"
+       :class="refineMode ? '' : 'bg-base-200 border border-base-300 rounded-md overflow-hidden'">
+
+    <!-- Column header: normal mode -->
+    <div x-show="!refineMode" x-cloak
+         class="flex items-center gap-3 px-4 h-9 bg-base-200 border-b border-base-300">
+      <span class="w-[14px] shrink-0"></span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-5 text-right shrink-0">#</span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[72px] shrink-0">id</span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 flex-1">ticket</span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[92px] shrink-0">track</span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-9 shrink-0">pri</span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[68px] text-right shrink-0">est</span>
+      <span class="w-6 shrink-0"></span>
+    </div>
+    <!-- Column header: refine mode — compact with legend -->
+    <div x-show="refineMode" x-cloak
+         class="sticky top-0 bg-base-100/95 backdrop-blur px-3 h-9 flex items-center justify-between border-b border-base-300 z-10">
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">backlog · {{.BacklogCount}}</span>
+      <span class="inline-flex items-center gap-2 mono text-[12px] text-base-600">
+        <span class="inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-primary-500"></span>est</span>
+        <span class="inline-flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-warn"></span>todo</span>
+      </span>
     </div>
 
-    <!-- Flat ticket list (collapsible) -->
-    <div x-show="open" x-cloak class="border-t border-base-300">
-      <div class="sprint-list flex flex-col gap-1 p-2 min-h-[2.5rem]"
-           data-sprint-id="{{$s.Sprint.ID}}"
-           data-sprint-status="active"
-           data-first-column-id="{{$.FirstColumnID}}">
-        {{range $s.Columns}}
-        {{$colName := .Name}}
-        {{$isDone := .IsDone}}
-        {{range .Tickets}}
-        <div class="group flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 hover:border-primary/30 cursor-pointer {{if $isDone}}opacity-50{{end}}"
-             @click="$dispatch('ticket-click', {ticketID: '{{.ID}}'})"
-             data-ticket-id="{{.ID}}"
-             data-position="{{.Position}}"
-             data-ticket-column-id="{{.ColumnID}}">
-          <svg class="drag-handle h-4 w-4 text-base-content/20 shrink-0 cursor-grab group-hover:text-base-content/40" fill="currentColor" viewBox="0 0 20 20" @click.stop>
-            <path d="M7 4a1 1 0 100 2 1 1 0 000-2zM13 4a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zM13 9a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zM13 14a1 1 0 100 2 1 1 0 000-2z"/>
-          </svg>
-          <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary shrink-0 hover:underline" @click.stop>{{.DisplayID}}</a>
-          <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-4 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</span>
-          {{if $isDone}}
-          <span class="text-xs px-1.5 py-0.5 rounded shrink-0 text-primary/60 bg-primary/10 border border-primary/20">{{$colName}}</span>
-          {{else}}
-          <span class="text-xs px-1.5 py-0.5 rounded shrink-0 text-base-content/40 border border-base-300">{{$colName}}</span>
-          {{end}}
-          {{if eq .Priority "critical"}}
-          <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5 shrink-0">critical</span>
-          {{else if eq .Priority "high"}}
-          <span class="text-xs border border-amber-700 text-amber-400 rounded-md px-1.5 py-0.5 shrink-0">high</span>
-          {{else if eq .Priority "medium"}}
-          <span class="text-xs border border-blue-700 text-blue-400 rounded-md px-1.5 py-0.5 shrink-0">medium</span>
-          {{else if eq .Priority "low"}}
-          <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5 shrink-0">low</span>
-          {{end}}
-          {{if .Assignees}}
-          <div class="flex -space-x-1 overflow-hidden shrink-0">
-            {{$as := .Assignees}}
-            {{range $i, $a := $as}}{{if or (lt $i 2) (and (eq $i 2) (le (len $as) 3))}}
-            <div class="w-5 h-5 rounded-full bg-[#1F3A35] ring-2 ring-base-200 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
-            {{end}}{{end}}
-            {{if gt (len .Assignees) 3}}
-            <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-200 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
-            {{end}}
-          </div>
-          {{end}}
-        </div>
-        {{end}}
-        {{end}}
-        {{if not $s.Total}}
-        <div class="text-sm text-base-content/20 py-4 text-center border border-dashed border-base-300 rounded-lg">
-          No tickets in sprint
-        </div>
-        {{end}}
-      </div>
-    </div>
-  </div>
-  {{end}}
+    <!-- Ticket rows -->
+    {{$i := 0}}
+    <div class="backlog-list divide-y divide-base-300">
+      {{range .Columns}}
+      {{if .IsBacklog}}
+      {{range .Tickets}}
+      {{$i = add $i 1}}
+      <div class="backlog-ticket-row group flex items-center gap-3 px-4 h-12 hover:bg-base-250/40 cursor-pointer"
+           data-ticket-id="{{.ID}}"
+           data-rank="{{$i}}"
+           data-position="{{.Position}}"
+           data-ticket-column-id="{{.ColumnID}}"
+           x-show="!refineMode"
+           @click="
+             htmx.ajax('GET', '/tickets/{{.ID}}/quick', {target:'#modal-body', swap:'innerHTML'});
+             window.dispatchEvent(new CustomEvent('open-ticket-modal'));
+           ">
 
-  {{range .SprintViews}}
-  <div class="mb-4 rounded-lg border border-base-300 bg-base-200 overflow-hidden"
-       x-show="!refineMode"
-       {{if $.InitRefineMode}}x-cloak{{end}}
-       x-data="{ open: JSON.parse(localStorage.getItem('sprint-plan-{{.Sprint.ID}}-open') ?? 'false') }"
-       x-effect="localStorage.setItem('sprint-plan-{{.Sprint.ID}}-open', JSON.stringify(open))">
+        <!-- Drag handle -->
+        <div class="drag-handle w-[14px] opacity-0 group-hover:opacity-100 cursor-grab shrink-0 text-base-500 flex items-center justify-center leading-none text-[14px]" aria-hidden="true">⠿</div>
 
-    <div class="flex items-center gap-2 px-3 py-2 cursor-pointer select-none" @click="open = !open">
-      <svg class="h-3 w-3 text-base-content/30 shrink-0 transition-transform duration-150"
-           :class="open ? 'rotate-90' : ''"
-           fill="currentColor" viewBox="0 0 20 20">
-        <path fill-rule="evenodd" clip-rule="evenodd" d="M7.293 4.707a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z"/>
-      </svg>
-      <span class="text-xs font-medium text-base-content/70 flex-1 min-w-0 truncate">{{.Sprint.Name}}</span>
-      <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5 shrink-0">Planning</span>
-      <span class="text-xs font-mono text-base-content/30 shrink-0">{{len .Tickets}}</span>
-      <a href="/boards/{{$.Board.ID}}" @click.stop
-         class="text-xs text-primary/60 hover:text-primary transition-colors shrink-0">Board →</a>
-    </div>
+        <!-- Rank -->
+        <span class="rank-label mono text-[13px] text-base-600 w-5 text-right shrink-0 select-none">{{$i}}</span>
 
-    <div x-show="open" x-cloak class="border-t border-base-300">
-      <div class="sprint-list flex flex-col gap-1 p-2 min-h-[2.5rem]"
-           data-sprint-id="{{.Sprint.ID}}"
-           data-sprint-status="planning"
-           data-first-column-id="{{$.FirstColumnID}}">
-        {{range .Tickets}}
-        <div class="group flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 hover:border-primary/30 cursor-pointer"
-             @click="$dispatch('ticket-click', {ticketID: '{{.ID}}'})"
-             data-ticket-id="{{.ID}}"
-             data-position="{{.Position}}"
-             data-ticket-column-id="{{.ColumnID}}">
-          <svg class="drag-handle h-4 w-4 text-base-content/20 shrink-0 cursor-grab group-hover:text-base-content/40" fill="currentColor" viewBox="0 0 20 20" @click.stop>
-            <path d="M7 4a1 1 0 100 2 1 1 0 000-2zM13 4a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zM13 9a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zM13 14a1 1 0 100 2 1 1 0 000-2z"/>
-          </svg>
-          <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary shrink-0 hover:underline" @click.stop>{{.DisplayID}}</a>
-          <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{if .StoryPoints}}<span class="inline-flex items-center justify-center min-w-[1.25rem] h-4 rounded bg-base-300 text-base-content/60 text-[10px] font-bold font-mono shrink-0 mr-1 px-1">{{deref .StoryPoints}}</span>{{end}}{{.Title}}</span>
-          {{if eq .Priority "critical"}}
-          <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5 shrink-0">critical</span>
-          {{else if eq .Priority "high"}}
-          <span class="text-xs border border-amber-700 text-amber-400 rounded-md px-1.5 py-0.5 shrink-0">high</span>
-          {{else if eq .Priority "medium"}}
-          <span class="text-xs border border-blue-700 text-blue-400 rounded-md px-1.5 py-0.5 shrink-0">medium</span>
-          {{else if eq .Priority "low"}}
-          <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5 shrink-0">low</span>
+        <!-- ID -->
+        <span class="mono text-[13px] text-primary-400 w-[72px] shrink-0">{{.DisplayID}}</span>
+
+        <!-- Title -->
+        <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
+
+        <!-- Track (first tag, hidden in refine mode) -->
+        <span class="w-[92px] shrink-0" x-show="!refineMode" x-cloak>
+          {{if .Tags}}
+          {{$tag := index .Tags 0}}
+          <span class="inline-flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color: {{$tag.Color}}"></span>
+            <span class="text-[13px] text-base-700 truncate">{{$tag.Name}}</span>
+          </span>
           {{end}}
-          {{if .Assignees}}
-          <div class="flex -space-x-1 overflow-hidden shrink-0">
-            {{$as := .Assignees}}
-            {{range $i, $a := $as}}{{if or (lt $i 2) (and (eq $i 2) (le (len $as) 3))}}
-            <div class="w-5 h-5 rounded-full bg-[#1F3A35] ring-2 ring-base-200 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
-            {{end}}{{end}}
-            {{if gt (len .Assignees) 3}}
-            <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-200 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
-            {{end}}
-          </div>
-          {{end}}
-        </div>
+        </span>
+
+        <!-- Priority -->
+        <span class="inline-flex items-center gap-1 w-9 shrink-0">
+          <span class="w-1 h-2.5 rounded-sm
+            {{if eq .Priority.String "critical"}}bg-p0
+            {{else if eq .Priority.String "high"}}bg-p1
+            {{else if eq .Priority.String "medium"}}bg-p2
+            {{else if eq .Priority.String "low"}}bg-p3
+            {{else}}bg-base-500{{end}}"></span>
+          <span class="mono text-[11px] text-base-600">{{if eq .Priority.String "critical"}}P0{{else if eq .Priority.String "high"}}P1{{else if eq .Priority.String "medium"}}P2{{else if eq .Priority.String "low"}}P3{{else}}—{{end}}</span>
+        </span>
+
+        <!-- Estimate -->
+        {{if .StoryPoints}}
+        <span class="w-[68px] shrink-0 text-right mono text-[13px] text-base-700">{{deref .StoryPoints}} pt</span>
         {{else}}
-        <div class="text-sm text-base-content/20 py-4 text-center border border-dashed border-base-300 rounded-lg">
-          No tickets in sprint
+        <button class="w-[68px] shrink-0 inline-flex items-center justify-center h-6 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 mono text-[13px]">— est</button>
+        {{end}}
+
+        <!-- Assignee / readiness -->
+        <template x-if="refineMode">
+          {{$ready := and .StoryPoints .ACItems}}
+          <span class="w-6 h-6 rounded-full shrink-0 inline-flex items-center justify-center
+            {{if $ready}}bg-primary-500/20{{else}}bg-base-300{{end}}"
+                title="{{if $ready}}Ready{{else}}Needs estimate or AC{{end}}">
+            {{if $ready}}
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m2 6 3 3 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            {{end}}
+          </span>
+        </template>
+        <template x-if="!refineMode">
+          {{if .Assignees}}
+          {{$a := index .Assignees 0}}
+          <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials $a.Name}}</span>
+          {{else}}
+          <span class="w-6 h-6 rounded-sm border border-dashed border-base-500 shrink-0"></span>
+          {{end}}
+        </template>
+
+      </div>
+
+      <!-- Compact refine-mode row -->
+      {{$ready := .StoryPoints}}
+      <div class="backlog-ticket-row flex items-center gap-2 border-b border-base-300 cursor-pointer"
+           data-ticket-id="{{.ID}}"
+           data-rank="{{$i}}"
+           data-position="{{.Position}}"
+           data-ticket-column-id="{{.ColumnID}}"
+           x-show="refineMode" x-cloak
+           :class="$el.classList.contains('border-info') ? 'pl-2.5 pr-3 py-2 bg-base-250 ring-1 ring-info/20 border-l-2 border-info -ml-[2px]' : 'pl-3 pr-3 py-2 hover:bg-base-250/40'"
+           @click="
+             document.querySelectorAll('.backlog-ticket-row.border-info').forEach(function(r){
+               r.classList.remove('bg-base-250','ring-1','ring-info/20','border-l-2','border-info','-ml-[2px]');
+             });
+             $el.classList.add('bg-base-250','ring-1','ring-info/20','border-l-2','border-info','-ml-[2px]');
+             window._docketRefineTicketID = '{{.ID}}';
+             if(typeof _updateRefineCounter === 'function') _updateRefineCounter({{$i}});
+             htmx.ajax('GET', '/tickets/{{.ID}}/refine', {target:'#refine-detail-pane', swap:'innerHTML'});
+           ">
+        <span class="mono text-[12px] text-base-600 w-4 text-right shrink-0 select-none">{{$i}}</span>
+        <span class="w-1.5 h-1.5 rounded-full shrink-0 {{if $ready}}bg-primary-500{{else}}bg-warn{{end}}"
+              title="{{if $ready}}estimated{{else}}needs estimate{{end}}"></span>
+        <div class="min-w-0 flex-1">
+          <div class="mono text-[12px] text-primary-400">{{.DisplayID}}</div>
+          <div class="text-[13px] truncate {{if $ready}}text-base-700{{else}}text-base-900{{end}}">{{.Title}}</div>
         </div>
-        {{end}}
       </div>
+
+      {{end}}
+      {{end}}
+      {{end}}
+    </div>
+
+  </div>
+
+  <!-- Bulk sprint assignment bar -->
+  <div class="mt-3" x-show="!refineMode && selectedIDs.length > 0" x-cloak>
+    <div class="flex items-center gap-2.5">
+      <span class="mono text-[14px] text-base-700" x-text="selectedIDs.length + ' selected'"></span>
+      {{range $sprints}}
+      {{if or .Status.IsPlanning .Status.IsActive}}
+      <form hx-post="/boards/{{if $board}}{{$board.ID}}{{end}}/sprints/{{.ID}}/assign"
+            hx-swap="none"
+            hx-on::before-request="appendSelectedIDs(this)"
+            hx-on::after-request="if(event.detail.successful){selectedIDs=[];document.querySelectorAll('.ticket-checkbox').forEach(c=>c.checked=false);htmx.trigger(document.body,'boardUpdated')}">
+        <button type="submit"
+                class="h-8 px-3 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] rounded shadow-lift">
+          → {{.Name}}
+        </button>
+      </form>
+      {{end}}
+      {{end}}
     </div>
   </div>
-  {{end}}
 
-  <div class="flex items-center gap-2 mb-2">
-    <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Backlog</span>
-    <span class="text-xs bg-base-300 text-base-content/50 rounded px-1.5 py-0.5">{{len .Tickets}}</span>
-  </div>
+  {{else}}
 
-  <div class="backlog-list flex flex-col gap-1 min-h-[2.5rem]">
-    {{range .Tickets}}
-    <div class="group flex items-center gap-3 bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 hover:border-primary/30 cursor-pointer"
-         :class="isRefined ? 'border-primary bg-primary/10' : (selected.includes('{{.ID}}') ? 'border-primary/40 bg-primary/5' : '')"
-         x-data="{ isRefined: window._docketRefineTicketID === '{{.ID}}' }"
-         @refine-selected.window="isRefined = ($event.detail.id === '{{.ID}}')"
-         @click="$dispatch('ticket-click', {ticketID: '{{.ID}}'})"
-         data-ticket-id="{{.ID}}"
-         data-position="{{.Position}}"
-         data-ticket-column-id="{{.ColumnID}}">
-      <svg class="drag-handle h-4 w-4 text-base-content/20 shrink-0 cursor-grab group-hover:text-base-content/40" fill="currentColor" viewBox="0 0 20 20"
-           @click.stop>
-        <path d="M7 4a1 1 0 100 2 1 1 0 000-2zM13 4a1 1 0 100 2 1 1 0 000-2zM7 9a1 1 0 100 2 1 1 0 000-2zM13 9a1 1 0 100 2 1 1 0 000-2zM7 14a1 1 0 100 2 1 1 0 000-2zM13 14a1 1 0 100 2 1 1 0 000-2z"/>
+  <!-- Empty state -->
+  <div class="py-16 text-center">
+    <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="1.4" aria-hidden="true">
+        <path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/>
       </svg>
-      <input type="checkbox"
-             x-show="!refineMode"
-             {{if $.InitRefineMode}}x-cloak{{end}}
-             :checked="selected.includes('{{.ID}}')"
-             @click.stop="selected.includes('{{.ID}}') ? selected = selected.filter(i => i !== '{{.ID}}') : selected.push('{{.ID}}')"
-             class="w-4 h-4 rounded accent-primary shrink-0 cursor-pointer" />
-      <a href="/tickets/{{.DisplayID}}" class="font-mono text-xs text-primary shrink-0 hover:underline"
-         @click.stop>{{.DisplayID}}</a>
-      <span class="text-sm text-base-content flex-1 min-w-0 truncate">{{.Title}}</span>
-      {{if eq .Priority "critical"}}
-      <span class="text-xs border border-red-700 text-red-400 rounded-md px-1.5 py-0.5 shrink-0">critical</span>
-      {{else if eq .Priority "high"}}
-      <span class="text-xs border border-amber-700 text-amber-400 rounded-md px-1.5 py-0.5 shrink-0">high</span>
-      {{else if eq .Priority "medium"}}
-      <span class="text-xs border border-blue-700 text-blue-400 rounded-md px-1.5 py-0.5 shrink-0">medium</span>
-      {{else if eq .Priority "low"}}
-      <span class="text-xs border border-base-300 text-base-content/50 rounded-md px-1.5 py-0.5 shrink-0">low</span>
-      {{end}}
-      {{if .Assignees}}
-      <div class="flex -space-x-1 overflow-hidden shrink-0">
-        {{$as := .Assignees}}
-        {{range $i, $a := $as}}{{if or (lt $i 2) (and (eq $i 2) (le (len $as) 3))}}
-        <div class="w-5 h-5 rounded-full bg-[#1F3A35] ring-2 ring-base-200 flex items-center justify-center text-[10px] font-bold text-primary">{{initials $a.Name}}</div>
-        {{end}}{{end}}
-        {{if gt (len .Assignees) 3}}
-        <div class="w-5 h-5 rounded-full bg-base-300 ring-2 ring-base-200 flex items-center justify-center text-[9px] font-bold text-base-content/50">+{{sub (len .Assignees) 2}}</div>
-        {{end}}
-      </div>
-      {{end}}
-      <!-- Readiness indicator: green when has both story points and AC, gray otherwise -->
-      {{if and .StoryPoints .AcceptanceCriteria}}
-      <div class="w-2 h-2 rounded-full bg-primary shrink-0" title="Ready — has story points and acceptance criteria"></div>
-      {{else}}
-      <div class="w-2 h-2 rounded-full bg-base-300 shrink-0" title="Not ready — missing story points or acceptance criteria"></div>
-      {{end}}
     </div>
-    {{else}}
-    <div class="text-sm text-base-content/20 py-8 text-center border border-dashed border-base-300 rounded-lg">
-      Backlog is empty
-    </div>
-    {{end}}
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">backlog is empty</div>
+    <p class="text-[14px] text-base-700 mt-1 max-w-[34ch] mx-auto">Capture work as tickets, then rank and refine them here before a sprint.</p>
+    <div class="mt-4 mono text-[13px] text-base-600">⌘N to add a ticket</div>
   </div>
+
+  {{end}}
 
 </div>
 {{end}}

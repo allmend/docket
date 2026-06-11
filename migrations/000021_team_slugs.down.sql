@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS idx_teams_org_slug;
+ALTER TABLE teams DROP COLUMN IF EXISTS slug;

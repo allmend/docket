@@ -23,11 +23,29 @@ func (s *TeamService) ListTeams(ctx context.Context, orgID uuid.UUID) ([]model.T
 }
 
 func (s *TeamService) ListTeamsWithBoards(ctx context.Context, orgID uuid.UUID) ([]model.TeamWithBoard, error) {
-	return s.store.ListTeamsWithBoards(ctx, orgID)
+	teams, err := s.store.ListTeamsWithBoards(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	membersByTeam, _ := s.store.ListTeamMembersForOrg(ctx, orgID)
+	if membersByTeam != nil {
+		for i := range teams {
+			teams[i].Members = membersByTeam[teams[i].Team.ID]
+		}
+	}
+	return teams, nil
+}
+
+func (s *TeamService) CountOrgUsers(ctx context.Context, orgID uuid.UUID) (int, error) {
+	return s.store.CountOrgUsers(ctx, orgID)
 }
 
 func (s *TeamService) GetTeam(ctx context.Context, orgID, teamID uuid.UUID) (*model.Team, error) {
 	return s.store.GetTeam(ctx, orgID, teamID)
+}
+
+func (s *TeamService) GetTeamBySlug(ctx context.Context, orgID uuid.UUID, slug string) (*model.Team, error) {
+	return s.store.GetTeamBySlug(ctx, orgID, slug)
 }
 
 func (s *TeamService) GetTeamByKey(ctx context.Context, orgID uuid.UUID, key string) (*model.Team, error) {
@@ -37,7 +55,7 @@ func (s *TeamService) GetTeamByKey(ctx context.Context, orgID uuid.UUID, key str
 // CreateTeam creates a team and immediately provisions its board.
 // The board mode is chosen at team-creation time.
 func (s *TeamService) CreateTeam(ctx context.Context, orgID, userID uuid.UUID, name, key, description string, mode model.BoardMode) (*model.Team, *model.Board, error) {
-	team, err := s.store.CreateTeam(ctx, orgID, userID, name, NormaliseKey(key), description)
+	team, err := s.store.CreateTeam(ctx, orgID, userID, name, NormaliseKey(key), Slugify(name), description)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -51,7 +69,7 @@ func (s *TeamService) CreateTeam(ctx context.Context, orgID, userID uuid.UUID, n
 }
 
 func (s *TeamService) UpdateTeam(ctx context.Context, orgID, teamID uuid.UUID, name, description string) (*model.Team, error) {
-	return s.store.UpdateTeam(ctx, orgID, teamID, name, description)
+	return s.store.UpdateTeam(ctx, orgID, teamID, name, Slugify(name), description)
 }
 
 func (s *TeamService) DeleteTeam(ctx context.Context, orgID, teamID uuid.UUID) error {
@@ -87,4 +105,25 @@ func NormaliseKey(raw string) string {
 		}
 	}
 	return b.String()
+}
+
+// Slugify converts a name to a URL-safe slug: lowercase, runs of non-alphanumeric chars
+// collapsed to a single hyphen, leading/trailing hyphens stripped.
+func Slugify(name string) string {
+	var b strings.Builder
+	prevHyphen := true // skip leading hyphens
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevHyphen = false
+		} else if !prevHyphen {
+			b.WriteByte('-')
+			prevHyphen = true
+		}
+	}
+	s := strings.TrimRight(b.String(), "-")
+	if s == "" {
+		return "workspace"
+	}
+	return s
 }

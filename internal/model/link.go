@@ -41,8 +41,12 @@ type TicketLink struct {
 	CreatedAt    time.Time    `json:"created_at"`
 
 	// Denormalised for display — populated by store joins.
-	FromDisplayID string `json:"from_display_id"`
-	ToDisplayID   string `json:"to_display_id"`
-	ToTitle       string `json:"to_title"`
-	FromTitle     string `json:"from_title"`
+	FromDisplayID  string     `json:"from_display_id"`
+	FromTitle      string     `json:"from_title"`
+	FromClosedAt   *time.Time `json:"from_closed_at,omitempty"`
+	FromColumnName string     `json:"from_column_name"`
+	ToDisplayID    string     `json:"to_display_id"`
+	ToTitle        string     `json:"to_title"`
+	ToClosedAt     *time.Time `json:"to_closed_at,omitempty"`
+	ToColumnName   string     `json:"to_column_name"`
 }

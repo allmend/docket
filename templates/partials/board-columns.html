@@ -1,0 +1,325 @@
+{{define "board-columns"}}
+{{$board  := .Board}}
+{{$team   := .Team}}
+{{$sprint := .ActiveSprint}}
+
+{{if $board.Mode.IsScrum}}
+
+  {{/* No "no sprint" branch here: a scrum board without an active sprint
+       redirects to /workspaces/{slug}/planning before this partial renders. */}}
+
+  {{/* Active sprint: inline header plus the columns grid. */}}
+  {{if $sprint}}
+  <div class="px-6 py-5 flex flex-col min-h-full">
+
+    {{/* Sprint header — inline with page content (no bg strip) */}}
+    <div class="flex items-start justify-between mb-4 shrink-0">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <h2 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">{{$sprint.Name}}</h2>
+          <span class="inline-flex items-center self-center px-1.5 py-0.5 rounded-sm bg-success/15 border border-success/30 mono text-[13px] uppercase tracking-wider text-success shrink-0">active</span>
+        </div>
+        <div class="mono text-[14px] text-base-800 mt-0.5">
+          {{if and $sprint.StartDate $sprint.EndDate}}{{$sprint.StartDate.Format "2 Jan"}} → {{$sprint.EndDate.Format "2 Jan"}} · {{end}}
+          {{if $sprint.Goal}}goal: {{$sprint.Goal}}{{end}}
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0 ml-4">
+
+        {{/* Filter */}}
+        <div class="relative" x-data="{filterOpen:false}">
+          <button @click="filterOpen=!filterOpen"
+                  :class="activeFilterCount()>0 ? 'border-primary-500/60 text-primary-400' : 'border-base-350 text-base-900'"
+                  class="h-7 px-2.5 bg-base-250 hover:bg-base-300 border rounded text-[14px] flex items-center gap-1.5">
+            Filter
+            <span x-show="activeFilterCount()>0" x-text="activeFilterCount()"
+                  class="mono text-[12px] bg-primary-500/20 text-primary-400 rounded-sm px-1 leading-none"></span>
+          </button>
+          <div x-show="filterOpen" @click.outside="filterOpen=false"
+               class="absolute right-0 top-full mt-1 w-56 bg-base-250 border border-base-350 rounded-md shadow-pop p-3 z-20 space-y-3">
+            <div>
+              <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Priority</div>
+              <div class="flex gap-1">
+                {{range (slice "critical" "high" "medium" "low")}}
+                <button @click="togglePriority('{{.}}')"
+                        :class="filterPriorities.includes('{{.}}') ? 'bg-base-300 text-base-950' : 'text-base-600 hover:text-base-900'"
+                        class="flex items-center gap-1 px-1.5 py-1 rounded text-[13px]">
+                  <span class="w-1 h-2.5 rounded-sm {{if eq . "critical"}}bg-p0{{else if eq . "high"}}bg-p1{{else if eq . "medium"}}bg-p2{{else}}bg-p3{{end}}"></span>
+                  <span class="mono">{{if eq . "critical"}}P0{{else if eq . "high"}}P1{{else if eq . "medium"}}P2{{else}}P3{{end}}</span>
+                </button>
+                {{end}}
+              </div>
+            </div>
+            <div>
+              <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Assignee</div>
+              <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                <template x-for="name in boardAssignees()" :key="name">
+                  <button @click="toggleAssignee(name)"
+                          :class="filterAssignees.includes(name) ? 'bg-base-300 text-base-950' : 'text-base-600 hover:text-base-900'"
+                          class="px-1.5 py-0.5 rounded text-[13px]" x-text="name"></button>
+                </template>
+              </div>
+            </div>
+            <button @click="clearFilters()" x-show="activeFilterCount()>0"
+                    class="w-full text-center text-[13px] text-danger hover:text-danger/80">Clear filters</button>
+          </div>
+        </div>
+
+        {{/* Separator */}}
+        <div class="w-px h-5 bg-base-300 shrink-0"></div>
+
+        {{/* Stand-up */}}
+        {{if $team}}
+        <a href="/workspaces/{{$team.Slug}}/daily"
+           class="h-7 px-2.5 inline-flex items-center gap-1.5 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-900">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-700 shrink-0" aria-hidden="true">
+            <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          Stand-up
+        </a>
+        {{end}}
+
+        {{/* ⋯ more actions */}}
+        <div class="relative" x-data="{open:false}">
+          <button @click="open=!open" aria-label="More sprint actions"
+                  class="h-7 w-7 inline-flex items-center justify-center bg-base-250 hover:bg-base-300 border border-base-350 rounded text-base-700 hover:text-base-900">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <circle cx="3" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="13" cy="8" r="1.3"/>
+            </svg>
+          </button>
+          <div x-show="open" @click.outside="open=false"
+               class="absolute right-0 top-full mt-1 w-48 bg-base-200 border border-base-350 rounded-md shadow-pop p-1 z-20">
+            {{if $team}}
+            <a href="/workspaces/{{$team.Slug}}/daily"
+               class="w-full flex items-center px-2 py-1.5 rounded text-[14px] text-base-900 hover:bg-base-300">
+              Start stand-up
+            </a>
+            {{end}}
+            <div class="h-px bg-base-300 my-1 -mx-1"></div>
+            <form method="POST" action="/boards/{{$board.ID}}/sprints/{{$sprint.ID}}/close"
+                  onsubmit="return confirm('Close sprint? Tickets not in Done will return to the backlog.')">
+              <button type="submit"
+                      class="w-full flex items-center px-2 py-1.5 rounded text-[14px] text-danger hover:bg-danger/15">
+                Close sprint
+              </button>
+            </form>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    {{/* Columns grid */}}
+    <div class="grid gap-3 flex-1 items-stretch"
+         style="grid-template-columns: repeat({{len .Columns}}, minmax(0, 1fr))">
+      {{range .Columns}}
+      {{$col := .Column}}
+      {{$isDone := .IsDone}}
+      {{template "board-column" (dict "Board" $board "Col" $col "IsDone" $isDone "Tickets" .Tickets "Mode" "active" "FirstColumnID" $.FirstColumnID "Points" .TotalPoints)}}
+      {{end}}
+    </div>
+
+  </div>
+  {{end}}
+
+{{else}}
+{{/* Kanban and blank boards: flex columns across the full width. */}}
+<div class="flex gap-3 px-6 py-5 min-h-full">
+  {{range .Columns}}
+  {{$col := .Column}}
+  {{$isDone := .IsDone}}
+  <div class="flex flex-col bg-base-200 border border-base-300 rounded flex-1 min-w-[200px]">
+    <div class="group/hdr px-3 py-2 flex items-center border-b border-base-300 shrink-0 min-h-[40px]"
+         x-data="{editing:false}" @keydown.escape="editing=false">
+      <div x-show="!editing" class="flex items-center justify-between w-full">
+        <div class="flex items-center gap-2 min-w-0">
+          <span class="mono text-[13px] uppercase tracking-[0.18em] {{if $isDone}}text-success{{else}}text-base-700{{end}} truncate">{{$col.Name}}</span>
+          <span class="mono text-[13px] text-base-600 shrink-0" data-column-count>{{len .Tickets}}</span>
+        </div>
+        {{if not $isDone}}
+        <div class="opacity-0 group-hover/hdr:opacity-100 transition-opacity flex items-center gap-0.5 shrink-0 ml-1">
+          <button @click="editing=true; $nextTick(()=>$el.closest('[x-data]').querySelector('input[name=name]').select())"
+                  class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-300" title="Rename">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M11 2 14 5 5 14H2v-3Z"/></svg>
+          </button>
+          <button hx-delete="/boards/{{$board.ID}}/columns/{{$col.ID}}"
+                  hx-confirm="Delete column '{{$col.Name}}'? Tickets will move to the backlog."
+                  hx-swap="none"
+                  class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10" title="Delete">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 5h10M5.5 5V3.5h5V5M6.5 8v4.5M9.5 8v4.5M4 5l.5 8h7L12 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        {{end}}
+      </div>
+      <form x-show="editing" x-cloak hx-put="/boards/{{$board.ID}}/columns/{{$col.ID}}"
+            hx-swap="none" @submit="editing=false" class="flex items-center gap-1 w-full">
+        <input name="name" value="{{$col.Name}}"
+               class="flex-1 min-w-0 bg-base-150 border border-base-300 rounded px-2 h-6 mono text-[13px] text-base-900 focus:outline-none focus:border-primary-500 shadow-sunk"
+               @keydown.escape.prevent="editing=false"/>
+        <button type="submit" class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-success hover:bg-base-300 shrink-0">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" @click="editing=false" class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-300 shrink-0">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 3 10 10M13 3 3 13"/></svg>
+        </button>
+      </form>
+    </div>
+    <div class="ticket-list flex-1 p-2 space-y-2" data-column-id="{{$col.ID}}" data-is-done="{{$isDone}}">
+      {{range .Tickets}}
+      {{template "board-card" (dict "Ticket" . "IsDone" $isDone)}}
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+  {{template "add-column-card" $board}}
+</div>
+{{end}}
+
+{{end}}{{/* end board-columns */}}
+
+
+{{/* board-column renders a single column for the scrum sprint modes. */}}
+{{define "board-column"}}
+{{$board  := .Board}}
+{{$col    := .Col}}
+{{$isDone := .IsDone}}
+{{$mode   := .Mode}}
+{{$isFirst := eq $col.ID .FirstColumnID}}
+{{$isPlanningNonFirst := and (eq $mode "planning") (not $isFirst)}}
+
+<div class="{{if and (eq $mode "planning") $isFirst}}bg-base-200 border border-primary-500/50 shadow-[0_0_0_1px_rgba(16,185,129,0.12)]{{else if $isPlanningNonFirst}}bg-base-200/60 border border-base-300{{else}}bg-base-200 border border-base-300{{end}} rounded flex-1 flex flex-col min-w-0">
+
+  <!-- Header -->
+  <div class="group/hdr px-3 py-2 flex items-center border-b border-base-300 shrink-0 min-h-[40px]"
+       x-data="{editing:false}" @keydown.escape="editing=false">
+
+    <div x-show="!editing" class="flex items-center justify-between w-full">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="mono text-[13px] uppercase tracking-[0.18em] {{if $isDone}}text-success{{else}}text-base-700{{end}} truncate">{{$col.Name}}</span>
+        <span class="mono text-[13px] text-base-600 shrink-0" data-column-count>{{len .Tickets}}</span>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0 ml-1">
+        <span class="mono text-[13px] text-base-600 {{if not .Points}}hidden{{end}}" data-column-points>{{.Points}}</span>
+        {{if and (not $isDone) (not $isPlanningNonFirst)}}
+        <div class="opacity-0 group-hover/hdr:opacity-100 transition-opacity flex items-center gap-0.5">
+          <button @click="editing=true; $nextTick(()=>$el.closest('[x-data]').querySelector('input[name=name]').select())"
+                  class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-300" title="Rename column">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M11 2 14 5 5 14H2v-3Z"/></svg>
+          </button>
+          <button hx-delete="/boards/{{$board.ID}}/columns/{{$col.ID}}"
+                  hx-confirm="Delete column '{{$col.Name}}'? Tickets will move to the backlog."
+                  hx-swap="none"
+                  class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10" title="Delete column">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 5h10M5.5 5V3.5h5V5M6.5 8v4.5M9.5 8v4.5M4 5l.5 8h7L12 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        {{end}}
+      </div>
+    </div>
+
+    <form x-show="editing" x-cloak hx-put="/boards/{{$board.ID}}/columns/{{$col.ID}}"
+          hx-swap="none" @submit="editing=false" class="flex items-center gap-1 w-full">
+      <input name="name" value="{{$col.Name}}"
+             class="flex-1 min-w-0 bg-base-150 border border-base-300 rounded px-2 h-6 mono text-[13px] text-base-900 focus:outline-none focus:border-primary-500 shadow-sunk"
+             @keydown.escape.prevent="editing=false"/>
+      <button type="submit" class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-success hover:bg-base-300 shrink-0">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M2.5 8.5l3.5 3.5 7-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button type="button" @click="editing=false" class="w-6 h-6 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-300 shrink-0">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m3 3 10 10M13 3 3 13"/></svg>
+      </button>
+    </form>
+
+  </div>
+
+  <!-- Ticket list or planning drop target -->
+  {{if $isPlanningNonFirst}}
+  <div class="ticket-list flex-1 p-2"
+       data-column-id="{{$col.ID}}">
+  </div>
+  {{else}}
+  <div class="ticket-list flex-1 p-2 space-y-2"
+       data-column-id="{{$col.ID}}"
+       data-is-done="{{$isDone}}"
+       {{if eq $mode "planning"}}data-first-column-id="{{.FirstColumnID}}"{{end}}>
+    {{if and (eq $mode "planning") $isFirst}}
+    <div class="[&:not(:only-child)]:hidden rounded border-2 border-dashed border-primary-500/60 bg-primary-500/5 p-2.5 flex items-center justify-center h-[52px] mb-1">
+      <span class="mono text-[12px] text-primary-400/80">← drag from backlog to commit</span>
+    </div>
+    {{end}}
+    {{range .Tickets}}
+    {{template "board-card" (dict "Ticket" . "IsDone" $isDone)}}
+    {{end}}
+  </div>
+  {{end}}
+
+</div>
+{{end}}
+
+
+{{/* add-column-card is the "+ Add column" button with its inline form. */}}
+{{define "add-column-card"}}
+<div class="shrink-0 w-[220px]" x-data="{open:false}">
+  <button x-show="!open"
+          @click="open=true; $nextTick(()=>$refs.newColName.focus())"
+          class="w-full h-10 flex items-center justify-center gap-2 rounded border-2 border-dashed border-base-400 text-base-600 hover:text-base-900 hover:border-base-500 transition-colors mono text-[13px]">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+    Add column
+  </button>
+  <div x-show="open" x-cloak class="bg-base-200 border border-base-300 rounded p-2 space-y-2">
+    <form hx-post="/boards/{{.ID}}/columns" hx-swap="none"
+          @submit="open=false; $el.reset()" @keydown.escape.window="open=false" class="space-y-2">
+      <input x-ref="newColName" type="text" name="name" required placeholder="Column name…"
+             class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-1.5 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 shadow-sunk"/>
+      <div class="flex items-center gap-1.5">
+        <button type="submit"
+                class="flex-1 h-7 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] rounded shadow-lift">Add</button>
+        <button type="button" @click="open=false"
+                class="h-7 px-2.5 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[13px] text-base-700">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{end}}
+
+
+{{/* backlog-planning-card is a draggable backlog ticket on the planning view. */}}
+{{define "backlog-planning-card"}}
+<div class="group bg-base-250 border border-base-300 rounded p-2.5 hover:border-primary-500/50 cursor-grab active:cursor-grabbing"
+     data-ticket-id="{{.ID}}"
+     data-position="{{.Position}}"
+     data-ticket-column-id="{{.ColumnID}}"
+     data-priority="{{.Priority}}"
+     data-points="{{if .StoryPoints}}{{deref .StoryPoints}}{{else}}0{{end}}"
+     data-assignees="{{range .Assignees}}{{.Name}}|{{end}}"
+     data-created-unix="{{.CreatedAt.Unix}}">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center gap-1.5">
+      <span class="mono text-[12px] text-primary-400">{{.DisplayID}}</span>
+    </div>
+    <div class="flex items-center gap-1">
+      <span class="w-1 h-2.5 rounded-sm
+        {{if eq .Priority.String "critical"}}bg-p0{{else if eq .Priority.String "high"}}bg-p1{{else if eq .Priority.String "medium"}}bg-p2{{else if eq .Priority.String "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+      <span class="mono text-[11px] {{if eq .Priority.String "critical"}}text-danger{{else}}text-base-600{{end}}">
+        {{if eq .Priority.String "critical"}}P0{{else if eq .Priority.String "high"}}P1{{else if eq .Priority.String "medium"}}P2{{else if eq .Priority.String "low"}}P3{{else}}—{{end}}
+      </span>
+    </div>
+  </div>
+  <p class="text-[14px] leading-[18px] text-base-900 mt-1.5">{{.Title}}</p>
+  <div class="flex items-center justify-between mt-2 pt-2 border-t border-base-300">
+    <div class="flex items-center gap-1.5 min-w-0 flex-1">
+      {{range .Tags}}<span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span><span class="text-[12px] text-base-700 truncate">{{.Name}}</span>{{end}}
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0">
+      {{if .StoryPoints}}<span class="mono text-[12px] text-base-700">{{deref .StoryPoints}} pt</span>
+      {{else}}<span class="mono text-[12px] text-warn">— pt</span>{{end}}
+      {{$as := .Assignees}}
+      <div class="flex -space-x-1">
+        {{if $as}}{{range $as}}<span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials .Name}}</span>{{end}}
+        {{else}}<span class="w-4 h-4 rounded-sm border border-dashed border-base-500"></span>{{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

@@ -1,99 +1,237 @@
 {{template "base" .}}
 
-{{define "title"}}{{if .Team}}{{.Team.Name}} — {{end}}Team — Docket{{end}}
+{{define "title"}}{{.Team.Name}} — Docket{{end}}
+
+{{define "breadcrumb"}}{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6" x-data="{ editing: false }">
+{{$team := .Team}}
+{{$board := .Board}}
 
-  <!-- Breadcrumb -->
-  <nav class="text-sm text-base-content/50">
-    <a href="/teams" class="hover:text-primary">Teams</a>
-    <span class="mx-1">/</span>
-    <span class="text-base-content/70">{{.Team.Name}}</span>
-  </nav>
+<div class="flex-1 overflow-y-auto bg-base-100">
+<div class="max-w-[1320px] mx-auto px-8 py-6">
 
-  <!-- Team header -->
-  <div class="flex items-start justify-between">
-    <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-        <span class="font-mono text-primary text-sm font-bold">{{.Team.Key}}</span>
-      </div>
-      <div>
-        <h1 class="text-2xl font-semibold">{{.Team.Name}}</h1>
-        {{if .Team.Description}}
-        <p class="text-sm text-base-content/50 mt-0.5">{{.Team.Description}}</p>
-        {{end}}
+  <!-- Page header -->
+  <div class="flex items-end justify-between mb-6">
+    <div>
+      <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Dashboard</h1>
+      <div class="mono text-[14px] text-base-700 mt-0.5">
+        {{now | formatDate}}
+        {{if .NavActiveSprint}} · <span class="text-base-900">{{.NavActiveSprint.Name}}</span> · day {{.NavActiveSprint.DayNumber}} of {{.NavActiveSprint.TotalDays}}{{end}}
       </div>
     </div>
-    <div class="flex items-center gap-2 shrink-0" x-show="!editing">
-      <button @click="editing = true"
-              class="px-3 py-1.5 text-sm text-base-content/60 hover:text-base-content hover:bg-base-300 rounded border border-base-300">Edit</button>
-      <button class="px-3 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-base-300 rounded border border-base-300"
-              hx-delete="/teams/{{.Team.ID}}"
-              hx-confirm="Delete team {{.Team.Name}}? This cannot be undone."
-              hx-swap="none">Delete</button>
-    </div>
+    <div class="flex items-center gap-2 shrink-0"></div>
   </div>
 
-  <!-- Inline edit form -->
-  <div x-show="editing" x-cloak class="bg-base-200 border border-base-300 rounded-lg p-4">
-    <form hx-put="/teams/{{.Team.ID}}" hx-swap="none" @submit="editing = false" class="flex flex-col gap-3">
-      <div>
-        <label class="block text-xs text-base-content/50 mb-1">Team name</label>
-        <input type="text" name="name" value="{{.Team.Name}}" required
-               class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary" />
-      </div>
-      <div>
-        <label class="block text-xs text-base-content/50 mb-1">Description</label>
-        <input type="text" name="description" value="{{.Team.Description}}"
-               class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary" />
-      </div>
-      <div class="flex gap-2">
-        <button type="submit" class="px-4 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
-        <button type="button" @click="editing = false" class="px-4 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-      </div>
-    </form>
-  </div>
+  <div class="grid grid-cols-12 gap-4">
 
-  <!-- Boards section -->
-  <div>
-    <div class="flex items-center justify-between mb-3">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Boards</span>
-    </div>
+    <!-- Left column, 8 cols -->
+    <div class="col-span-8 flex flex-col gap-4">
 
-    {{if .Board}}
-    <a href="/boards/{{.Board.ID}}"
-       class="group flex items-center justify-between bg-base-200 border border-base-300 rounded-lg p-4 hover:border-primary/40">
-      <div class="flex items-center gap-3">
-        <svg class="h-5 w-5 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
-        </svg>
-        <div>
-          <p class="text-sm font-medium">{{.Board.Name}}</p>
-          {{if .Board.Description}}
-          <p class="text-xs text-base-content/40 mt-0.5">{{.Board.Description}}</p>
+      {{if .NavActiveSprint}}
+      {{$sp := .NavActiveSprint}}
+      <!-- Active sprint -->
+      <section class="bg-base-200 border border-base-300 rounded-md">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
+          <div class="flex items-center gap-2.5">
+            <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">active sprint</span>
+            <span class="text-[15px] font-medium text-base-950">{{$sp.Name}}</span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-success/15 border border-success/30 mono text-[13px] uppercase tracking-wider text-success">active</span>
+          </div>
+          <div class="flex items-center gap-3">
+            {{if and $sp.StartDate $sp.EndDate}}
+            <span class="mono text-[14px] text-base-700">{{sub $sp.TotalDays $sp.DayNumber}} days left</span>
+            {{end}}
+            {{if $board}}
+            <a href="/workspaces/{{$team.Slug}}/board" class="mono text-[13px] text-base-600 hover:text-primary-400">Board →</a>
+            {{end}}
+          </div>
+        </div>
+
+        <!-- Stat strip -->
+        <div class="grid grid-cols-4 divide-x divide-base-300 border-b border-base-300">
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-base-950">{{printf "%.0f" $sp.CommittedPoints}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">committed</div>
+          </div>
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-primary-400">{{printf "%.0f" $sp.CompletedPoints}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">completed</div>
+          </div>
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-base-950">{{printf "%.0f" $sp.RemainingPoints}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">remaining</div>
+          </div>
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-base-700">{{$sp.CommittedTickets}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">tickets</div>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="px-5 py-3">
+          <div class="flex items-center justify-between mb-1.5">
+            <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">progress</span>
+            <span class="mono text-[13px] text-base-700">{{$sp.PointsPct}}%</span>
+          </div>
+          <div class="h-1.5 bg-base-300 rounded-sm overflow-hidden">
+            <div class="h-full bg-primary-500 rounded-sm" style="width:{{$sp.PointsPct}}%"></div>
+          </div>
+          {{if $sp.Goal}}<div class="mono text-[13px] text-base-700 mt-2">{{$sp.Goal}}</div>{{end}}
+        </div>
+      </section>
+
+      {{else if $board}}
+      <!-- No active sprint empty state -->
+      <section class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+        <div class="px-4 h-9 flex items-center border-b border-base-300 bg-base-250/40">
+          <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">active sprint</span>
+        </div>
+        <div class="flex flex-col items-center justify-center text-center px-8 py-12">
+          <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#6e7681" stroke-width="1.4">
+              <rect x="3" y="5" width="18" height="15" rx="2"/>
+              <path d="M3 9h18M8 3v4M16 3v4" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3 class="text-[17px] font-semibold tracking-tightish text-base-950">No active sprint</h3>
+          <p class="text-[14px] text-base-700 leading-snug mt-1.5 max-w-[34ch]">Plan your next sprint to start tracking work on the board and burndown.</p>
+          {{if $board.Mode.IsScrum}}
+          <div class="mt-5">
+            <a href="/workspaces/{{$team.Slug}}/planning"
+               class="h-8 px-3.5 inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
+              Plan a sprint
+            </a>
+          </div>
           {{end}}
         </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs border border-base-300 rounded px-1.5 py-0.5 text-base-content/50">{{.Board.Mode.Label}}</span>
-        <svg class="h-4 w-4 text-base-content/30 group-hover:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-        </svg>
-      </div>
-    </a>
-    {{else}}
-    <p class="text-sm text-base-content/30 text-center py-6">No board yet.</p>
-    {{end}}
-  </div>
+      </section>
+      {{end}}
 
-  <!-- Members section -->
-  <div class="max-w-sm">
-    <div class="flex items-center justify-between mb-3">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Members</span>
+      <!-- Blocked & at-risk -->
+      {{if .BlockedTickets}}
+      <section class="bg-base-200 border border-base-300 rounded-md">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
+          <div class="flex items-center gap-2">
+            <span class="text-[15px] font-medium text-base-950">Blocked &amp; at-risk</span>
+            <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-sm bg-danger/15 border border-danger/30 mono text-[13px] text-danger">{{len .BlockedTickets}}</span>
+          </div>
+        </div>
+        <div class="divide-y divide-base-300">
+          {{range .BlockedTickets}}
+          <div class="flex items-center gap-3 px-5 py-3 hover:bg-base-250/40 cursor-pointer"
+               hx-get="/tickets/{{.ID}}/quick"
+               hx-target="#modal-body"
+               hx-swap="innerHTML"
+               hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
+            {{if eq .Priority "critical"}}<span class="w-1 h-8 rounded-sm bg-p0 shrink-0"></span>
+            {{else if eq .Priority "high"}}<span class="w-1 h-8 rounded-sm bg-p1 shrink-0"></span>
+            {{else if eq .Priority "medium"}}<span class="w-1 h-8 rounded-sm bg-p2 shrink-0"></span>
+            {{else}}<span class="w-1 h-8 rounded-sm bg-p3 shrink-0"></span>{{end}}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2">
+                <span class="mono text-[13px] text-primary-400">{{.DisplayID}}</span>
+                {{if .ColumnName}}<span class="mono text-[13px] text-base-600">{{.ColumnName}}</span>{{end}}
+              </div>
+              <div class="text-[14px] text-base-900 truncate">{{.Title}}</div>
+            </div>
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-danger/15 border border-danger/30 mono text-[13px] uppercase tracking-wider text-danger shrink-0">blocked</span>
+            {{if .AssigneeName}}
+            <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials .AssigneeName}}</span>
+            {{end}}
+          </div>
+          {{end}}
+        </div>
+      </section>
+      {{end}}
+
+      <!-- Empty blocked state (only when sprint is active) -->
+      {{if and .NavActiveSprint (not .BlockedTickets)}}
+      <section class="bg-base-200 border border-base-300 rounded-md">
+        <div class="px-5 py-3 border-b border-base-300">
+          <span class="text-[15px] font-medium text-base-950">Blocked &amp; at-risk</span>
+        </div>
+        <div class="flex-1 flex flex-col items-center justify-center text-center px-8 py-12">
+          <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 class="text-[17px] font-semibold tracking-tightish text-base-950">Nothing blocked</h3>
+          <p class="text-[14px] text-base-700 leading-snug mt-1.5 max-w-[34ch]">Every in-flight ticket is moving. Blockers and stale work appear here.</p>
+        </div>
+      </section>
+      {{end}}
+
     </div>
-    {{template "team-members" (dict "Team" .Team "Members" .Members)}}
+
+    <!-- Right column, 4 cols -->
+    <div class="col-span-4 flex flex-col gap-4">
+
+      <!-- My day -->
+      <section class="bg-base-200 border border-base-300 rounded-md">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+          <span class="text-[15px] font-medium text-base-950">My day</span>
+          {{if .MyTickets}}
+          <span class="mono text-[13px] text-base-600">{{len .MyTickets}} tickets{{if .MyTicketsPoints}} · {{printf "%.0f" .MyTicketsPoints}} pt{{end}}</span>
+          {{end}}
+        </div>
+        {{if .MyTickets}}
+        <div class="p-2">
+          {{range $i, $t := .MyTickets}}
+          {{if or (eq $i 0) (ne $t.ColumnName (index $.MyTickets (sub $i 1)).ColumnName)}}
+          <div class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 px-2 py-1 {{if gt $i 0}}mt-1{{end}}">{{$t.ColumnName}}</div>
+          {{end}}
+          <a href="/tickets/{{$t.DisplayID}}"
+             class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base-250 cursor-pointer">
+            <span class="mono text-[13px] text-primary-400 shrink-0">{{$t.DisplayID}}</span>
+            <span class="text-[14px] text-base-900 truncate flex-1">{{$t.Title}}</span>
+            {{if $t.StoryPoints}}<span class="mono text-[13px] text-base-700 shrink-0">{{deref $t.StoryPoints}} pt</span>{{end}}
+          </a>
+          {{end}}
+        </div>
+        {{else}}
+        <div class="px-4 py-8 text-center">
+          <div class="mono text-[13px] text-base-600">no open issues assigned to you in this workspace</div>
+        </div>
+        {{end}}
+      </section>
+
+      <!-- Recent activity -->
+      <section class="bg-base-200 border border-base-300 rounded-md">
+        <div class="px-4 py-3 border-b border-base-300">
+          <span class="text-[15px] font-medium text-base-950">Recent activity</span>
+        </div>
+        {{if .Activity}}
+        <div class="p-4 space-y-3.5">
+          {{range .Activity}}
+          <div class="flex gap-2.5">
+            <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0 mt-0.5">{{initials .ActorName}}</span>
+            <div class="text-[14px] text-base-800 leading-snug min-w-0">
+              <span class="text-base-950">{{.ActorName}}</span>
+              {{if eq .Field "comment_added"}} commented on
+              {{else if eq .Field "status"}} moved
+              {{else if eq .Field "assignee"}} updated assignee on
+              {{else if eq .Field "priority"}} changed priority on
+              {{else if eq .Field "description"}} updated description on
+              {{else if eq .Field "title"}} renamed
+              {{else}} updated {{.Field}} on{{end}}
+              <a href="/tickets/{{.TicketDisplayID}}" class="mono text-[13px] text-primary-400 hover:text-primary-300">{{.TicketDisplayID}}</a>
+              {{if and (eq .Field "status") .NewValue}} → <span class="text-base-900">{{.NewValue}}</span>{{end}}
+              <div class="mono text-[13px] text-base-600 mt-0.5 truncate">{{.CreatedAt | timeAgo}}{{if .TicketTitle}} · {{.TicketTitle}}{{end}}</div>
+            </div>
+          </div>
+          {{end}}
+        </div>
+        {{else}}
+        <div class="px-4 py-8 text-center">
+          <div class="mono text-[13px] text-base-600">no activity yet</div>
+          <div class="mono text-[13px] text-base-700 mt-1">start working on tickets to see activity here</div>
+        </div>
+        {{end}}
+      </section>
+
+    </div>
   </div>
 
+</div>
 </div>
 {{end}}

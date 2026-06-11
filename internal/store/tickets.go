@@ -15,11 +15,12 @@ const ticketCols = `
 	t.number, COALESCE(tm.key, ''),
 	t.title, t.body, t.acceptance_criteria, t.priority, t.story_points, t.position,
 	t.sprint_id, t.external_ref, t.closed_at, t.close_reason, t.created_at, t.updated_at,
-	u.name`
+	u.name, COALESCE(ub.name, '')`
 
 const ticketJoins = `
 	FROM tickets t
 	LEFT JOIN users u  ON u.id  = t.assignee_id
+	LEFT JOIN users ub ON ub.id = t.created_by
 	LEFT JOIN teams tm ON tm.id = t.team_id`
 
 // ticketColsReturning is used after INSERT/UPDATE where no JOIN is available.
@@ -30,7 +31,7 @@ const ticketColsReturning = `
 	number, COALESCE((SELECT key FROM teams WHERE id = team_id), ''),
 	title, body, acceptance_criteria, priority, story_points, position,
 	sprint_id, external_ref, closed_at, close_reason, created_at, updated_at,
-	NULL::text`
+	NULL::text, NULL::text`
 
 func scanTicket(row interface{ Scan(dest ...any) error }, t *model.Ticket) error {
 	return row.Scan(
@@ -39,7 +40,7 @@ func scanTicket(row interface{ Scan(dest ...any) error }, t *model.Ticket) error
 		&t.Number, &t.TeamKey,
 		&t.Title, &t.Body, &t.AcceptanceCriteria, &t.Priority, &t.StoryPoints, &t.Position,
 		&t.SprintID, &t.ExternalRef, &t.ClosedAt, &t.CloseReason, &t.CreatedAt, &t.UpdatedAt,
-		&t.AssigneeName,
+		&t.AssigneeName, &t.CreatedByName,
 	)
 }
 
@@ -143,7 +144,10 @@ func (s *Store) CreateTicket(ctx context.Context,
 
 func (s *Store) MoveTicket(ctx context.Context, orgID, ticketID, columnID uuid.UUID, position float64) error {
 	_, err := s.primary.Exec(ctx,
-		`UPDATE tickets SET column_id = $3, position = $4, updated_at = NOW()
+		`UPDATE tickets
+		 SET column_id  = CASE WHEN $3 = '00000000-0000-0000-0000-000000000000'::uuid THEN column_id ELSE $3 END,
+		     position   = $4,
+		     updated_at = NOW()
 		 WHERE org_id = $1 AND id = $2`,
 		orgID, ticketID, columnID, position,
 	)
@@ -285,6 +289,42 @@ func (s *Store) ListTicketsByAssignee(ctx context.Context, orgID, userID uuid.UU
 		tickets = append(tickets, t)
 	}
 	return tickets, rows.Err()
+}
+
+// ListActivityByActor returns history entries where the given user was the actor
+// within the last 24 hours — used for "since yesterday" in the daily stand-up.
+func (s *Store) ListActivityByActor(ctx context.Context, orgID, actorID uuid.UUID) ([]model.InboxEntry, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT h.id, h.ticket_id, h.actor_id, h.actor_name, h.field, h.old_value, h.new_value, h.created_at,
+		        COALESCE(tm.key || '-' || t.number::text, t.id::text),
+		        t.title
+		 FROM ticket_history h
+		 JOIN tickets t ON t.id = h.ticket_id
+		 LEFT JOIN teams tm ON tm.id = t.team_id
+		 WHERE t.org_id = $1
+		   AND h.actor_id = $2
+		   AND h.created_at > NOW() - INTERVAL '24 hours'
+		 ORDER BY h.created_at DESC
+		 LIMIT 15`,
+		orgID, actorID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []model.InboxEntry
+	for rows.Next() {
+		var e model.InboxEntry
+		if err := rows.Scan(
+			&e.ID, &e.TicketID, &e.ActorID, &e.ActorName,
+			&e.Field, &e.OldValue, &e.NewValue, &e.CreatedAt,
+			&e.TicketDisplayID, &e.TicketTitle,
+		); err != nil {
+			return nil, err
+		}
+		entries = append(entries, e)
+	}
+	return entries, rows.Err()
 }
 
 // ListInboxActivity returns the most recent history entries across all tickets

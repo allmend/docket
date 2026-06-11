@@ -1,20 +1,18 @@
 {{define "team-member-results"}}
-{{if .Users}}
+{{$team := .Team}}
 {{range .Users}}
-<form hx-post="/teams/{{$.TeamID}}/members"
-      hx-target="#team-members-{{$.TeamID}}"
-      hx-swap="outerHTML">
-  <input type="hidden" name="user_id" value="{{.ID}}" />
-  <button type="submit" class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-base-300 text-left">
-    <div class="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-bold text-primary shrink-0">{{initials .Name}}</div>
-    <div>
-      <p class="text-xs text-base-content/80">{{.Name}}</p>
-      <p class="text-xs text-base-content/40 font-mono">{{.Email}}</p>
-    </div>
-  </button>
-</form>
-{{end}}
+<button type="button"
+        hx-post="/workspaces/{{$team.Slug}}/members"
+        hx-vals='{"user_id":"{{.ID}}"}'
+        hx-target="#team-members" hx-swap="outerHTML"
+        class="w-full flex items-center gap-2 px-2.5 py-2 text-[14px] text-base-900 hover:bg-base-300 rounded">
+  <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials .Name}}</span>
+  <div class="min-w-0 flex-1 text-left">
+    <div class="text-[14px] text-base-900 truncate">{{.Name}}</div>
+    <div class="mono text-[12px] text-base-600 truncate">{{.Username}}</div>
+  </div>
+</button>
 {{else}}
-<p class="text-xs text-base-content/30 px-3 py-2">No users found</p>
+<div class="px-2.5 py-2 text-[13px] text-base-600">No users found</div>
 {{end}}
 {{end}}

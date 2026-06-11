@@ -1,14 +1,12 @@
 package api
 
 import (
-	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"path/filepath"
-	"strconv"
-	"time"
 
+	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/go-chi/chi/v5"
 )
@@ -64,56 +62,7 @@ func parseTemplates(root string) (map[string]*template.Template, error) {
 		return nil, err
 	}
 
-	funcs := template.FuncMap{
-		"sub": func(a, b int) int { return a - b },
-		"add": func(a, b int) int { return a + b },
-		"mul": func(a, b int) int { return a * b },
-		"pct": func(part, total int) int {
-			if total == 0 {
-				return 0
-			}
-			return int(float64(part) / float64(total) * 100)
-		},
-		"initials": func(s string) string {
-			runes := []rune(s)
-			if len(runes) == 0 {
-				return "?"
-			}
-			return string(runes[0])
-		},
-		"deref": func(p *float64) string {
-			if p == nil {
-				return ""
-			}
-			return strconv.FormatFloat(*p, 'f', -1, 64)
-		},
-		"derefStr": func(p *string) string {
-			if p == nil {
-				return ""
-			}
-			return *p
-		},
-		"daysBetween": func(a, b *time.Time) int {
-			if a == nil || b == nil {
-				return 0
-			}
-			return int(b.Sub(*a).Hours() / 24)
-		},
-		"dict": func(pairs ...any) (map[string]any, error) {
-			if len(pairs)%2 != 0 {
-				return nil, fmt.Errorf("dict: odd number of arguments")
-			}
-			m := make(map[string]any, len(pairs)/2)
-			for i := 0; i < len(pairs); i += 2 {
-				key, ok := pairs[i].(string)
-				if !ok {
-					return nil, fmt.Errorf("dict: key must be string")
-				}
-				m[key] = pairs[i+1]
-			}
-			return m, nil
-		},
-	}
+	funcs := templateFuncs()
 
 	shared := template.New("").Funcs(funcs)
 	if len(partialPaths) > 0 {
@@ -158,13 +107,60 @@ func (h *Handler) pageData(r *http.Request, data map[string]any) map[string]any 
 	}
 	ctx := r.Context()
 	orgID := service.OrgIDFromContext(ctx)
+
+	// Minimal nav for org-level pages (dashboard, teams list, inbox, my-issues).
 	if teams, err := h.teams.ListTeamsWithBoards(ctx, orgID); err == nil {
 		data["NavTeams"] = teams
 	}
 	if u := h.auth.GetCurrentUser(ctx); u != nil {
 		data["CurrentUser"] = u
+		userID := service.UserIDFromContext(ctx)
+		if count, err := h.notifications.UnreadCount(ctx, orgID, userID); err == nil {
+			data["NavUnreadCount"] = count
+		}
+		if tickets, err := h.tickets.ListMyTickets(ctx, orgID, userID); err == nil {
+			data["NavMyIssueCount"] = len(tickets)
+		}
+	}
+	if org := h.auth.GetCurrentOrg(ctx); org != nil {
+		data["OrgName"] = org.Name
+		data["OrgSlug"] = org.Slug
 	}
 	data["CurrentPath"] = r.URL.Path
+
+	// Workspace-context nav: normalise Team → NavTeam and Board → NavBoard.
+	var navTeam *model.Team
+	switch v := data["Team"].(type) {
+	case model.Team:
+		t := v
+		navTeam = &t
+	case *model.Team:
+		navTeam = v
+	}
+	if navTeam != nil {
+		data["NavTeam"] = navTeam
+	}
+
+	var navBoard *model.Board
+	switch v := data["Board"].(type) {
+	case model.Board:
+		b := v
+		navBoard = &b
+	case *model.Board:
+		navBoard = v
+	}
+	if navBoard != nil {
+		data["NavBoard"] = navBoard
+		if tags, err := h.boards.ListBoardTags(ctx, orgID, navBoard.ID); err == nil {
+			data["NavTags"] = tags
+		}
+		if _, has := data["ActiveSprint"]; has {
+			data["NavActiveSprint"] = data["ActiveSprint"]
+		} else if sp, err := h.boards.GetActiveSprint(ctx, orgID, navBoard.ID); err == nil {
+			data["NavActiveSprint"] = sp
+		}
+	}
+
 	return data
 }
 
@@ -192,23 +188,42 @@ func (h *Handler) render(w http.ResponseWriter, name string, data any) {
 
 // Routes mounts all authenticated application routes.
 func (h *Handler) Routes(r chi.Router) {
-	r.Get("/", h.Dashboard)
+	r.Get("/", h.TeamList)
+	r.Get("/dashboard", h.Dashboard)
+	r.Get("/me", h.ProfilePage)
 	r.Post("/tickets/new", h.CreateGlobalTicket)
 	r.Get("/my-issues", h.MyIssues)
 	r.Get("/inbox", h.Inbox)
 	r.Post("/inbox/mark-read", h.MarkNotificationsRead)
 	r.Get("/nav/unread-count", h.NavUnreadCount)
 
-	r.Get("/teams", h.TeamList)
-	r.Post("/teams", h.CreateTeam)
-	r.Get("/teams/{teamID}", h.TeamView)
-	r.Put("/teams/{teamID}", h.UpdateTeam)
-	r.Delete("/teams/{teamID}", h.DeleteTeam)
-	r.Get("/teams/{teamID}/members/search", h.SearchTeamNonMembers)
-	r.Post("/teams/{teamID}/members", h.AddTeamMember)
-	r.Delete("/teams/{teamID}/members/{userID}", h.RemoveTeamMember)
+	r.Get("/workspaces", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/", http.StatusMovedPermanently)
+	})
+	r.Post("/workspaces", h.CreateTeam)
+	r.Get("/workspaces/{teamSlug}", h.TeamView)
+	r.Get("/workspaces/{teamSlug}/settings", h.TeamSettings)
+	r.Put("/workspaces/{teamSlug}", h.UpdateTeam)
+	r.Delete("/workspaces/{teamSlug}", h.DeleteTeam)
+	r.Get("/workspaces/{teamSlug}/members/search", h.SearchTeamNonMembers)
+	r.Post("/workspaces/{teamSlug}/members", h.AddTeamMember)
+	r.Delete("/workspaces/{teamSlug}/members/{userID}", h.RemoveTeamMember)
 
-	r.Get("/boards/{boardID}", h.BoardView)
+	// Workspace page routes — slug-based, appear in the address bar
+	r.Get("/workspaces/{teamSlug}/board", h.BoardView)
+	r.Get("/workspaces/{teamSlug}/planning", h.BoardPlanning)
+	r.Get("/workspaces/{teamSlug}/backlog", h.BoardBacklog)
+	r.Get("/workspaces/{teamSlug}/backlog/refinement", h.BoardRefinement)
+	r.Get("/workspaces/{teamSlug}/daily", h.BoardDailyScrum)
+	r.Get("/workspaces/{teamSlug}/roadmap", h.BoardRoadmap)
+	r.Get("/workspaces/{teamSlug}/tracks/{tagID}", h.TrackPage)
+	r.Get("/workspaces/{teamSlug}/retros", h.RetrosListPage)
+	r.Get("/workspaces/{teamSlug}/retros/{retroBoardID}", h.RetroBoardPage)
+	r.Get("/workspaces/{teamSlug}/sprints/{sprintID}/review", h.SprintReviewPage)
+
+	// Board action routes — UUID-based, used by HTMX, never in the address bar
+	r.Get("/boards/{boardID}/columns", h.BoardColumnsPartial)
+	r.Get("/boards/{boardID}/planning/columns", h.PlanningColumnsPartial)
 	r.Put("/boards/{boardID}", h.UpdateBoard)
 	r.Delete("/boards/{boardID}", h.DeleteBoard)
 
@@ -216,10 +231,6 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/boards/{boardID}/columns/{columnID}", h.RenameColumn)
 	r.Delete("/boards/{boardID}/columns/{columnID}", h.DeleteColumn)
 
-	r.Get("/boards/{boardID}/backlog", h.BoardBacklog)
-	r.Get("/boards/{boardID}/backlog/refinement", h.BoardRefinement)
-	r.Get("/boards/{boardID}/roadmap", h.BoardRoadmap)
-	r.Get("/boards/{boardID}/daily", h.BoardDailyScrum)
 	r.Get("/boards/{boardID}/daily/tickets", h.BoardDailyScrumTickets)
 	r.Get("/boards/{boardID}/tags", h.BoardTagsJSON)
 	r.Get("/boards/{boardID}/tags/manage", h.BoardTagsPanel)
@@ -249,6 +260,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/boards/{boardID}/backlog/tickets", h.CreateBacklogTicket)
 	r.Get("/tickets/{ref}", h.TicketPage)
 	r.Get("/tickets/{ticketID}/quick", h.TicketQuickView)
+	r.Get("/tickets/{ticketID}/refine", h.TicketRefineView)
 	r.Get("/tickets/{ticketID}/edit", h.TicketEditForm)
 	r.Get("/tickets/{ticketID}/view", h.TicketBodyView)
 	r.Put("/tickets/{ticketID}", h.UpdateTicket)
@@ -263,8 +275,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Put("/tickets/{ticketID}/column", h.UpdateTicketColumn)
 	r.Get("/tickets/{ticketID}/link-search", h.SearchTicketsForLink)
 	r.Post("/tickets/{ticketID}/close", h.CloseTicket)
-		r.Post("/tickets/{ticketID}/reopen", h.ReopenTicket)
-		r.Delete("/tickets/{ticketID}", h.DeleteTicket)
+	r.Post("/tickets/{ticketID}/reopen", h.ReopenTicket)
+	r.Delete("/tickets/{ticketID}", h.DeleteTicket)
 	r.Post("/tickets/{ticketID}/move", h.MoveTicket)
 	r.Post("/tickets/{ticketID}/sprint-place", h.SprintPlaceTicket)
 	r.Get("/tickets/{ticketID}/assignees/search", h.SearchTicketAssignees)
@@ -286,11 +298,8 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Post("/tickets/{ticketID}/links", h.CreateLink)
 	r.Delete("/tickets/{ticketID}/links/{linkID}", h.DeleteLink)
 
-	r.Get("/boards/{boardID}/sprints/{sprintID}/review", h.SprintReviewPage)
 	r.Post("/boards/{boardID}/sprints/{sprintID}/close-and-retro", h.CloseSprintAndStartRetro)
 
-	r.Get("/boards/{boardID}/retros", h.RetrosListPage)
-	r.Get("/boards/{boardID}/retro/{retroBoardID}", h.RetroBoardPage)
 	r.Post("/boards/{boardID}/retro/{retroBoardID}/close", h.CloseRetroBoard)
 	r.Post("/boards/{boardID}/retro/{retroBoardID}/cards", h.CreateRetroCard)
 	r.Delete("/boards/{boardID}/retro/{retroBoardID}/cards/{cardID}", h.DeleteRetroCard)

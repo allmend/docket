@@ -1,73 +1,72 @@
-{{define "title"}}Retrospective — {{.RetroView.Board.Name}}{{end}}
+{{template "base" .}}
+
+{{define "title"}}Retrospective — Docket{{end}}
+
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<a href="{{if .Team}}/workspaces/{{.Team.Slug}}/retros{{else}}/{{end}}" class="mono text-[13px] text-base-700 hover:text-base-900 px-1.5 py-1 rounded hover:bg-base-250">Retros</a>
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">{{if .RetroView.Sprint}}{{.RetroView.Sprint.Name}}{{else}}Retro{{end}}</span>
+{{end}}
 
 {{define "content"}}
-{{$v := .RetroView}}
-<div class="flex flex-col h-full min-h-0 gap-4 p-6">
+{{$rv  := .RetroView}}
+{{$rb  := $rv.RetroBoard}}
+{{$uid := .CurrentUserID}}
+{{$board := .Board}}
+{{$team  := .Team}}
 
-  <!-- Header -->
-  <div class="flex items-start justify-between shrink-0">
-    <div class="flex flex-col gap-0.5">
-      <nav class="mb-1">
-        <ol class="flex items-center gap-1 text-sm text-base-content/50">
-          <li><a href="/teams" class="hover:text-base-content">Teams</a></li>
-          {{if .Team}}
-          <li class="flex items-center gap-1">
-            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-            <a href="/teams/{{.Team.ID}}" class="hover:text-base-content"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
-          </li>
-          {{end}}
-          <li class="flex items-center gap-1">
-            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-            <a href="/boards/{{$v.Board.ID}}" class="hover:text-base-content">{{$v.Board.Name}}</a>
-          </li>
-          <li class="flex items-center gap-1">
-            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-            <a href="/boards/{{$v.Board.ID}}/retros" class="hover:text-base-content">Retrospectives</a>
-          </li>
-          <li class="flex items-center gap-1">
-            <svg class="h-3.5 w-3.5 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-            <span class="text-base-content/30">{{if $v.Sprint}}{{$v.Sprint.Name}}{{else}}Retrospective{{end}}</span>
-          </li>
-        </ol>
-      </nav>
-      {{if $v.RetroBoard.IsClosed}}
-      <p class="text-xs text-base-content/30">This retrospective is closed — cards are read-only.</p>
-      {{else}}
-      <p class="text-xs text-base-content/30">Cards are anonymous — only you can delete your own.</p>
+<div class="flex-1 min-h-0 flex flex-col overflow-hidden" x-data="{phase:'brainstorm'}">
+
+  <!-- Context bar -->
+  <div class="shrink-0 h-12 bg-base-200 border-b border-base-300 flex items-center gap-4 px-4 whitespace-nowrap overflow-x-auto">
+    <div class="flex items-center gap-2.5 shrink-0">
+      <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">retrospective</span>
+      {{if $rv.Sprint}}
+      <span class="text-[15px] font-medium text-base-950">{{$rv.Sprint.Name}}{{if $rv.Sprint.Goal}} · <span class="font-normal text-base-800">{{$rv.Sprint.Goal}}</span>{{end}}</span>
       {{end}}
     </div>
 
-    <!-- Sprint stats + close button -->
-    <div class="flex items-center gap-4 shrink-0">
-      {{if $v.Sprint}}
-      {{if gt $v.Sprint.CompletedTickets 0}}
-      <div class="flex items-center gap-3 text-xs text-base-content/40">
-        <span class="font-mono">
-          <span class="text-base-content/70 font-semibold">{{$v.Sprint.CompletedTickets}}</span>/{{$v.Sprint.CommittedTickets}} tickets
-        </span>
-        {{if gt $v.Sprint.CommittedPoints 0.0}}
-        <span class="font-mono">
-          <span class="text-base-content/70 font-semibold">{{printf "%.0f" $v.Sprint.CompletedPoints}}</span>/{{printf "%.0f" $v.Sprint.CommittedPoints}} pts
-        </span>
-        {{end}}
-        <span class="text-primary font-semibold">{{$v.Sprint.CompletionPct}}%</span>
-      </div>
-      {{end}}
-      {{end}}
+    <!-- Phase toggle -->
+    <div class="ml-2 inline-flex items-center gap-0.5 bg-base-250 border border-base-350 rounded-md p-0.5 shrink-0">
+      <button @click="phase='brainstorm'"
+              :class="phase==='brainstorm' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+              class="h-7 px-3 rounded-sm mono text-[13px]">Brainstorm</button>
+      <button @click="phase='group'"
+              :class="phase==='group' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+              class="h-7 px-3 rounded-sm mono text-[13px]">Group</button>
+      <button @click="phase='vote'"
+              :class="phase==='vote' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+              class="h-7 px-3 rounded-sm mono text-[13px]">Vote</button>
+      <button @click="phase='discuss'"
+              :class="phase==='discuss' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+              class="h-7 px-3 rounded-sm mono text-[13px]">Discuss</button>
+    </div>
 
-      {{if not $v.RetroBoard.IsClosed}}
-      <form method="POST" action="/boards/{{$v.Board.ID}}/retro/{{$v.RetroBoard.ID}}/close">
+    <div class="ml-auto flex items-center gap-3 shrink-0">
+      <span class="inline-flex items-center gap-1.5 mono text-[13px] text-base-600">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 10.5a2.5 2.5 0 0 0 2.5-2.5V5a2.5 2.5 0 0 0-5 0v3A2.5 2.5 0 0 0 8 10.5Z"/><path d="M4 8a4 4 0 0 0 8 0M8 12.5V14" stroke-linecap="round"/></svg>
+        anonymous
+      </span>
+      <button class="h-8 px-3 inline-flex items-center gap-2 bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-900">Export</button>
+      {{if not $rb.IsClosed}}
+      <form method="POST" action="/boards/{{$rb.BoardID}}/retro/{{$rb.ID}}/close"
+            onsubmit="return confirm('Close this retro? No more cards can be added after closing.')">
         <button type="submit"
-                class="px-4 py-2 bg-base-300 text-base-content/70 text-sm font-medium rounded-lg hover:bg-base-content/10 hover:text-base-content">
-          Close Retro
+                class="h-8 px-3 inline-flex items-center gap-2 bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-900">
+          Close retro
         </button>
       </form>
+      {{else}}
+      <span class="inline-flex items-center h-6 px-2 rounded-sm bg-base-300 border border-base-350 mono text-[13px] uppercase tracking-wider text-base-600">closed</span>
       {{end}}
     </div>
   </div>
 
-  <!-- Columns -->
-  {{template "retro-columns" .}}
+  <!-- Retro columns -->
+  <div id="retro-columns" class="flex-1 min-h-0 overflow-hidden">
+    {{template "retro-columns" (dict "RetroView" $rv "CurrentUserID" $uid)}}
+  </div>
 
 </div>
 {{end}}

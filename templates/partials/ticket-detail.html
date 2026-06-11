@@ -1,326 +1,274 @@
 {{define "ticket-detail"}}
-<div class="flex flex-1 min-h-0 h-full min-w-0 bg-base-100">
+{{$t := .Ticket}}
+{{$closed := .Ticket.ClosedAt}}
+<div class="flex flex-col h-full w-full overflow-hidden">
 
-  <!-- Left: main content -->
-  <div class="flex-1 min-w-0 overflow-x-hidden overflow-y-auto px-8 py-6 flex flex-col gap-5">
-
-    <!-- Breadcrumb / identity row -->
-    <nav class="text-sm text-base-content/50 flex items-center gap-1 flex-wrap">
-      {{if .Team}}
-      <a href="/teams" class="hover:text-primary">Teams</a>
-      <span class="mx-0.5">/</span>
-      <a href="/teams/{{.Team.ID}}" class="hover:text-primary">
-        <span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}
-      </a>
-      {{if .Board}}
-      <span class="mx-0.5">/</span>
-      <a href="/boards/{{.Board.ID}}" class="hover:text-primary">{{.Board.Name}}</a>
+  <!-- header -->
+  <header class="shrink-0 h-12 px-4 flex items-center gap-3 border-b border-base-300">
+    <div class="flex items-center gap-2">
+      {{if .Tags}}<span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{(index .Tags 0).Color}}"></span>{{end}}
+      <span class="mono text-[13px] text-primary-400">{{$t.DisplayID}}</span>
+    </div>
+    {{range .Columns}}{{if eq .ID $t.ColumnID}}
+    {{$col := lower .Name}}
+    <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[13px] uppercase tracking-wider
+      {{if contains $col "progress"}}bg-info/15 border border-info/30 text-info
+      {{else if contains $col "review"}}bg-warn/15 border border-warn/30 text-warn
+      {{else if eq $col "done"}}bg-success/15 border border-success/30 text-success
+      {{else}}bg-base-300 border border-base-350 text-base-700{{end}}">{{.Name}}</span>
+    {{end}}{{end}}
+    {{if $closed}}
+    <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-success/15 border border-success/30 mono text-[13px] uppercase tracking-wider text-success">closed</span>
+    {{end}}
+    <span class="mono text-[13px] text-base-600">opened {{timeAgo $t.CreatedAt}}{{if $t.CreatedByName}} by{{end}}</span>
+    {{if $t.CreatedByName}}
+    <span class="inline-flex items-center gap-1.5 mono text-[13px] text-base-800 shrink-0">
+      <span class="w-3.5 h-3.5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center text-[9px] font-semibold">{{initials $t.CreatedByName}}</span>
+      {{$t.CreatedByName}}
+    </span>
+    {{end}}
+    <div class="ml-auto flex items-center gap-1">
+      {{if not $closed}}
+      <button hx-get="/tickets/{{$t.ID}}/edit"
+              hx-target="#ticket-body"
+              hx-swap="outerHTML"
+              class="h-7 px-2 inline-flex items-center gap-1.5 rounded text-[13px] text-base-700 hover:text-base-900 hover:bg-base-250">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 2 14 5 5 14 H2 V11 Z"/></svg>
+        Edit
+      </button>
       {{end}}
-      <span class="mx-0.5">/</span>
-      <span class="font-mono text-primary">{{.Ticket.DisplayID}}</span>
-      {{else}}
-      {{/* Modal context: show ID + open-in-full link */}}
-      <a href="/tickets/{{.Ticket.DisplayID}}" class="font-mono text-primary hover:underline">{{.Ticket.DisplayID}}</a>
-      <a href="/tickets/{{.Ticket.DisplayID}}"
-         class="flex items-center gap-1 text-xs text-base-content/30 hover:text-base-content/60 ml-1"
-         title="Open full page">
-        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-        </svg>
+      <a href="/tickets/{{$t.DisplayID}}"
+         class="h-7 px-2 inline-flex items-center gap-1.5 rounded text-[13px] text-base-700 hover:text-base-900 hover:bg-base-250">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3H3v10h10v-3M10 2h4v4M14 2 8 8"/></svg>
         Open
       </a>
+      <span class="w-px h-5 bg-base-300 mx-1"></span>
+      <button class="w-7 h-7 rounded text-base-700 hover:text-base-900 hover:bg-base-250 inline-flex items-center justify-center" aria-label="More actions">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.4"/><circle cx="8" cy="8" r="1.4"/><circle cx="13" cy="8" r="1.4"/></svg>
+      </button>
+      <button @click="$dispatch('close-ticket-modal')"
+              data-drawer-close
+              class="w-7 h-7 rounded text-base-700 hover:text-base-900 hover:bg-base-250 inline-flex items-center justify-center" aria-label="close">
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 3 10 10M13 3 3 13"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- body -->
+  <div class="flex-1 min-h-0 overflow-hidden grid grid-cols-[1fr_280px]">
+
+    <!-- Main column -->
+    <div class="overflow-y-auto p-5 space-y-5 border-r border-base-300">
+
+      {{template "ticket-body" (dict "Ticket" $t "Board" nil "Team" nil)}}
+
+      {{template "ticket-ac-section" $t}}
+
+      <!-- Linked work -->
+      {{if .Links}}
+      <section class="space-y-2">
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Linked work</div>
+        <div class="bg-base-150 border border-base-300 rounded shadow-sunk divide-y divide-base-300">
+          {{range .Links}}
+          {{$col := lower .ToColumnName}}
+          <div class="flex items-center gap-3 px-3 py-2">
+            <span class="mono text-[13px] text-base-600 w-16 shrink-0">{{.Relation.Label}}</span>
+            <a href="/tickets/{{.ToDisplayID}}" class="mono text-[13px] text-primary-400 hover:underline shrink-0">{{.ToDisplayID}}</a>
+            <span class="text-[14px] text-base-700 flex-1 truncate">{{.ToTitle}}</span>
+            <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[12px] uppercase tracking-wider shrink-0
+              {{if .ToClosedAt}}bg-success/15 border border-success/30 text-success
+              {{else if contains $col "progress"}}bg-info/15 border border-info/30 text-info
+              {{else if contains $col "review"}}bg-warn/15 border border-warn/30 text-warn
+              {{else}}bg-base-250 border border-base-350 text-base-700{{end}}">
+              {{if .ToClosedAt}}done
+              {{else if eq .ToColumnName ""}}backlog
+              {{else}}{{.ToColumnName}}{{end}}
+            </span>
+          </div>
+          {{end}}
+        </div>
+      </section>
       {{end}}
-    </nav>
 
-    <!-- Title -->
-    {{template "ticket-title" .Ticket}}
+      <!-- Activity -->
+      <section class="space-y-3">
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Activity</div>
+        <div id="ticket-activity" class="relative pl-5 space-y-3">
+          <span class="absolute left-[5.5px] top-1.5 bottom-1.5 w-px bg-base-300"></span>
+          {{range .History}}
+          <div class="relative flex items-center gap-2 text-[13px] text-base-700">
+            <span class="absolute -left-[18px] w-3 h-3 rounded-full bg-base-300 ring-2 ring-base-200"></span>
+            <span class="text-base-900 font-medium">{{.ActorName}}</span>
+            {{if eq .Field "title"}}changed title
+            {{else if eq .Field "description"}}updated description
+            {{else if eq .Field "priority"}}changed priority to <span class="text-base-900">{{.NewValue}}</span>
+            {{else if eq .Field "story_points"}}estimated <span class="mono text-base-900">{{.NewValue}} pt</span>
+            {{else if eq .Field "column"}}moved to
+              {{$cn := lower .NewValue}}
+              <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[12px] uppercase tracking-wider
+                {{if contains $cn "progress"}}bg-info/15 border border-info/30 text-info
+                {{else if contains $cn "review"}}bg-warn/15 border border-warn/30 text-warn
+                {{else if eq $cn "done"}}bg-success/15 border border-success/30 text-success
+                {{else}}bg-base-300 border border-base-350 text-base-700{{end}}">{{.NewValue}}</span>
+            {{else if eq .Field "comment"}}commented
+            {{else if eq .Field "link_added"}}linked <span class="mono text-base-900">{{.NewValue}}</span>
+            {{else if eq .Field "link_removed"}}removed link to <span class="mono text-base-900">{{.OldValue}}</span>
+            {{else}}{{.Field}}: {{.NewValue}}
+            {{end}}
+            <span class="ml-auto mono text-[12px] text-base-600 shrink-0">{{timeAgo .CreatedAt}}</span>
+          </div>
+          {{end}}
+          {{range .Comments}}
+          {{template "comment" .}}
+          {{end}}
+        </div>
 
-    <!-- Description -->
-    {{template "ticket-body-section" .Ticket}}
-
-    <!-- Acceptance Criteria -->
-    <div class="flex flex-col gap-1.5 border-t border-base-300 pt-5">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Acceptance Criteria</span>
-      {{template "ticket-ac-section" .Ticket}}
+        {{if not $closed}}
+        <div class="bg-base-150 border border-base-300 rounded shadow-sunk">
+          <form hx-post="/tickets/{{$t.ID}}/comments"
+                hx-target="#ticket-activity"
+                hx-swap="beforeend"
+                @submit="$el.reset()">
+            <textarea name="body" rows="2"
+                      placeholder="Leave a comment · markdown supported"
+                      class="block w-full bg-transparent border-0 px-3 py-2.5 text-[14px] text-base-800 placeholder:text-base-600 focus:outline-none resize-none"></textarea>
+            <div class="h-9 px-2.5 flex items-center justify-between border-t border-base-300">
+              <div class="flex items-center gap-1.5 mono text-[13px] text-base-600">
+                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">**b**</span>
+                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">_i_</span>
+                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">`code`</span>
+                <span class="text-base-500 mx-0.5">·</span>
+                <span>@ # tickets</span>
+              </div>
+              <button type="submit"
+                      class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] px-2.5 py-1 rounded">
+                Comment
+              </button>
+            </div>
+          </form>
+        </div>
+        {{end}}
+      </section>
     </div>
 
-    <!-- Links (between description and tabs) -->
-    {{if .Links}}
-    <div class="flex flex-col gap-1.5">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Links</span>
-      {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links "Closed" .Ticket.ClosedAt)}}
-    </div>
-    {{else}}
-    {{template "ticket-links" (dict "TicketID" .Ticket.ID "Links" .Links)}}
-    {{end}}
+    <!-- Sidebar -->
+    <aside class="overflow-y-auto p-4 space-y-4 bg-base-200/40">
 
-    <!-- Tabs: Comments + History -->
-    <div x-data="{ tab: 'comments', commentCount: {{len .Comments}} }" @comment-added="commentCount++" class="flex flex-col gap-4 mt-2">
-      <div class="flex items-center gap-1 border-b border-base-300">
-        <button @click="tab = 'comments'"
-                :class="tab === 'comments' ? 'border-b-2 border-primary text-base-content' : 'text-base-content/50 hover:text-base-content'"
-                class="px-3 py-2 text-sm font-medium -mb-px transition-colors">
-          Comments
-          <span x-show="commentCount > 0" x-text="commentCount" class="ml-1.5 text-xs bg-base-300 rounded px-1.5 py-0.5"></span>
-        </button>
-        <button @click="tab = 'history'"
-                :class="tab === 'history' ? 'border-b-2 border-primary text-base-content' : 'text-base-content/50 hover:text-base-content'"
-                class="px-3 py-2 text-sm font-medium -mb-px transition-colors">
-          History
-        </button>
+      <!-- Status / Column -->
+      <div>
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Status</div>
+        {{if not $closed}}
+        {{$sw := "#484f58"}}
+        {{range .Columns}}{{if eq .ID $t.ColumnID}}{{$cn := lower .Name}}{{if contains $cn "progress"}}{{$sw = "#58a6ff"}}{{else if contains $cn "review"}}{{$sw = "#d29922"}}{{else if eq $cn "done"}}{{$sw = "#10b981"}}{{end}}{{end}}{{end}}
+        <div class="selwrap"
+             x-data="{sw:'{{$sw}}',upd(s){let t=s.toLowerCase();this.sw=t.includes('progress')?'#58a6ff':t.includes('review')?'#d29922':t==='done'?'#10b981':'#484f58';}}">
+          <span class="swatch" :style="'background:'+sw"></span>
+          <select name="column_id"
+                  hx-put="/tickets/{{$t.ID}}/column"
+                  hx-trigger="change"
+                  hx-swap="none"
+                  @change="upd($el.options[$el.selectedIndex].text)"
+                  class="metasel has-swatch">
+            {{range .Columns}}
+            <option value="{{.ID}}" {{if eq .ID $t.ColumnID}}selected{{end}}>{{.Name}}</option>
+            {{end}}
+          </select>
+          <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        {{else}}
+        <span class="text-[13px] text-success">Closed</span>
+        {{end}}
       </div>
 
-      <!-- Comments tab -->
-      <div x-show="tab === 'comments'" class="flex flex-col gap-4">
-        <div class="comments-list flex flex-col gap-4">
-          {{range .Comments}}
-          <div id="comment-{{.ID}}" class="flex gap-3">
-            <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .AuthorName}}</div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-sm font-medium">{{.AuthorName}}</span>
-                <span class="font-mono text-xs text-base-content/40">{{.CreatedAt.Format "Jan 2, 2006 · 15:04"}}</span>
-                {{if .Edited}}<span class="text-xs text-base-content/30">(edited)</span>{{end}}
-              </div>
-              <div class="text-sm text-base-content/80 leading-relaxed bg-base-200 border border-base-300 rounded-lg px-3 py-2.5 [&_a]:text-primary [&_a]:hover:underline overflow-x-auto">
-                {{.BodyHTML}}
-              </div>
-              {{if not $.Ticket.ClosedAt}}
-              <div class="flex items-center gap-3 mt-1.5">
-                <button hx-get="/comments/{{.ID}}/edit" hx-target="#comment-{{.ID}}" hx-swap="outerHTML"
-                        class="text-xs text-base-content/30 hover:text-base-content">Edit</button>
-                <button hx-delete="/comments/{{.ID}}" hx-target="#comment-{{.ID}}" hx-swap="outerHTML" hx-confirm="Delete this comment?"
-                        class="text-xs text-base-content/30 hover:text-red-400">Delete</button>
-              </div>
+      <!-- Assignees -->
+      {{template "ticket-assignees" (dict "Ticket" $t "Assignees" .Assignees "CurrentUser" .CurrentUser)}}
+
+      <!-- Priority + Points side by side -->
+      <div class="grid grid-cols-2 gap-3">
+        <!-- Priority -->
+        {{template "ticket-priority-select" $t}}
+
+        <!-- Points -->
+        <div>
+          <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Points</div>
+          {{if not $closed}}
+          <div class="selwrap">
+            <select name="story_points"
+                    hx-put="/tickets/{{$t.ID}}/points"
+                    hx-trigger="change"
+                    hx-swap="none"
+                    class="metasel pts">
+              <option value="">—</option>
+              <option value="1"  {{if eq (deref $t.StoryPoints) "1"}}selected{{end}}>1</option>
+              <option value="2"  {{if eq (deref $t.StoryPoints) "2"}}selected{{end}}>2</option>
+              <option value="3"  {{if eq (deref $t.StoryPoints) "3"}}selected{{end}}>3</option>
+              <option value="5"  {{if eq (deref $t.StoryPoints) "5"}}selected{{end}}>5</option>
+              <option value="8"  {{if eq (deref $t.StoryPoints) "8"}}selected{{end}}>8</option>
+              <option value="13" {{if eq (deref $t.StoryPoints) "13"}}selected{{end}}>13</option>
+            </select>
+            <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          {{else}}
+          <div class="px-1">{{if $t.StoryPoints}}<span class="mono text-[13px] text-base-900">{{deref $t.StoryPoints}} pt</span>{{else}}<span class="mono text-[13px] text-base-600">—</span>{{end}}</div>
+          {{end}}
+        </div>
+      </div>
+
+      <!-- Tags / Tracks -->
+      {{if or .Tags .BoardTags}}
+      <div>
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Tracks</div>
+        <div class="flex flex-wrap gap-1.5">
+          {{range .Tags}}
+          <span class="inline-flex items-center gap-1.5 h-6 pl-1.5 pr-1 rounded-sm bg-base-250 border border-base-350 text-[13px] text-base-800 group">
+            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+            {{.Name}}
+            {{if not $closed}}
+            <button hx-delete="/tickets/{{$t.ID}}/tags/{{.ID}}"
+                    hx-swap="none"
+                    hx-on::after-request="window.location.reload()"
+                    aria-label="Remove track"
+                    class="w-4 h-4 inline-flex items-center justify-center rounded-sm text-base-600 hover:text-danger hover:bg-base-300 opacity-0 group-hover:opacity-100">
+              <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 3 10 10M13 3 3 13"/></svg>
+            </button>
+            {{end}}
+          </span>
+          {{end}}
+          {{if and (not $closed) .BoardTags}}
+          <div x-data="{open:false}" class="relative">
+            <button @click="open=!open"
+                    class="inline-flex items-center gap-1 h-6 px-1.5 rounded-sm border border-dashed border-base-400 text-base-600 hover:text-base-900 hover:border-base-500 text-[13px]">
+              <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+              add
+            </button>
+            <div x-show="open" @click.outside="open=false"
+                 class="absolute top-full mt-1 left-0 min-w-[140px] bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1">
+              {{range .BoardTags}}
+              <button type="button"
+                      hx-post="/tickets/{{$t.ID}}/tags"
+                      hx-vals='{"tag_id":"{{.ID}}"}'
+                      hx-swap="none"
+                      hx-on::after-request="window.location.reload()"
+                      @click="open=false"
+                      class="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-base-900 hover:bg-base-300">
+                <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+                {{.Name}}
+              </button>
               {{end}}
             </div>
           </div>
           {{end}}
         </div>
-
-        <!-- New comment form -->
-        {{if not .Ticket.ClosedAt}}
-        <div class="flex gap-3 mt-2">
-          {{if .CurrentUser}}
-          <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .CurrentUser.Name}}</div>
-          {{end}}
-          <div class="flex-1 min-w-0">
-            <form hx-post="/tickets/{{.Ticket.ID}}/comments" hx-target=".comments-list" hx-swap="beforeend"
-                  hx-on::after-request="if(event.detail.successful){this.reset();this.dispatchEvent(new CustomEvent('comment-added',{bubbles:true}))}"
-                  class="flex flex-col gap-2">
-              {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Write a comment… (@username, #TICKET-ID)" "Rows" "3")}}
-              <div>
-                <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Comment</button>
-              </div>
-            </form>
-          </div>
-        </div>
-        {{end}}
       </div>
+      {{end}}
 
-      <!-- History tab -->
-      <div x-show="tab === 'history'" class="flex flex-col gap-2">
-        {{if .History}}
-        {{range .History}}
-        <div class="flex items-center gap-3 py-2 border-b border-base-300/50">
-          <span class="font-mono text-xs text-base-content/30 w-36 shrink-0">{{.CreatedAt.Format "Jan 2, 2006 15:04"}}</span>
-          <span class="text-sm text-base-content/70">
-            <span class="text-base-content">{{.ActorName}}</span>
-            {{if eq .Field "title"}} changed <span class="text-base-content">title</span>
-            {{else if eq .Field "priority"}} changed <span class="text-base-content">priority</span> from <span class="text-base-content/50">{{.OldValue}}</span> to <span class="text-base-content">{{.NewValue}}</span>
-            {{else if eq .Field "description"}} updated <span class="text-base-content">description</span>
-            {{else if eq .Field "comment"}} added a <span class="text-base-content">comment</span>
-            {{else if eq .Field "link_added"}} added link <span class="text-base-content">{{.NewValue}}</span>
-            {{else if eq .Field "link_removed"}} removed link <span class="text-base-content">{{.OldValue}}</span>
-            {{else if eq .Field "link_cleared"}} link <span class="text-base-content">{{.OldValue}}</span> cleared at sprint close
-            {{else}} updated <span class="text-base-content">{{.Field}}</span>
-            {{end}}
-          </span>
-        </div>
-        {{end}}
-        {{else}}
-        <p class="text-sm text-base-content/30 py-2">No history yet.</p>
-        {{end}}
+      <!-- Timestamps -->
+      <div class="pt-3 border-t border-base-300 space-y-1 mono text-[13px] text-base-700">
+        <div class="flex justify-between"><span class="text-base-600">created</span><span>{{$t.CreatedAt.Format "2 Jan 15:04"}}</span></div>
+        <div class="flex justify-between"><span class="text-base-600">updated</span><span>{{timeAgo $t.UpdatedAt}}</span></div>
+        {{if $closed}}<div class="flex justify-between"><span class="text-base-600">closed</span><span class="text-success">{{$closed.Format "2 Jan 15:04"}}</span></div>{{end}}
       </div>
-
-    </div>
-
+    </aside>
   </div>
-
-  <!-- Right: metadata sidebar -->
-  <div class="w-72 shrink-0 border-l border-base-300 px-5 py-6 flex flex-col gap-5 overflow-y-auto">
-
-    <!-- Assignees -->
-    <div class="flex flex-col gap-2">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Assignees</span>
-      {{template "ticket-assignees" (dict "Ticket" .Ticket "Assignees" .Assignees "CurrentUser" .CurrentUser)}}
-    </div>
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Labels -->
-    <div class="flex flex-col gap-2">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Labels</span>
-      {{template "ticket-tags" (dict "Ticket" .Ticket "Tags" .Tags "BoardTags" .BoardTags)}}
-    </div>
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Story Points -->
-    <div class="flex flex-col gap-2">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Story Points</span>
-      {{if or .SprintActive .Ticket.ClosedAt}}
-      <div class="flex items-center gap-2">
-        <span class="text-sm text-base-content/60">{{if .Ticket.StoryPoints}}{{deref .Ticket.StoryPoints}}{{else}}—{{end}}</span>
-      </div>
-      {{else}}
-      <select name="story_points"
-              hx-put="/tickets/{{.Ticket.ID}}/points"
-              hx-trigger="change"
-              hx-swap="none"
-              class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
-        <option value=""    {{if not .Ticket.StoryPoints}}selected{{end}}>—</option>
-        <option value="0"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "0")}}selected{{end}}>0</option>
-        <option value="0.5" {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "0.5")}}selected{{end}}>0.5</option>
-        <option value="1"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "1")}}selected{{end}}>1</option>
-        <option value="2"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "2")}}selected{{end}}>2</option>
-        <option value="3"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "3")}}selected{{end}}>3</option>
-        <option value="5"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "5")}}selected{{end}}>5</option>
-        <option value="8"   {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "8")}}selected{{end}}>8</option>
-        <option value="13"  {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "13")}}selected{{end}}>13</option>
-        <option value="20"  {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "20")}}selected{{end}}>20</option>
-        <option value="40"  {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "40")}}selected{{end}}>40</option>
-        <option value="100" {{if and .Ticket.StoryPoints (eq (deref .Ticket.StoryPoints) "100")}}selected{{end}}>100</option>
-      </select>
-      {{end}}
-    </div>
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Priority -->
-    <div class="flex flex-col gap-2">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Priority</span>
-      {{if .Ticket.ClosedAt}}
-      <span class="text-sm text-base-content/60">{{if .Ticket.Priority}}{{.Ticket.Priority}}{{else}}No priority{{end}}</span>
-      {{else}}
-      <select name="priority"
-              hx-put="/tickets/{{.Ticket.ID}}/priority"
-              hx-trigger="change"
-              hx-swap="none"
-              class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
-        <option value=""         {{if eq .Ticket.Priority ""}}selected{{end}}>No priority</option>
-        <option value="low"      {{if eq .Ticket.Priority "low"}}selected{{end}}>Low</option>
-        <option value="medium"   {{if eq .Ticket.Priority "medium"}}selected{{end}}>Medium</option>
-        <option value="high"     {{if eq .Ticket.Priority "high"}}selected{{end}}>High</option>
-        <option value="critical" {{if eq .Ticket.Priority "critical"}}selected{{end}}>Critical</option>
-      </select>
-      {{end}}
-    </div>
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Status (column) -->
-    <div class="flex flex-col gap-2">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Status</span>
-      {{if .Ticket.ClosedAt}}
-      <span class="text-sm text-base-content/60">{{range .Columns}}{{if eq .ID $.Ticket.ColumnID}}{{.Name}}{{end}}{{end}}</span>
-      {{else}}
-      <select name="column_id"
-              hx-put="/tickets/{{.Ticket.ID}}/column"
-              hx-trigger="change"
-              hx-swap="none"
-              class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
-        {{range .Columns}}
-        <option value="{{.ID}}" {{if eq .ID $.Ticket.ColumnID}}selected{{end}}>{{.Name}}</option>
-        {{end}}
-      </select>
-      {{end}}
-    </div>
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Definition of Done -->
-    {{if .DodItems}}
-    <div class="flex flex-col gap-2">
-      <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Definition of Done</span>
-      <div hx-get="/tickets/{{.Ticket.ID}}/dod"
-           hx-trigger="load"
-           hx-swap="outerHTML">
-        <div class="text-xs text-base-content/30">Loading…</div>
-      </div>
-    </div>
-    <div class="border-t border-base-300"></div>
-    {{end}}
-
-    <!-- Timestamps -->
-    <div class="flex flex-col gap-2.5">
-      <div class="flex flex-col gap-0.5">
-        <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Created</span>
-        <span class="font-mono text-xs text-base-content/60">{{.Ticket.CreatedAt.Format "Jan 2, 2006"}}</span>
-      </div>
-      <div class="flex flex-col gap-0.5">
-        <span class="text-xs uppercase tracking-widest text-base-content/30 font-medium">Updated</span>
-        <span class="font-mono text-xs text-base-content/60">{{.Ticket.UpdatedAt.Format "Jan 2, 2006"}}</span>
-      </div>
-    </div>
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Close / Reopen -->
-    {{if .Ticket.ClosedAt}}
-    <div class="flex flex-col gap-2">
-      <div class="flex items-center gap-1.5">
-        <span class="text-xs uppercase tracking-widest text-amber-500/70 font-medium">Closed</span>
-      </div>
-      <p class="text-xs text-base-content/50 italic">{{if .Ticket.CloseReason}}{{derefStr .Ticket.CloseReason}}{{end}}</p>
-      <button hx-post="/tickets/{{.Ticket.ID}}/reopen"
-              hx-swap="none"
-              class="w-full text-left px-3 py-1.5 text-sm text-primary hover:bg-base-300 rounded">
-        Reopen ticket
-      </button>
-    </div>
-    {{else}}
-    <div x-data="{ closing: false, reason: '' }" class="flex flex-col gap-2">
-      <button x-show="!closing" @click="closing = true"
-              class="w-full text-left px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">
-        Close ticket…
-      </button>
-      <form x-show="closing" x-cloak
-            hx-post="/tickets/{{.Ticket.ID}}/close"
-            hx-swap="none"
-            class="flex flex-col gap-2">
-        <select name="reason" x-model="reason"
-                class="bg-base-200 border border-base-300 text-base-content text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary">
-          <option value="Won't do">Won't do</option>
-          <option value="No longer relevant">No longer relevant</option>
-          <option value="Wrong team">Wrong team</option>
-          <option value="Duplicate">Duplicate</option>
-          <option value="other">Other…</option>
-        </select>
-        <textarea x-show="reason === 'other'" x-cloak name="reason_note" rows="2"
-                  placeholder="Describe the reason…"
-                  class="w-full bg-base-200 border border-base-300 text-sm rounded px-2 py-1.5 focus:outline-none focus:border-primary resize-none"></textarea>
-        <div class="flex gap-2">
-          <button type="submit" class="flex-1 px-3 py-1.5 bg-amber-600 text-base-100 text-sm rounded hover:opacity-90">Close ticket</button>
-          <button type="button" @click="closing = false" class="px-3 py-1.5 text-sm text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-        </div>
-      </form>
-    </div>
-    {{end}}
-
-    <div class="border-t border-base-300"></div>
-
-    <!-- Delete -->
-    <div>
-      <button hx-delete="/tickets/{{.Ticket.ID}}"
-              hx-confirm="Delete this ticket? This cannot be undone."
-              hx-target="body"
-              class="w-full text-left px-3 py-1.5 text-sm text-red-400 hover:bg-base-300 rounded">
-        Delete ticket
-      </button>
-    </div>
-
-  </div>
-
 </div>
 {{end}}

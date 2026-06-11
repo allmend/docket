@@ -255,6 +255,10 @@ func (s *BoardService) ListSprints(ctx context.Context, orgID, boardID uuid.UUID
 	return s.store.ListSprints(ctx, orgID, boardID)
 }
 
+func (s *BoardService) GetActiveSprint(ctx context.Context, orgID, boardID uuid.UUID) (*model.Sprint, error) {
+	return s.store.GetActiveSprint(ctx, orgID, boardID)
+}
+
 func (s *BoardService) GetSprint(ctx context.Context, orgID, sprintID uuid.UUID) (*model.Sprint, error) {
 	return s.store.GetSprint(ctx, orgID, sprintID)
 }
@@ -382,12 +386,24 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		}
 	}
 
+	var totalPts int
+	var unestimated int
+	for _, t := range tickets {
+		if t.StoryPoints != nil {
+			totalPts += int(*t.StoryPoints)
+		} else {
+			unestimated++
+		}
+	}
+
 	view := &model.BoardView{
-		Board:        *board,
-		Team:         team,
-		Sprints:      sprints,
-		Columns:      []model.ColumnView{{Tickets: tickets}},
-		BacklogCount: len(tickets),
+		Board:            *board,
+		Team:             team,
+		Sprints:          sprints,
+		Columns:          []model.ColumnView{{IsBacklog: true, Tickets: tickets}},
+		BacklogCount:     len(tickets),
+		BacklogPoints:    totalPts,
+		UnestimatedCount: unestimated,
 	}
 	if len(cols) > 0 {
 		view.FirstColumnID = cols[0].ID
@@ -415,7 +431,10 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 			sprintTickets[i].Assignees = assigneesByTicket[sprintTickets[i].ID]
 		}
 
-		type colInfo struct{ name string; isDone bool }
+		type colInfo struct {
+			name   string
+			isDone bool
+		}
 		colLookup := make(map[uuid.UUID]colInfo, len(cols))
 		for _, c := range cols {
 			colLookup[c.ID] = colInfo{name: c.Name, isDone: strings.EqualFold(c.Name, "done")}
@@ -451,6 +470,18 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 
 func (s *BoardService) ListBoardTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model.Tag, error) {
 	return s.store.ListTags(ctx, orgID, boardID)
+}
+
+func (s *BoardService) ListTagsByOrg(ctx context.Context, orgID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
+	return s.store.ListTagsByOrg(ctx, orgID)
+}
+
+func (s *BoardService) GetTag(ctx context.Context, orgID, tagID uuid.UUID) (*model.Tag, error) {
+	return s.store.GetTag(ctx, orgID, tagID)
+}
+
+func (s *BoardService) ListTicketsByTag(ctx context.Context, orgID, tagID uuid.UUID) ([]model.Ticket, error) {
+	return s.store.ListTicketsByTag(ctx, orgID, tagID)
 }
 
 func (s *BoardService) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color string) (*model.Tag, error) {

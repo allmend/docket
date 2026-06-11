@@ -221,6 +221,28 @@ func (s *Store) ListTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model
 	return tags, rows.Err()
 }
 
+// ListTagsByOrg returns all tags for the org grouped by board ID, for nav rendering.
+func (s *Store) ListTagsByOrg(ctx context.Context, orgID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT id, org_id, board_id, name, color FROM tags WHERE org_id = $1 ORDER BY board_id, name`,
+		orgID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID][]model.Tag)
+	for rows.Next() {
+		var t model.Tag
+		if err := rows.Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color); err != nil {
+			return nil, err
+		}
+		result[t.BoardID] = append(result[t.BoardID], t)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color string) (*model.Tag, error) {
 	var t model.Tag
 	err := s.primary.QueryRow(ctx,
@@ -317,6 +339,43 @@ func (s *Store) RemoveTagFromTicket(ctx context.Context, orgID, ticketID, tagID 
 	return err
 }
 
+// GetTag returns a single tag by ID.
+func (s *Store) GetTag(ctx context.Context, orgID, tagID uuid.UUID) (*model.Tag, error) {
+	var t model.Tag
+	err := s.replica.QueryRow(ctx,
+		`SELECT id, org_id, board_id, name, color FROM tags WHERE org_id = $1 AND id = $2`,
+		orgID, tagID,
+	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// ListTicketsByTag returns all tickets tagged with a given tag, newest first.
+func (s *Store) ListTicketsByTag(ctx context.Context, orgID, tagID uuid.UUID) ([]model.Ticket, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT `+ticketCols+ticketJoins+`
+		 JOIN ticket_tags tt ON tt.ticket_id = t.id
+		 WHERE t.org_id = $1 AND tt.tag_id = $2
+		 ORDER BY t.closed_at NULLS FIRST, t.updated_at DESC`,
+		orgID, tagID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tickets []model.Ticket
+	for rows.Next() {
+		var t model.Ticket
+		if err := scanTicket(rows, &t); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
 // --- Sprint store methods ---
 
 const sprintCols = `id, org_id, board_id, name, goal, status, start_date, end_date,
@@ -363,7 +422,25 @@ func (s *Store) GetActiveSprint(ctx context.Context, orgID, boardID uuid.UUID) (
 	if err != nil {
 		return nil, err
 	}
+	s.fillSprintLivePoints(ctx, orgID, &sp)
 	return &sp, nil
+}
+
+// fillSprintLivePoints queries the tickets table for live story-point totals and
+// writes them into sp.CommittedPoints / sp.CompletedPoints. The snapshot columns
+// on the sprints table are only written at sprint-close time, so they read as 0
+// for the current active sprint; this gives the dashboard real numbers.
+func (s *Store) fillSprintLivePoints(ctx context.Context, orgID uuid.UUID, sp *model.Sprint) {
+	s.replica.QueryRow(ctx,
+		`SELECT
+		    COALESCE(SUM(t.story_points), 0),
+		    COALESCE(SUM(t.story_points) FILTER (WHERE LOWER(c.name) = 'done'), 0)
+		 FROM tickets t
+		 LEFT JOIN columns c ON c.id = t.column_id
+		 WHERE t.org_id = $1 AND t.sprint_id = $2
+		   AND t.story_points IS NOT NULL`,
+		orgID, sp.ID,
+	).Scan(&sp.CommittedPoints, &sp.CompletedPoints)
 }
 
 func (s *Store) GetSprint(ctx context.Context, orgID, sprintID uuid.UUID) (*model.Sprint, error) {
@@ -374,6 +451,9 @@ func (s *Store) GetSprint(ctx context.Context, orgID, sprintID uuid.UUID) (*mode
 	), &sp)
 	if err != nil {
 		return nil, err
+	}
+	if sp.Status.IsActive() {
+		s.fillSprintLivePoints(ctx, orgID, &sp)
 	}
 	return &sp, nil
 }

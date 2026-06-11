@@ -1,0 +1,85 @@
+{{define "board-card"}}
+{{$t     := .Ticket}}
+{{$isDone := .IsDone}}
+<div class="{{if $isDone}}bg-base-250/60{{else}}bg-base-250{{end}} border {{if $t.IsBlocked}}border-danger/40 hover:border-danger/60{{else}}border-base-300 hover:border-base-400{{end}} rounded p-2.5 cursor-pointer"
+     data-ticket-id="{{$t.ID}}"
+     data-position="{{$t.Position}}"
+     data-ticket-column-id="{{$t.ColumnID}}"
+     data-priority="{{$t.Priority}}"
+     data-points="{{if $t.StoryPoints}}{{deref $t.StoryPoints}}{{else}}0{{end}}"
+     data-assignees="{{range $t.Assignees}}{{.Name}}|{{end}}"
+     data-created-unix="{{$t.CreatedAt.Unix}}"
+     hx-get="/tickets/{{$t.ID}}/quick"
+     hx-target="#modal-body"
+     hx-swap="innerHTML"
+     hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
+
+  {{/* ID + Priority row */}}
+  <div class="flex items-center justify-between">
+    <span class="mono text-[12px] {{if $isDone}}text-base-600 line-through{{else}}text-primary-400{{end}}">{{$t.DisplayID}}</span>
+    {{if $isDone}}
+    <span class="mono text-[11px] text-success">✓</span>
+    {{else}}
+    <div class="flex items-center gap-1">
+      <span class="w-1 h-2.5 rounded-sm
+        {{if eq $t.Priority.String "critical"}}bg-p0
+        {{else if eq $t.Priority.String "high"}}bg-p1
+        {{else if eq $t.Priority.String "medium"}}bg-p2
+        {{else if eq $t.Priority.String "low"}}bg-p3
+        {{else}}bg-base-500{{end}}"></span>
+      <span class="mono text-[11px] {{if eq $t.Priority.String "critical"}}text-danger{{else}}text-base-600{{end}}">
+        {{if eq $t.Priority.String "critical"}}P0
+        {{else if eq $t.Priority.String "high"}}P1
+        {{else if eq $t.Priority.String "medium"}}P2
+        {{else if eq $t.Priority.String "low"}}P3
+        {{else}}—{{end}}
+      </span>
+    </div>
+    {{end}}
+  </div>
+
+  {{/* Title */}}
+  <p class="text-[14px] leading-[18px] mt-1.5 {{if $isDone}}text-base-700 line-through decoration-base-500{{else}}text-base-900{{end}}">{{$t.Title}}</p>
+
+  {{/* Blocked badge */}}
+  {{if and (not $isDone) $t.IsBlocked}}
+  <div class="flex items-center gap-1.5 mt-1.5">
+    <span class="inline-flex items-center h-4 px-1 rounded-sm bg-danger/15 border border-danger/30 mono text-[12px] uppercase tracking-wider text-danger">
+      Blocked{{if $t.BlockedBy}} · {{$t.BlockedBy}}{{end}}
+    </span>
+  </div>
+  {{end}}
+
+  {{/* Footer: tracks + pts + assignees */}}
+  <div class="flex items-center justify-between mt-2 pt-2 border-t border-base-300">
+    <div class="flex items-center gap-1.5 min-w-0 flex-1 {{if $isDone}}opacity-60{{end}}">
+      {{range $t.Tags}}
+      <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+      <span class="text-[12px] text-base-700 truncate">{{.Name}}</span>
+      {{end}}
+    </div>
+    <div class="flex items-center gap-1.5 shrink-0 {{if $isDone}}opacity-60{{end}}">
+      {{if $t.StoryPoints}}
+      <span class="mono text-[12px] text-base-{{if $isDone}}600{{else}}700{{end}}">{{deref $t.StoryPoints}} pt</span>
+      {{else if not $isDone}}
+      <span class="mono text-[12px] text-warn">— pt</span>
+      {{end}}
+      {{$as := $t.Assignees}}
+      <div class="flex -space-x-1">
+        {{if $as}}
+          {{if le (len $as) 3}}
+            {{range $as}}<span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials .Name}}</span>{{end}}
+          {{else}}
+            {{$a0 := index $as 0}}{{$a1 := index $as 1}}
+            <span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials $a0.Name}}</span>
+            <span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials $a1.Name}}</span>
+            <span class="w-4 h-4 rounded-sm bg-base-350 text-base-700 inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">+{{sub (len $as) 2}}</span>
+          {{end}}
+        {{else}}
+          <span class="w-4 h-4 rounded-sm border border-dashed border-base-500"></span>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{end}}

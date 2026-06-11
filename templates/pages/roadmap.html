@@ -1,152 +1,84 @@
 {{template "base" .}}
 
-{{define "title"}}Roadmap{{if .Team}} — {{.Team.Name}}{{end}} — Docket{{end}}
+{{define "title"}}Roadmap — Docket{{end}}
+
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Roadmap</span>
+{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
-
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <nav class="text-sm text-base-content/50 mb-1">
-        <a href="/teams" class="hover:text-primary">Teams</a>
-        {{if .Team}}
-        <span class="mx-1">/</span>
-        <a href="/teams/{{.Team.ID}}" class="hover:text-primary"><span class="font-mono text-primary">{{.Team.Key}}</span> {{.Team.Name}}</a>
-        {{end}}
-        <span class="mx-1">/</span>
-        <a href="/boards/{{.Board.ID}}" class="hover:text-primary">{{.Board.Name}}</a>
-        <span class="mx-1">/</span>
-        <span class="text-base-content/70">Roadmap</span>
-      </nav>
-      <h1 class="text-2xl font-semibold">Roadmap</h1>
+{{$team := .Team}}
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[1100px] mx-auto px-8 py-6">
+    <div class="flex items-end justify-between mb-5">
+      <div>
+        <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Roadmap</h1>
+        <div class="mono text-[14px] text-base-700 mt-0.5">{{len .Sprints}} sprints</div>
+      </div>
     </div>
-  </div>
 
-  {{if not .Sprints}}
-  <div class="flex-1 flex items-center justify-center">
-    <div class="text-center flex flex-col gap-2">
-      <p class="text-base-content/30 text-sm">No sprints yet.</p>
-      <a href="/boards/{{.Board.ID}}" class="text-primary text-sm hover:underline">Go to board to create one</a>
-    </div>
-  </div>
-  {{else}}
-
-  <!-- Sprint rows -->
-  <div class="flex flex-col gap-4">
-    {{range .Sprints}}
-    {{$sp := .Sprint}}
-    {{$tickets := .Tickets}}
-    {{$total := len $tickets}}
-    {{$done := 0}}
-    {{range $tickets}}{{if .IsDone}}{{$done = add $done 1}}{{end}}{{end}}
-
-    <div class="bg-base-200 border border-base-300 rounded-lg overflow-hidden"
-         x-data="{ open: false }">
-
-      <!-- Sprint header row -->
-      <div class="flex items-start gap-4 p-4 cursor-pointer hover:bg-base-300/30 transition-colors"
-           @click="open = !open">
-
-        <!-- Chevron -->
-        <svg class="h-4 w-4 text-base-content/30 mt-0.5 shrink-0 transition-transform"
-             :class="open ? 'rotate-90' : ''"
-             fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
-        </svg>
-
-        <!-- Sprint info -->
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-2 mb-1 flex-wrap">
-            <span class="font-medium text-sm">{{$sp.Name}}</span>
-
+    {{if .Sprints}}
+    <div class="space-y-3">
+      {{range .Sprints}}
+      {{$sp := .Sprint}}
+      {{$tickets := .Tickets}}
+      {{$done := 0}}{{range $tickets}}{{if .IsDone}}{{$done = add $done 1}}{{end}}{{end}}
+      <div x-data="{open:true}" class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+        <!-- Sprint header -->
+        <div @click="open=!open"
+             class="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-base-250/40 border-b border-base-300">
+          <svg class="w-3 h-3 text-base-600 shrink-0 transition-transform" :class="open ? 'rotate-90' : ''" viewBox="0 0 12 12" fill="none"><path d="M4.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="flex items-center gap-2.5 flex-1 min-w-0">
+            <span class="text-[15px] font-medium text-base-950">{{$sp.Name}}</span>
             {{if $sp.Status.IsActive}}
-            <span class="text-xs bg-green-900/40 text-green-400 border border-green-800 rounded px-1.5 py-0.5">Active</span>
-            {{else if $sp.Status.IsPlanning}}
-            <span class="text-xs bg-blue-900/40 text-blue-400 border border-blue-800 rounded px-1.5 py-0.5">Planning</span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-success/15 border border-success/30 mono text-[12px] uppercase tracking-wider text-success">active</span>
             {{else if $sp.Status.IsCompleted}}
-            <span class="text-xs bg-base-300 text-base-content/50 border border-base-300 rounded px-1.5 py-0.5">Completed</span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-base-300 border border-base-350 mono text-[12px] uppercase tracking-wider text-base-600">completed</span>
+            {{else}}
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-warn/15 border border-warn/30 mono text-[12px] uppercase tracking-wider text-warn">planning</span>
             {{end}}
-
+            {{if $sp.Goal}}<span class="mono text-[13px] text-base-600 truncate max-w-[400px]">{{$sp.Goal}}</span>{{end}}
+          </div>
+          <div class="flex items-center gap-4 shrink-0">
             {{if and $sp.StartDate $sp.EndDate}}
-            <span class="font-mono text-xs text-base-content/40">
-              {{$sp.StartDate.Format "Jan 2"}} – {{$sp.EndDate.Format "Jan 2, 2006"}}
-              ({{daysBetween $sp.StartDate $sp.EndDate}}d)
-            </span>
+            <span class="mono text-[13px] text-base-600">{{$sp.StartDate.Format "2 Jan"}} → {{$sp.EndDate.Format "2 Jan"}}</span>
             {{end}}
-
-            <span class="text-xs text-base-content/40 ml-auto shrink-0">
-              {{$total}} ticket{{if ne $total 1}}s{{end}}
-              {{if gt $sp.CommittedPoints 0.0}}· {{printf "%.0f" $sp.CommittedPoints}}pts{{end}}
-            </span>
-          </div>
-
-          {{if $sp.Goal}}
-          <p class="text-xs text-base-content/50 italic mb-2">{{$sp.Goal}}</p>
-          {{end}}
-
-          <!-- Progress bar -->
-          {{if gt $total 0}}
-          <div class="flex items-center gap-2">
-            <div class="flex-1 h-1.5 bg-base-300 rounded-full overflow-hidden">
-              <div class="h-full rounded-full transition-all
-                {{if $sp.Status.IsCompleted}}bg-base-content/30{{else}}bg-primary{{end}}"
-                   style="width: {{pct $done $total}}%"></div>
+            <span class="mono text-[13px] text-base-700">{{$done}} / {{len $tickets}} done</span>
+            {{if $tickets}}
+            <div class="w-24 h-1.5 bg-base-300 rounded-sm overflow-hidden">
+              <div class="h-full bg-primary-500 rounded-sm" style="width:{{pct $done (len $tickets)}}%"></div>
             </div>
-            <span class="text-xs text-base-content/40 font-mono shrink-0">{{$done}}/{{$total}}</span>
+            {{end}}
           </div>
+        </div>
+        <!-- Ticket list -->
+        <div x-show="open" x-cloak class="divide-y divide-base-300">
+          {{range $tickets}}
+          <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-5 h-10 hover:bg-base-250/40">
+            <span class="w-1 h-2.5 rounded-sm shrink-0
+              {{if eq .Priority.String "critical"}}bg-p0
+              {{else if eq .Priority.String "high"}}bg-p1
+              {{else if eq .Priority.String "medium"}}bg-p2
+              {{else if eq .Priority.String "low"}}bg-p3
+              {{else}}bg-base-500{{end}}"></span>
+            <span class="mono text-[13px] text-primary-400 shrink-0 w-[72px]">{{.DisplayID}}</span>
+            <span class="text-[14px] {{if .IsDone}}text-base-600 line-through decoration-base-500{{else}}text-base-900{{end}} flex-1 truncate">{{.Title}}</span>
+            {{if .IsDone}}<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="1.8"><path d="M2.5 8.5l3.5 3.5 7-8" stroke-linecap="round" stroke-linejoin="round"/></svg>{{end}}
+          </a>
+          {{else}}
+          <div class="px-5 py-3 mono text-[13px] text-base-600">No tickets</div>
           {{end}}
         </div>
       </div>
-
-      <!-- Ticket list (collapsible) -->
-      <div x-show="open" x-cloak class="border-t border-base-300">
-        {{if $tickets}}
-        <ul class="divide-y divide-base-300/50">
-          {{range $tickets}}
-          <li class="flex items-center gap-3 px-4 py-2.5 hover:bg-base-300/20 transition-colors">
-            <!-- Done indicator -->
-            <div class="shrink-0 w-4 h-4 flex items-center justify-center">
-              {{if .IsDone}}
-              <svg class="h-4 w-4 text-primary/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
-              </svg>
-              {{else}}
-              <div class="w-3 h-3 rounded-full border border-base-content/20"></div>
-              {{end}}
-            </div>
-
-            <!-- Display ID -->
-            <span class="font-mono text-xs text-primary/70 shrink-0">{{.DisplayID}}</span>
-
-            <!-- Title -->
-            <a href="/tickets/{{.DisplayID}}"
-               class="flex-1 text-sm {{if .IsDone}}text-base-content/40 line-through{{else}}text-base-content/80 hover:text-primary{{end}} truncate">
-              {{.Title}}
-            </a>
-
-            <!-- Priority badge -->
-            {{if .Priority}}
-            <span class="text-xs font-mono shrink-0
-              {{if eq (print .Priority) "critical"}}text-red-400
-              {{else if eq (print .Priority) "high"}}text-orange-400
-              {{else if eq (print .Priority) "medium"}}text-yellow-400
-              {{else}}text-base-content/30{{end}}">
-              {{.Priority}}
-            </span>
-            {{end}}
-          </li>
-          {{end}}
-        </ul>
-        {{else}}
-        <p class="text-sm text-base-content/30 px-4 py-3">No tickets in this sprint.</p>
-        {{end}}
-      </div>
-
+      {{end}}
+    </div>
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No sprints</div>
+      <p class="text-[14px] text-base-700">Create your first sprint to start planning.</p>
     </div>
     {{end}}
   </div>
-
-  {{end}}
 </div>
 {{end}}

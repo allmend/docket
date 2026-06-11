@@ -1,59 +1,30 @@
 {{define "team-members"}}
-<div id="team-members-{{.Team.ID}}"
-     class="flex flex-col gap-2"
-     x-data="{ searching: false }"
-     @click.outside="searching = false">
-
+{{$team := .Team}}
+<div id="team-members" class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
   {{if .Members}}
-  <div class="flex flex-col gap-1">
-    {{range .Members}}
-    <div class="flex items-center justify-between group py-1.5 px-2 rounded hover:bg-base-300">
-      <div class="flex items-center gap-2.5">
-        <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0">{{initials .Name}}</div>
-        <div>
-          <p class="text-sm text-base-content/80">{{.Name}}</p>
-          <p class="text-xs text-base-content/40 font-mono">{{.Email}}</p>
-        </div>
-      </div>
-      <button class="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-base-content/30 hover:text-red-400 rounded"
-              hx-delete="/teams/{{$.Team.ID}}/members/{{.ID}}"
-              hx-target="#team-members-{{$.Team.ID}}"
-              hx-swap="outerHTML"
-              hx-confirm="Remove {{.Name}} from this team?"
-              title="Remove member">
-        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-      </button>
-    </div>
-    {{end}}
+  <div class="grid grid-cols-[1fr_80px] gap-3 px-4 h-9 items-center bg-base-250/40 border-b border-base-300">
+    <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">member</span>
+    <span></span>
   </div>
-  {{else}}
-  <p class="text-sm text-base-content/30 italic py-1">No members yet.</p>
+  {{range .Members}}
+  <div class="grid grid-cols-[1fr_80px] items-center gap-3 px-4 h-12 border-b border-base-300 hover:bg-base-250/30">
+    <div class="flex items-center gap-3 min-w-0">
+      <span class="w-7 h-7 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[12px] font-semibold shrink-0">{{initials .Name}}</span>
+      <div class="min-w-0">
+        <div class="text-[14px] text-base-950 truncate">{{.Name}}</div>
+        <div class="mono text-[12px] text-base-600 truncate">{{.Username}}</div>
+      </div>
+    </div>
+    <div class="text-right">
+      <button hx-delete="/workspaces/{{$team.Slug}}/members/{{.ID}}"
+              hx-target="#team-members" hx-swap="outerHTML"
+              hx-confirm="Remove {{.Name}} from this workspace?"
+              class="mono text-[12px] text-base-600 hover:text-danger">remove</button>
+    </div>
+  </div>
   {{end}}
-
-  <!-- Add member -->
-  <div class="relative mt-1">
-    <button @click="searching = !searching; if(searching) $nextTick(() => { let el = $el.nextElementSibling.querySelector('input'); if(el) { el.focus(); htmx.trigger(el, 'input'); } })"
-            class="flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary">
-      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-      Add member
-    </button>
-
-    <div x-show="searching" x-cloak class="absolute left-0 top-6 z-30 w-64 bg-base-200 border border-base-300 rounded-lg shadow-popup flex flex-col">
-      <div class="p-2 border-b border-base-300">
-        <input type="text"
-               name="q"
-               placeholder="Search users…"
-               hx-get="/teams/{{.Team.ID}}/members/search"
-               hx-trigger="input changed delay:200ms"
-               hx-target="#member-results-{{.Team.ID}}"
-               hx-swap="innerHTML"
-               class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
-      </div>
-      <div id="member-results-{{.Team.ID}}" class="max-h-48 overflow-y-auto py-1">
-        <p class="text-xs text-base-content/30 px-3 py-2">Type to search…</p>
-      </div>
-    </div>
-  </div>
-
+  {{else}}
+  <div class="px-4 py-6 text-center mono text-[13px] text-base-600">No members yet</div>
+  {{end}}
 </div>
 {{end}}

@@ -3,78 +3,98 @@
 {{define "title"}}My Issues — Docket{{end}}
 
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex-1 flex flex-col gap-6">
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[1180px] mx-auto px-8 py-6">
 
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-2xl font-semibold">My Issues</h1>
-      <p class="text-sm text-base-content/40 mt-0.5">
-        {{if .Total}}{{.Total}} ticket{{if gt .Total 1}}s{{end}} assigned to you{{else}}No tickets assigned to you{{end}}
-      </p>
+    <!-- Header -->
+    <div class="flex items-end justify-between mb-5">
+      <div>
+        <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">My issues</h1>
+        <div class="mono text-[14px] text-base-700 mt-0.5">
+          {{if .CurrentUser}}Assigned to <span class="text-base-900">{{.CurrentUser.Name}}</span> · {{end}}{{.Total}} open{{if .TotalPoints}} · {{.TotalPoints}} pt{{end}}
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <div class="inline-flex items-center bg-base-200 border border-base-350 rounded-md p-0.5">
+          <button class="h-7 px-3 rounded-sm bg-base-100 text-base-950 text-[14px] shadow-sunk">Assigned</button>
+          <button class="h-7 px-3 rounded-sm text-base-600 hover:text-base-900 text-[14px]">Created</button>
+          <button class="h-7 px-3 rounded-sm text-base-600 hover:text-base-900 text-[14px]">Subscribed</button>
+        </div>
+        <button class="h-8 px-3 inline-flex items-center gap-2 bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-900">
+          Group: status
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" class="text-base-600"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
     </div>
-  </div>
 
-  {{if not .Groups}}
-  <div class="flex flex-col items-center justify-center py-24 text-center gap-3">
-    <svg class="h-10 w-10 text-base-content/20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z"/>
-    </svg>
-    <p class="text-base-content/40 text-sm">No tickets assigned to you</p>
-  </div>
-  {{else}}
-
-  <div class="flex flex-col gap-6">
-    {{range .Groups}}
-    <div class="flex flex-col gap-1">
-
+    {{if .Groups}}
+    <div class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+      {{range .Groups}}
+      {{$col := lower .Name}}
       <!-- Group header -->
-      <div class="flex items-center gap-2 mb-1">
-        <span class="text-xs font-medium uppercase tracking-widest text-base-content/40">{{.Name}}</span>
-        <span class="text-xs text-base-content/30">{{len .Tickets}}</span>
+      <div class="flex items-center gap-2 px-4 h-9 bg-base-250/40 border-b border-base-300">
+        <span class="w-2 h-2 rounded-full shrink-0
+          {{if contains $col "progress"}}bg-info
+          {{else if contains $col "review"}}bg-warn
+          {{else if or (eq $col "done") (contains $col "closed")}}bg-success
+          {{else if or (contains $col "to do") (eq $col "todo")}}bg-base-600
+          {{else}}bg-base-500{{end}}"></span>
+        <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">{{.Name}}</span>
+        <span class="mono text-[13px] text-base-600">{{len .Tickets}}</span>
       </div>
-
-      <!-- Ticket rows -->
-      <div class="flex flex-col divide-y divide-base-300 border border-base-300 rounded-lg overflow-hidden">
-        {{range .Tickets}}
-        <a href="/tickets/{{.DisplayID}}"
-           class="flex items-center gap-3 px-4 py-2.5 bg-base-200 hover:bg-base-300 transition-colors group">
-
-          <!-- Priority dot -->
-          <span class="shrink-0 w-1.5 h-1.5 rounded-full
-            {{if eq (printf "%s" .Priority) "critical"}}bg-red-400
-            {{else if eq (printf "%s" .Priority) "high"}}bg-amber-400
-            {{else if eq (printf "%s" .Priority) "medium"}}bg-blue-400
-            {{else}}bg-base-content/20{{end}}"></span>
-
-          <!-- Display ID -->
-          <span class="font-mono text-xs text-primary shrink-0">{{.DisplayID}}</span>
-
-          <!-- Title -->
-          <span class="text-sm flex-1 min-w-0 truncate text-base-content group-hover:text-base-content">{{.Title}}</span>
-
-          <!-- Priority badge -->
-          {{if .Priority}}
-          <span class="shrink-0 text-xs rounded-md px-1.5 py-0.5 border
-            {{if eq (printf "%s" .Priority) "critical"}}border-red-700 text-red-400
-            {{else if eq (printf "%s" .Priority) "high"}}border-amber-700 text-amber-400
-            {{else if eq (printf "%s" .Priority) "medium"}}border-blue-700 text-blue-400
-            {{else}}border-base-300 text-base-content/50{{end}}">{{.Priority}}</span>
-          {{end}}
-
-          <!-- Arrow -->
-          <svg class="h-3.5 w-3.5 text-base-content/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
-          </svg>
-        </a>
+      <!-- Tickets -->
+      {{range .Tickets}}
+      <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-4 h-11 hover:bg-base-250/40 cursor-pointer border-b border-base-300">
+        <span class="mono text-[13px] text-primary-400 w-[72px] shrink-0">{{.DisplayID}}</span>
+        <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
+        <!-- First tag -->
+        {{if .Tags}}
+        <span class="inline-flex items-center gap-1.5 w-[96px] shrink-0">
+          {{$tag := index .Tags 0}}
+          <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{$tag.Color}}"></span>
+          <span class="text-[13px] text-base-700 truncate">{{$tag.Name}}</span>
+        </span>
+        {{else}}
+        <span class="w-[96px] shrink-0"></span>
         {{end}}
+        <!-- Priority -->
+        <span class="inline-flex items-center gap-1 w-9 shrink-0">
+          <span class="w-1 h-2.5 rounded-sm
+            {{if eq .Priority.String "critical"}}bg-p0
+            {{else if eq .Priority.String "high"}}bg-p1
+            {{else if eq .Priority.String "medium"}}bg-p2
+            {{else if eq .Priority.String "low"}}bg-p3
+            {{else}}bg-base-500{{end}}"></span>
+          <span class="mono text-[11px] text-base-600">
+            {{if eq .Priority.String "critical"}}P0{{else if eq .Priority.String "high"}}P1{{else if eq .Priority.String "medium"}}P2{{else if eq .Priority.String "low"}}P3{{else}}—{{end}}
+          </span>
+        </span>
+        <!-- Sprint / backlog badge -->
+        {{if .SprintID}}
+        <span class="mono text-[12px] text-base-800 px-1.5 h-5 inline-flex items-center rounded-sm border border-base-350 bg-base-250 w-[60px] justify-center shrink-0">sprint</span>
+        {{else}}
+        <span class="mono text-[12px] text-base-600 px-1.5 h-5 inline-flex items-center rounded-sm border border-base-350 w-[60px] justify-center shrink-0">backlog</span>
+        {{end}}
+        <!-- Points -->
+        {{if .StoryPoints}}
+        <span class="mono text-[13px] text-base-700 w-9 text-right shrink-0">{{deref .StoryPoints}} pt</span>
+        {{else}}
+        <span class="mono text-[13px] text-base-600 w-9 text-right shrink-0">—</span>
+        {{end}}
+      </a>
+      {{end}}
+      {{end}}
+    </div>
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
+      <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+        <svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><circle cx="8" cy="5.5" r="2.4"/><path d="M3.5 13c0-2.3 2-3.6 4.5-3.6s4.5 1.3 4.5 3.6" stroke-linecap="round"/></svg>
       </div>
-
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No open issues</div>
+      <p class="text-[14px] text-base-700">Tickets assigned to you will appear here.</p>
     </div>
     {{end}}
+
   </div>
-
-  {{end}}
-
 </div>
 {{end}}

@@ -5,567 +5,457 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{block "title" .}}Docket{{end}}</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect x='2' y='3' width='12' height='2' fill='%2310B981'/><rect x='2' y='7' width='12' height='2' fill='%2310B981' opacity='0.45'/><rect x='2' y='11' width='8' height='2' fill='%2310B981' opacity='0.20'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/app.css" />
-  <style>[x-cloak]{display:none!important}</style>
+  <script src="/static/htmx.min.js"></script>
+  <script src="/static/alpine.min.js" defer></script>
 </head>
-<body class="bg-base-100 text-base-content"
-      x-data="{
-        newTicket: false,
-        ticketModal: false,
-        shortcutsOpen: false,
-        handleKey(e) {
-          if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) return;
-          if (e.metaKey || e.ctrlKey || e.altKey) return;
-          if (e.key === 'n') { e.preventDefault(); this.newTicket = true; this.$nextTick(() => document.getElementById('new-ticket-title')?.focus()); }
-          if (e.key === '/') { e.preventDefault(); document.querySelector('input[name=\'q\']')?.focus(); }
-          if (e.key === '?') { e.preventDefault(); this.shortcutsOpen = !this.shortcutsOpen; }
-        }
-      }"
+
+{{/* Compute default workspace for new-ticket modal */}}
+{{$ntTeamID   := ""}}
+{{$ntTeamName := ""}}
+{{$ntSprint   := ""}}
+{{if .NavTeam}}
+  {{$ntTeamID   = printf "%s" .NavTeam.ID}}
+  {{$ntTeamName = .NavTeam.Name}}
+  {{if .NavActiveSprint}}{{$ntSprint = .NavActiveSprint.Name}}{{end}}
+{{else if .NavTeams}}
+  {{$first := index .NavTeams 0}}
+  {{$ntTeamID   = printf "%s" $first.Team.ID}}
+  {{$ntTeamName = $first.Team.Name}}
+  {{if $first.ActiveSprint}}{{$ntSprint = $first.ActiveSprint.Name}}{{end}}
+{{end}}
+
+<body class="bg-base-100 text-base-900 font-sans antialiased selection:bg-primary-500/30 selection:text-base-950 h-screen flex flex-col overflow-hidden"
+      x-data="{ ticketModal: false, newTicketModal: false }"
       @open-ticket-modal.window="ticketModal = true"
-      @keydown.window="handleKey($event)">
+      @close-ticket-modal.window="ticketModal = false"
+      @close-new-ticket-modal.window="newTicketModal = false"
+      @keydown.escape="ticketModal = false; newTicketModal = false"
+      @keydown.n.window="if (!newTicketModal && !ticketModal && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable) newTicketModal = true">
 
-  <!-- Top navbar -->
-  <nav class="fixed top-0 z-50 w-full bg-base-200 border-b border-base-300">
-    <div class="flex items-center px-3 py-3 lg:px-5">
+  <!-- UI chrome — blurs as a unit when the ticket drawer opens -->
+  <div class="flex-1 flex flex-col min-h-0 overflow-hidden transition-all duration-200"
+       :class="ticketModal ? 'blur-[2px] scale-[0.997] opacity-60 pointer-events-none select-none' : ''">
 
-      <!-- Left: logo + new ticket -->
-      <div class="flex items-center gap-3 shrink-0">
-        <a href="/teams" class="flex items-center gap-2 ml-2 text-primary font-semibold shrink-0">
-          <svg class="w-6 h-6" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="2"  y="2"  width="7" height="7" rx="1"/>
-            <rect x="11" y="2"  width="7" height="7" rx="1"/>
-            <rect x="2"  y="11" width="7" height="7" rx="1"/>
-            <rect x="11" y="11" width="7" height="7" rx="1"/>
+  <!-- Top bar -->
+  <header class="shrink-0 h-12 bg-base-200 border-b border-base-300 flex items-center gap-1 px-3">
+
+    <!-- Logo -->
+    <div class="flex items-center gap-2 pr-3 border-r border-base-300 mr-2 shrink-0">
+      <svg viewBox="0 0 16 16" width="18" height="18" shape-rendering="crispEdges" aria-hidden="true">
+        <rect x="2" y="3"  width="12" height="2" fill="#10B981"/>
+        <rect x="2" y="7"  width="12" height="2" fill="#10B981" opacity="0.45"/>
+        <rect x="2" y="11" width="8"  height="2" fill="#10B981" opacity="0.20"/>
+      </svg>
+      <span class="text-[15px] font-semibold tracking-tightish text-base-950">Docket</span>
+    </div>
+
+    <!-- New ticket — auth pages or special pages override this block to suppress it -->
+    {{block "topbar-new-ticket" .}}
+    <div class="flex items-center gap-2 pr-3 border-r border-base-300 mr-2 shrink-0">
+      <button @click="newTicketModal = true"
+              class="h-7 px-2.5 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
+        + New ticket
+      </button>
+    </div>
+    {{end}}
+
+    <!-- Breadcrumb: org name → workspace name -->
+    {{if .OrgName}}
+    <a href="/" class="mono text-[13px] text-base-700 hover:text-base-900 px-2 py-1 rounded hover:bg-base-250">{{.OrgName}}</a>
+    {{end}}
+    {{if .NavTeam}}
+    <svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none" aria-hidden="true">
+      <line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <a href="/workspaces/{{.NavTeam.Slug}}" class="mono text-[13px] text-base-700 hover:text-base-900 px-2 py-1 rounded hover:bg-base-250">{{.NavTeam.Name}}</a>
+    {{end}}
+    {{block "breadcrumb" .}}{{end}}
+
+    <!-- Right: search + avatar -->
+    <div class="ml-auto flex items-center gap-3 shrink-0">
+      <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 py-1 w-[340px] shadow-sunk">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+             class="text-base-600 shrink-0" aria-hidden="true">
+          <circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/>
+        </svg>
+        <input type="text" name="q" placeholder="Jump to ticket, sprint…"
+               class="bg-transparent text-[15px] mono text-base-900 placeholder:text-base-600 focus:outline-none flex-1 border-none shadow-none p-0" />
+        <kbd class="shrink-0 mono text-[13px] text-base-600 bg-base-250 border border-base-350 rounded-sm px-1.5 py-0.5 leading-none">⌘K</kbd>
+      </div>
+      <a href="/me"
+         class="w-7 h-7 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0">
+        {{if .CurrentUser}}{{initials .CurrentUser.Name}}{{else}}?{{end}}
+      </a>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="flex-1 grid grid-cols-[180px_1fr] min-h-0">
+
+    <!-- Sidebar -->
+    <aside class="bg-base-100 border-r border-base-300 overflow-y-auto flex flex-col">
+      <nav class="flex-1 p-3">
+
+        <!-- Global: My Issues + Inbox -->
+        <a href="/my-issues"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if eq .CurrentPath "/my-issues"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+               class="w-3.5 h-3.5 shrink-0 {{if eq .CurrentPath "/my-issues"}}text-primary-400{{else}}text-base-600{{end}}">
+            <circle cx="8" cy="5.5" r="2.4"/>
+            <path d="M3.5 13c0-2.3 2-3.6 4.5-3.6s4.5 1.3 4.5 3.6" stroke-linecap="round"/>
           </svg>
-          Docket
+          My issues
+          {{if .NavMyIssueCount}}
+          <span class="ml-auto mono text-[13px] text-base-600">{{.NavMyIssueCount}}</span>
+          {{end}}
         </a>
-        <div class="w-px h-5 bg-base-300 shrink-0"></div>
-        <button @click="newTicket = true; $nextTick(() => document.getElementById('new-ticket-title')?.focus())" class="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded shrink-0 hover:opacity-90">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-          New Ticket
-        </button>
-      </div>
 
-      <!-- Center: search -->
-      <div class="flex-1 flex justify-center">
-        <input type="text" placeholder="Search"
-               hx-get="/search" hx-trigger="keyup changed delay:300ms" hx-target="#search-results"
-               name="q"
-               class="w-96 bg-base-100 border border-base-300 text-base-content text-sm font-mono rounded-lg px-4 py-1.5 placeholder:text-base-content/40 focus:outline-none focus:border-primary" />
-      </div>
-
-      <!-- Right: shortcuts hint + avatar dropdown -->
-      <div class="flex items-center gap-3 shrink-0">
-        <button @click="shortcutsOpen = true"
-                class="text-base-content/20 hover:text-base-content/50 transition-colors"
-                title="Keyboard shortcuts (?)">
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+        <a href="/inbox"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if eq .CurrentPath "/inbox"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+               class="w-3.5 h-3.5 shrink-0 {{if eq .CurrentPath "/inbox"}}text-primary-400{{else}}text-base-600{{end}}">
+            <path d="M2.5 9.5 4 4.3h8l1.5 5.2M2.5 9.5V12a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5M2.5 9.5H6l1 1.4h2l1-1.4h3.5" stroke-linejoin="round" stroke-linecap="round"/>
           </svg>
-        </button>
-        <div class="relative" x-data="{ open: false }">
-          <button @click="open = !open"
-                  class="w-8 h-8 rounded-full bg-primary/20 text-primary text-sm font-medium flex items-center justify-center cursor-pointer hover:bg-primary/30 transition-colors">
-            {{if .CurrentUser}}{{initials .CurrentUser.Name}}{{else}}?{{end}}
-          </button>
-          <div x-show="open" x-cloak @click.outside="open = false"
-               class="absolute right-0 top-10 z-50 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup py-1">
-            {{if .CurrentUser}}
-            <div class="px-4 py-3 border-b border-base-300">
-              <p class="text-sm font-medium text-base-content">{{.CurrentUser.Name}}</p>
-              <p class="text-xs text-base-content/40 font-mono mt-0.5">{{.CurrentUser.Email}}</p>
-            </div>
-            {{end}}
-            <ul class="py-1">
-              <li>
-                <a href="#" class="flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
-                  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z"/></svg>
-                  Profile
-                </a>
-              </li>
-              <li>
-                <a href="/settings" class="flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
-                  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                  Settings
-                </a>
-              </li>
-            </ul>
-            <div class="border-t border-base-300 py-1">
-              <form method="POST" action="/logout">
-                <button type="submit" class="w-full flex items-center gap-2.5 px-4 py-2 text-sm text-base-content/70 hover:text-base-content hover:bg-base-300">
-                  <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-                  Sign out
-                </button>
-              </form>
-            </div>
+          Inbox
+          {{if .NavUnreadCount}}
+          <span class="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white mono text-[11px] font-semibold leading-none">{{.NavUnreadCount}}</span>
+          {{end}}
+        </a>
+
+        {{if .NavBoard}}
+        {{$b    := .NavBoard}}
+        {{$slug := .NavTeam.Slug}}
+
+        <!-- Workspace section -->
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 px-2 mb-1.5 mt-5">workspace</div>
+
+        {{$dashPath := printf "/workspaces/%s" $slug}}
+        <a href="{{$dashPath}}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if eq .CurrentPath $dashPath}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="w-3 h-3 rounded-sm shrink-0 {{if eq .CurrentPath $dashPath}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
+          Dashboard
+        </a>
+
+        {{if $b.Mode.IsScrum}}
+        {{$backlogPath   := printf "/workspaces/%s/backlog" $slug}}
+        {{$refinePath    := printf "/workspaces/%s/backlog/refinement" $slug}}
+        {{$backlogActive := or (eq .CurrentPath $backlogPath) (eq .CurrentPath $refinePath)}}
+        <a href="{{$backlogPath}}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if $backlogActive}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="w-3 h-3 rounded-sm shrink-0 {{if $backlogActive}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
+          Backlog
+        </a>
+        {{end}}
+
+        {{$boardPath  := printf "/workspaces/%s/board" $slug}}
+        {{$dailyPath  := printf "/workspaces/%s/daily" $slug}}
+        {{$boardActive := or (eq .CurrentPath $boardPath) (eq .CurrentPath $dailyPath)}}
+        <a href="{{$boardPath}}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if $boardActive}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="w-3 h-3 rounded-sm shrink-0 {{if $boardActive}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
+          {{if $b.Mode.IsScrum}}Sprint board{{else}}Board{{end}}
+        </a>
+
+        {{if $b.Mode.IsScrum}}
+        {{$reviewPath := printf "/workspaces/%s/sprint-review" $slug}}
+        <a href="{{$reviewPath}}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if eq .CurrentPath $reviewPath}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="w-3 h-3 rounded-sm shrink-0 {{if eq .CurrentPath $reviewPath}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
+          Sprint review
+        </a>
+
+        {{$retrosPath  := printf "/workspaces/%s/retros" $slug}}
+        {{$retroPath   := printf "/workspaces/%s/retro"  $slug}}
+        {{$retrosActive := or (eq .CurrentPath $retrosPath) (eq .CurrentPath $retroPath)}}
+        <a href="{{$retrosPath}}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if $retrosActive}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="w-3 h-3 rounded-sm shrink-0 {{if $retrosActive}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
+          Retros
+        </a>
+        {{end}}{{/* end IsScrum workspace items */}}
+
+        <!-- Tracks -->
+        {{if .NavTags}}
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 px-2 mb-1.5 mt-6">tracks</div>
+        {{range .NavTags}}
+        <a href="/workspaces/{{$.NavTeam.Slug}}/tracks/{{.ID}}"
+           class="flex items-center justify-between px-2 py-1 rounded text-[15px]
+             {{if eq $.CurrentPath (printf "/workspaces/%s/tracks/%s" $.NavTeam.Slug (.ID.String))}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color: {{.Color}}"></span>
+            <span class="truncate">{{.Name}}</span>
+          </span>
+        </a>
+        {{end}}
+        {{end}}
+
+        <!-- Sprint stats — shown when an active sprint exists -->
+        {{if .NavActiveSprint}}
+        {{$sp := .NavActiveSprint}}
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 px-2 mb-1.5 mt-6">{{$sp.Name}}</div>
+        <div class="px-2 py-1 text-[14px] text-base-700 leading-relaxed">
+          {{if and $sp.StartDate $sp.EndDate}}
+          <div class="flex justify-between"><span>day</span><span class="mono text-base-900">{{$sp.DayNumber}} / {{$sp.TotalDays}}</span></div>
+          {{end}}
+          <div class="flex justify-between"><span>burned</span><span class="mono text-primary-400">{{printf "%.0f" $sp.CompletedPoints}} pt</span></div>
+          <div class="flex justify-between"><span>remaining</span><span class="mono text-base-900">{{printf "%.0f" $sp.RemainingPoints}} pt</span></div>
+          <div class="mt-2 h-1 bg-base-300 rounded-sm overflow-hidden">
+            <div class="h-full bg-primary-500 rounded-sm" style="width:{{$sp.PointsPct}}%"></div>
           </div>
         </div>
-      </div>
+        {{end}}
 
-    </div>
-  </nav>
+        {{else}}
+        <!-- No workspace selected -->
+        <div class="mt-6 px-2 mono text-[13px] text-base-600 leading-relaxed">Select a workspace to see its board, backlog and sprints.</div>
+        {{end}}{{/* end if .NavBoard */}}
 
-  <!-- Page body -->
-  <div class="flex pt-16 overflow-hidden h-screen">
+      </nav>
 
-    <!-- Left sidebar -->
-    <aside class="fixed top-0 left-0 z-20 flex flex-col flex-shrink-0 w-64 h-full pt-16 bg-base-200 border-r border-base-300">
-      <div class="flex flex-col flex-1 min-h-0">
-        <nav class="flex-1 overflow-y-auto px-2 py-3 flex flex-col gap-0.5">
-
-          <a href="/inbox" class="flex items-center gap-2.5 px-3 py-2 rounded text-sm hover:bg-base-300 hover:text-base-content {{if eq .CurrentPath "/inbox"}}bg-base-300 text-base-content{{else}}text-base-content/60{{end}}">
-            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
-            Inbox
-            <span id="nav-unread-count"
-                  hx-get="/nav/unread-count"
-                  hx-trigger="load, every 30s"
-                  hx-swap="outerHTML"></span>
-          </a>
-
-          <a href="/my-issues" class="flex items-center gap-2.5 px-3 py-2 rounded text-sm hover:bg-base-300 hover:text-base-content {{if eq .CurrentPath "/my-issues"}}bg-base-300 text-base-content{{else}}text-base-content/60{{end}}">
-            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-            My Issues
-          </a>
-
-          <!-- Teams section -->
-          <div class="flex flex-col mt-3">
-            <div class="flex items-center justify-between px-3 py-1">
-              <a href="/teams" class="text-xs text-base-content/30 uppercase tracking-widest font-medium hover:text-base-content/60">Teams</a>
-              <a href="/teams" class="text-base-content/30 hover:text-primary" title="All teams">
-                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-              </a>
-            </div>
-            <div class="flex flex-col gap-0.5 mt-0.5">
-              {{range .NavTeams}}
-              {{$team := .Team}}
-              {{$board := .Board}}
-              <div x-data="{
-                open: localStorage.getItem('team-{{$team.ID}}') !== 'false',
-                toggle() { this.open = !this.open; localStorage.setItem('team-{{$team.ID}}', this.open ? 'true' : 'false'); }
-              }" class="flex flex-col">
-                <div class="flex items-center rounded text-sm font-medium text-base-content/70 hover:bg-base-300 hover:text-base-content">
-                  <button @click="toggle()" class="p-1.5 shrink-0">
-                    <svg class="h-3 w-3 text-base-content/30 transition-transform" :style="open ? 'transform:rotate(90deg)' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                  </button>
-                  <a href="/teams/{{$team.ID}}" class="flex items-center gap-1.5 flex-1 min-w-0 py-1.5 pr-2">
-                    <span class="font-mono text-primary text-xs opacity-70">{{$team.Key}}</span>
-                    <span class="truncate">{{$team.Name}}</span>
-                  </a>
-                </div>
-                <div x-show="open" class="ml-3 flex flex-col gap-0.5 mt-0.5 mb-1">
-                  {{if $board}}
-                  <a href="/boards/{{$board.ID}}" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
-                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/></svg>
-                    Board
-                  </a>
-                  {{if $board.Mode.IsScrum}}
-                  <a href="/boards/{{$board.ID}}/daily" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/daily" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
-                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    Daily Scrum
-                  </a>
-                  <a href="/boards/{{$board.ID}}/backlog" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if or (eq $.CurrentPath (printf "/boards/%s/backlog" ($board.ID.String))) (eq $.CurrentPath (printf "/boards/%s/backlog/refinement" ($board.ID.String)))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
-                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h7"/></svg>
-                    Backlog
-                  </a>
-                  <a href="/boards/{{$board.ID}}/roadmap" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/roadmap" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
-                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
-                    Roadmap
-                  </a>
-                  <a href="/boards/{{$board.ID}}/retros" class="flex items-center gap-2 px-3 py-1 rounded text-xs hover:bg-base-300 hover:text-base-content {{if eq $.CurrentPath (printf "/boards/%s/retros" ($board.ID.String))}}bg-base-300 text-base-content{{else}}text-base-content/50{{end}}">
-                    <svg class="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
-                    Retros
-                  </a>
-                  {{end}}
-                  {{end}}
-                </div>
-                <script>(function(){var el=document.currentScript.parentElement;var exp=localStorage.getItem('team-{{$team.ID}}')!=='false';if(!exp){el.querySelector('[x-show]').style.display='none';}else{el.querySelector('button svg').style.transform='rotate(90deg)';}})();</script>
-              </div>
-              {{end}}
-            </div>
-          </div>
-
-        </nav>
-
-        <!-- Bottom: admin settings + sign out -->
-        <div class="shrink-0 px-2 py-3 border-t border-base-300 flex flex-col gap-0.5">
-          {{if and .CurrentUser (eq .CurrentUser.Role "admin")}}
-          <a href="/settings" class="flex items-center gap-2.5 px-3 py-2 rounded text-sm text-base-content/60 hover:bg-base-300 hover:text-base-content">
-            <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <!-- Settings — bottom of sidebar -->
+      {{if .NavTeam}}
+      <div class="p-3 pt-0">
+        <div class="border-t border-base-300 pt-3">
+          {{$settingsPath := printf "/workspaces/%s/settings" .NavTeam.Slug}}
+          <a href="{{$settingsPath}}"
+             class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+             {{if eq .CurrentPath $settingsPath}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}}">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+                 class="w-3.5 h-3.5 shrink-0 text-base-600" aria-hidden="true">
+              <path d="M6.5 2h3l.5 1.5a4.5 4.5 0 0 1 1.1.65L12.5 3.5l1.5 2.6-1.2 1a4.6 4.6 0 0 1 0 1.8l1.2 1-1.5 2.6-1.4-.65a4.5 4.5 0 0 1-1.1.65L9.5 14h-3l-.5-1.5a4.5 4.5 0 0 1-1.1-.65L3.5 12.5 2 9.9l1.2-1a4.6 4.6 0 0 1 0-1.8L2 6.1l1.5-2.6 1.4.65A4.5 4.5 0 0 1 6 3.5L6.5 2Z" stroke-linejoin="round"/>
+              <circle cx="8" cy="8" r="2"/>
+            </svg>
             Settings
           </a>
-          {{end}}
-          <form method="POST" action="/logout">
-            <button type="submit" class="w-full flex items-center gap-2.5 px-3 py-2 rounded text-sm text-base-content/60 hover:bg-base-300 hover:text-base-content">
-              <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-              Sign out
-            </button>
-          </form>
         </div>
       </div>
+      {{end}}
     </aside>
 
     <!-- Main content -->
-    <div class="relative w-full h-full overflow-hidden ml-64 bg-base-100 flex flex-col">
-      <main class="flex flex-col flex-1 min-h-0">
-        {{block "content" .}}{{end}}
-      </main>
-    </div>
+    <main class="flex-1 min-h-0 overflow-hidden flex flex-col">
+      {{block "content" .}}{{end}}
+    </main>
 
-  </div>
+  </div><!-- end body grid -->
+  </div><!-- end UI chrome blur wrapper -->
 
-  <!-- Ticket Detail Modal -->
-  <div x-show="ticketModal" x-cloak
-       @keydown.escape.window="ticketModal = false"
-       class="fixed inset-0 z-50 flex items-center justify-center p-2">
-    <div class="absolute inset-0 bg-black/60" @click="ticketModal = false"></div>
-    <div class="relative w-full max-w-7xl bg-base-100 border border-base-300 rounded-lg shadow-2xl flex flex-col"
-         style="height: 90vh;">
-      <button @click="ticketModal = false"
-              class="absolute top-4 right-4 z-10 text-base-content/30 hover:text-base-content">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+  <!-- New ticket modal -->
+  <div x-show="newTicketModal" x-cloak
+       class="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh]">
+    <div class="absolute inset-0 bg-base-100/70" @click="newTicketModal = false"></div>
+    <div class="relative w-[560px] bg-base-200 border border-base-300 rounded-lg shadow-pop overflow-hidden"
+         data-default-team-id="{{$ntTeamID}}"
+         data-default-team-name="{{$ntTeamName}}"
+         data-default-sprint-name="{{$ntSprint}}"
+         x-data="{
+           teamID:       $el.dataset.defaultTeamId,
+           teamName:     $el.dataset.defaultTeamName || 'Select workspace',
+           sprintName:   $el.dataset.defaultSprintName,
+           pickerOpen:   false,
+           priority:     '',
+           priorityOpen: false,
+           addAnother:   false
+         }"
+         x-effect="if (newTicketModal) $nextTick(() => $refs.ntTitle && $refs.ntTitle.focus())">
+
+      <header class="h-11 px-4 flex items-center gap-2 border-b border-base-300 shrink-0">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"
+             class="text-primary-500 shrink-0" aria-hidden="true">
+          <path d="M8 3v10M3 8h10" stroke-linecap="round"/>
         </svg>
-      </button>
-      <div id="modal-body" class="flex flex-1 min-h-0 overflow-hidden rounded-lg"></div>
-    </div>
-  </div>
-
-  <!-- Keyboard shortcuts overlay -->
-  <div x-show="shortcutsOpen" x-cloak
-       @keydown.escape.window="shortcutsOpen = false"
-       class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <div class="absolute inset-0 bg-black/60" @click="shortcutsOpen = false"></div>
-    <div class="relative bg-base-200 border border-base-300 rounded-xl shadow-2xl w-80 p-5 flex flex-col gap-4">
-      <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold text-base-content">Keyboard shortcuts</h2>
-        <button @click="shortcutsOpen = false" class="text-base-content/30 hover:text-base-content">
-          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        <span class="text-[14px] font-semibold tracking-tightish text-base-950">New ticket</span>
+        <span class="mono text-[13px] text-base-600">in</span>
+        <div class="relative">
+          <button type="button" @click="pickerOpen = !pickerOpen"
+                  class="mono text-[13px] text-base-800 hover:text-base-950 inline-flex items-center gap-1.5 bg-base-250 border border-base-350 hover:border-base-400 rounded-sm pl-2 pr-1.5 h-6 max-w-[200px]">
+            <span x-text="teamName" class="truncate"></span>
+            <template x-if="sprintName">
+              <span class="flex items-center gap-0.5 shrink-0">
+                <span class="text-base-500 px-0.5">/</span>
+                <span x-text="sprintName"></span>
+              </span>
+            </template>
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="text-base-600 shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div x-show="pickerOpen" @click.outside="pickerOpen = false"
+               class="absolute top-full mt-1 left-0 min-w-[220px] bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1 overflow-hidden">
+            {{range .NavTeams}}
+            {{if .Board}}
+            <button type="button"
+                    data-team-id="{{.Team.ID}}"
+                    data-team-name="{{.Team.Name}}"
+                    data-sprint-name="{{if .ActiveSprint}}{{.ActiveSprint.Name}}{{end}}"
+                    @click="teamID=$el.dataset.teamId; teamName=$el.dataset.teamName; sprintName=$el.dataset.sprintName; pickerOpen=false"
+                    class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300 text-left">
+              <span class="mono text-[13px] text-primary-400 shrink-0 w-8">{{.Team.Key}}</span>
+              <span class="truncate flex-1">{{.Team.Name}}</span>
+              {{if .ActiveSprint}}<span class="mono text-[13px] text-base-600 shrink-0 ml-2">{{.ActiveSprint.Name}}</span>{{end}}
+            </button>
+            {{end}}
+            {{end}}
+          </div>
+        </div>
+        <button type="button" @click="newTicketModal = false"
+                class="ml-auto w-6 h-6 rounded text-base-600 hover:text-base-900 hover:bg-base-250 inline-flex items-center justify-center" aria-label="close">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 3 10 10M13 3 3 13"/></svg>
         </button>
-      </div>
-      <div class="flex flex-col gap-2">
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-base-content/60">New ticket</span>
-          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">N</kbd>
-        </div>
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-base-content/60">Focus search</span>
-          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">/</kbd>
-        </div>
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-base-content/60">Close / cancel</span>
-          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">Esc</kbd>
-        </div>
-        <div class="flex items-center justify-between">
-          <span class="text-sm text-base-content/60">This dialog</span>
-          <kbd class="px-1.5 py-0.5 text-xs font-mono bg-base-300 border border-base-100/10 rounded">?</kbd>
-        </div>
-      </div>
-    </div>
-  </div>
+      </header>
 
-  <!-- New Ticket Modal data (team→board map for tag loading) -->
-  <script>
-  window._ntTeams = [
-    {{- range .NavTeams}}
-    {id:"{{.Team.ID}}",key:"{{js .Team.Key}}",name:"{{js .Team.Name}}",boardID:"{{if .Board}}{{.Board.ID}}{{end}}"},
-    {{- end}}
-  ];
-  </script>
-
-  <!-- New Ticket Modal -->
-  <div x-show="newTicket" x-cloak
-       x-data="{
-         createMore: false, maximized: false,
-         teamOpen: false, assigneeOpen: false, labelOpen: false,
-         teams: window._ntTeams || [],
-         selectedTeamID: (function(){ var t=window._ntTeams||[]; if(!t.length) return ''; var last=localStorage.getItem('docket-last-team'); return (last && t.find(x=>x.id===last)) ? last : t[0].id; })(),
-         get selectedTeam() { return this.teams.find(t => t.id === this.selectedTeamID) || (this.teams[0] || {}); },
-         teamQ: '',
-         get filteredTeams() { const q = this.teamQ.toLowerCase(); return (q ? this.teams.filter(t => t.key.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)) : this.teams).slice(0, 10); },
-         assignees: [], assigneeQ: '', assigneeResults: [],
-         labels: [], availableTags: [],
-         async loadTags() {
-           const t = this.teams.find(x => x.id === this.selectedTeamID);
-           if (!t || !t.boardID) { this.availableTags = []; return; }
-           const sel = new Set(this.labels.map(l => l.id));
-           try { const r = await fetch('/boards/'+t.boardID+'/tags'); if (r.ok) this.availableTags = (await r.json()||[]).filter(x=>!sel.has(x.id)); } catch(e){}
-         },
-         async searchAssignees() {
-           if (!this.assigneeQ) { this.assigneeResults=[]; this.assigneeOpen=false; return; }
-           const sel = new Set(this.assignees.map(a => a.id));
-           try { const r = await fetch('/users/search?q='+encodeURIComponent(this.assigneeQ)); if(r.ok) this.assigneeResults=(await r.json()||[]).filter(u=>!sel.has(u.id)); } catch(e){}
-           this.assigneeOpen = this.assigneeResults.length > 0;
-         },
-         addAssignee(u) { if(!this.assignees.find(a=>a.id===u.id)) this.assignees.push(u); this.assigneeQ=''; this.assigneeResults=[]; this.assigneeOpen=false; },
-         removeAssignee(id) { this.assignees=this.assignees.filter(a=>a.id!==id); },
-         addLabel(t) { if(!this.labels.find(l=>l.id===t.id)) this.labels.push(t); this.availableTags=this.availableTags.filter(x=>x.id!==t.id); this.labelOpen=false; },
-         removeLabel(id) { const t=this.labels.find(l=>l.id===id); if(t) this.availableTags.push(t); this.labels=this.labels.filter(l=>l.id!==id); },
-         afterCreate() { localStorage.setItem('docket-last-team', this.selectedTeamID); if(this.createMore){ this.$refs.newTicketForm.reset(); this.assignees=[]; this.labels=[]; this.$refs.titleInput.focus(); document.body.dispatchEvent(new CustomEvent('boardUpdated')); } },
-         resetState() { this.assignees=[]; this.labels=[]; this.assigneeQ=''; this.assigneeResults=[]; this.availableTags=[]; this.assigneeOpen=false; this.labelOpen=false; this.teamOpen=false; this.teamQ=''; this.createMore=false; this.maximized=false; if(this.teams[0]) this.selectedTeamID=this.teams[0].id; },
-         close() { newTicket=false; this.resetState(); this.$nextTick(()=>{ if(this.$refs.newTicketForm) this.$refs.newTicketForm.reset(); }); }
-       }"
-       @keydown.escape.window="close()"
-       @keydown.meta.enter.window="$event.preventDefault(); $refs.newTicketForm.requestSubmit()"
-       @keydown.ctrl.enter.window="$event.preventDefault(); $refs.newTicketForm.requestSubmit()"
-       class="fixed inset-0 z-50 flex items-center justify-center p-6">
-    <div class="absolute inset-0 bg-black/60" @click="close()"></div>
-    <div class="relative w-full bg-base-100 border border-base-300 rounded-xl shadow-2xl flex flex-col transition-all duration-150"
-         :class="maximized ? 'max-w-6xl h-[92vh]' : 'max-w-2xl'">
-
-      <!-- Top bar: team chip + breadcrumb + [maximize] [X] -->
-      <div class="flex items-center justify-between px-4 py-2.5 border-b border-base-300 shrink-0">
-        <div class="flex items-center gap-1.5">
-          <!-- Team chip dropdown -->
-          <div class="relative" @click.outside="teamOpen = false">
-            <button type="button" @click="teamOpen = !teamOpen; if(teamOpen) $nextTick(()=>$refs.teamSearchInput&&$refs.teamSearchInput.focus())"
-                    class="flex items-center gap-1.5 bg-base-200 hover:bg-base-300 border border-base-300 rounded px-2 py-1 text-xs font-medium transition-colors">
-              <svg class="h-3 w-3 text-primary shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-              <span class="font-mono text-primary" x-text="selectedTeam.key || '—'"></span>
+      <form hx-post="/tickets/new"
+            :data-add-another="addAnother"
+            hx-on::after-request="if(event.detail.successful){ const aa=$el.dataset.addAnother==='true'; if(aa){ $el.reset(); $refs.ntTitle.focus(); document.body.dispatchEvent(new CustomEvent('boardUpdated')); } else { window.dispatchEvent(new CustomEvent('close-new-ticket-modal')); const r=event.detail.xhr.getResponseHeader('HX-Redirect'); if(r) setTimeout(()=>window.location=r,30); else document.body.dispatchEvent(new CustomEvent('boardUpdated')); } }"
+            @keydown.meta.enter.prevent="$el.requestSubmit()"
+            @keydown.ctrl.enter.prevent="$el.requestSubmit()"
+            class="p-5 space-y-3">
+        <input type="hidden" name="team_id"  :value="teamID" />
+        <input type="hidden" name="priority" :value="priority" />
+        <input x-ref="ntTitle" type="text" name="title" required
+               placeholder="Ticket title…"
+               class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />
+        <textarea name="body" rows="3"
+                  placeholder="Add description — what &amp; why. Markdown supported."
+                  class="block w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-800 leading-relaxed placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk resize-none"></textarea>
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <!-- Priority -->
+          <div class="relative">
+            <button type="button" @click="priorityOpen = !priorityOpen"
+                    class="w-full bg-base-150 border border-base-300 hover:border-base-400 rounded h-8 px-2.5 flex items-center gap-2 shadow-sunk">
+              <span :class="{'bg-p0':priority==='critical','bg-p1':priority==='high','bg-p2':priority==='medium','bg-p3':priority==='low','bg-base-500':!priority}"
+                    class="w-1 h-3 rounded-sm shrink-0"></span>
+              <span class="mono text-[13px] text-base-900" x-text="priority ? ({low:'P3 · Low',medium:'P2 · Medium',high:'P1 · High',critical:'P0 · Critical'}[priority]) : 'Priority'"></span>
+              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" class="text-base-600 ml-auto shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <div x-show="teamOpen" x-cloak class="absolute left-0 top-full mt-1 z-30 w-52 bg-base-200 border border-base-300 rounded-lg shadow-popup flex flex-col">
-              <div class="p-2 border-b border-base-300">
-                <input type="text" x-model="teamQ" @input="" placeholder="Search teams…"
-                       x-ref="teamSearchInput"
-                       class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
-              </div>
-              <div class="max-h-48 overflow-y-auto py-1">
-                <template x-for="t in filteredTeams" :key="t.id">
-                  <button type="button" @click="selectedTeamID=t.id; teamOpen=false; teamQ=''; labels=[]; availableTags=[]"
-                          class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs"
-                          :class="selectedTeamID===t.id ? 'text-primary' : 'text-base-content/70'">
-                    <span class="font-mono font-medium" x-text="t.key"></span>
-                    <span class="text-base-content/50" x-text="t.name"></span>
-                  </button>
-                </template>
-                <p x-show="!filteredTeams.length" class="text-xs text-base-content/30 px-3 py-2">No teams found</p>
-              </div>
-            </div>
-          </div>
-          <svg class="h-3.5 w-3.5 text-base-content/30 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z"/></svg>
-          <span class="text-xs text-base-content/40">New ticket</span>
-        </div>
-        <div class="flex items-center gap-0.5">
-          <button type="button" @click="maximized=!maximized"
-                  class="p-1.5 text-base-content/30 hover:text-base-content hover:bg-base-300 rounded transition-colors"
-                  :title="maximized ? 'Collapse' : 'Expand'">
-            <svg x-show="!maximized" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-            <svg x-show="maximized" x-cloak class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
-          </button>
-          <button type="button" @click="close()" class="p-1.5 text-base-content/30 hover:text-base-content hover:bg-base-300 rounded transition-colors">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
-          </button>
-        </div>
-      </div>
-
-      <form x-ref="newTicketForm"
-            hx-post="/tickets/new"
-            hx-swap="none"
-            @htmx:after-request="if(event.detail.successful) afterCreate()"
-            class="flex flex-col flex-1 min-h-0">
-        <input type="hidden" name="create_more" :value="createMore ? 'true' : 'false'">
-        <input type="hidden" name="team_id" :value="selectedTeamID">
-        <template x-for="a in assignees" :key="a.id">
-          <input type="hidden" name="assignee_id" :value="a.id">
-        </template>
-        <template x-for="l in labels" :key="l.id">
-          <input type="hidden" name="tag_id" :value="l.id">
-        </template>
-
-        <!-- Title + description -->
-        <div class="px-6 pt-6 pb-4 flex flex-col gap-3 flex-1 min-h-0 overflow-y-auto">
-          <input type="text" name="title" required x-ref="titleInput" id="new-ticket-title"
-                 placeholder="Ticket title"
-                 class="w-full bg-transparent text-xl font-semibold text-base-content placeholder:text-base-content/20 focus:outline-none shrink-0" />
-          <hr class="border-base-300 shrink-0" />
-          {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add a description… (@username, #TICKET-ID)" "Rows" "4")}}
-        </div>
-
-        <!-- Metadata chips row -->
-        <div class="px-4 py-3 border-t border-base-300 flex items-center gap-2 flex-wrap shrink-0">
-
-          <!-- Priority chip -->
-          <select name="priority"
-                  class="bg-base-200 border border-base-300 text-base-content/60 text-xs rounded-full px-3 py-1.5 focus:outline-none focus:border-primary cursor-pointer hover:bg-base-300">
-            <option value="">No priority</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-
-          <!-- Selected assignee chips -->
-          <template x-for="a in assignees" :key="a.id">
-            <span class="flex items-center gap-1 bg-base-200 border border-base-300 rounded-full pl-1 pr-2 py-1 text-xs text-base-content/70">
-              <span class="w-4 h-4 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[9px] font-bold text-primary shrink-0" x-text="(a.name||'?')[0].toUpperCase()"></span>
-              <span x-text="a.name"></span>
-              <button type="button" @click="removeAssignee(a.id)" class="text-base-content/30 hover:text-red-400 ml-0.5">
-                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            <div x-show="priorityOpen" @click.outside="priorityOpen = false"
+                 class="absolute top-full mt-1 left-0 w-full bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1 overflow-hidden">
+              <button type="button" @click="priority=''; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
+                <span class="w-1 h-3 rounded-sm bg-base-500 shrink-0"></span><span class="mono text-[13px]">—</span><span class="text-base-700 ml-1">None</span>
               </button>
-            </span>
-          </template>
-
-          <!-- Add assignee button + dropdown -->
-          <div class="relative" @click.outside="assigneeOpen=false; assigneeQ=''; assigneeResults=[]">
-            <button type="button"
-                    @click="assigneeOpen=!assigneeOpen; if(assigneeOpen) $nextTick(()=>$refs.assigneeInput&&$refs.assigneeInput.focus())"
-                    class="flex items-center gap-1.5 bg-base-200 border border-base-300 rounded-full px-3 py-1.5 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors">
-              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-              Assignee
-            </button>
-            <div x-show="assigneeOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-56 bg-base-200 border border-base-300 rounded-lg shadow-popup flex flex-col">
-              <div class="max-h-40 overflow-y-auto py-1">
-                <template x-for="u in assigneeResults" :key="u.id">
-                  <button type="button" @mousedown.prevent @click="addAssignee(u)"
-                          class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs">
-                    <span class="w-5 h-5 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[9px] font-bold text-primary shrink-0" x-text="(u.name||'?')[0].toUpperCase()"></span>
-                    <span x-text="u.name" class="text-base-content/80 flex-1 min-w-0 truncate"></span>
-                    <span x-text="'@'+u.username" class="text-primary/50 font-mono text-[10px] shrink-0"></span>
-                  </button>
-                </template>
-                <p x-show="assigneeQ && !assigneeResults.length" class="text-xs text-base-content/30 px-3 py-2">No results</p>
-                <p x-show="!assigneeQ" class="text-xs text-base-content/30 px-3 py-2">Type to search…</p>
-              </div>
-              <div class="p-2 border-t border-base-300">
-                <input type="text" x-ref="assigneeInput" x-model="assigneeQ" @input="searchAssignees()"
-                       placeholder="Search people…"
-                       class="w-full bg-base-100 border border-base-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-primary" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Selected label chips -->
-          <template x-for="l in labels" :key="l.id">
-            <span class="flex items-center gap-1 border rounded-full pl-2 pr-1.5 py-1 text-xs"
-                  :style="`background-color:${l.color}18;color:${l.color};border-color:${l.color}40`">
-              <span class="w-1.5 h-1.5 rounded-full shrink-0" :style="`background-color:${l.color}`"></span>
-              <span x-text="l.name"></span>
-              <button type="button" @click="removeLabel(l.id)" class="opacity-50 hover:opacity-100 ml-0.5">
-                <svg class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              <button type="button" @click="priority='low'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
+                <span class="w-1 h-3 rounded-sm bg-p3 shrink-0"></span><span class="mono text-[13px]">P3</span><span class="text-base-700 ml-1">Low</span>
               </button>
-            </span>
-          </template>
-
-          <!-- Add label button + dropdown -->
-          <div class="relative" @click.outside="labelOpen=false">
-            <button type="button"
-                    @click="labelOpen=!labelOpen; if(labelOpen) loadTags()"
-                    class="flex items-center gap-1.5 bg-base-200 border border-base-300 rounded-full px-3 py-1.5 text-xs text-base-content/50 hover:text-base-content hover:bg-base-300 transition-colors">
-              <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-5 5a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"/></svg>
-              Label
-            </button>
-            <div x-show="labelOpen" x-cloak class="absolute left-0 bottom-full mb-1 z-30 w-44 bg-base-200 border border-base-300 rounded-lg shadow-popup py-1">
-              <template x-for="t in availableTags" :key="t.id">
-                <button type="button" @mousedown.prevent @click="addLabel(t)"
-                        class="w-full flex items-center gap-2 px-3 py-2 hover:bg-base-300 text-left text-xs">
-                  <span class="w-2 h-2 rounded-full shrink-0" :style="`background-color:${t.color}`"></span>
-                  <span x-text="t.name" class="text-base-content/70"></span>
-                </button>
-              </template>
-              <p x-show="!availableTags.length" class="text-xs text-base-content/30 px-3 py-2">No labels available</p>
+              <button type="button" @click="priority='medium'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
+                <span class="w-1 h-3 rounded-sm bg-p2 shrink-0"></span><span class="mono text-[13px]">P2</span><span class="text-base-700 ml-1">Medium</span>
+              </button>
+              <button type="button" @click="priority='high'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
+                <span class="w-1 h-3 rounded-sm bg-p1 shrink-0"></span><span class="mono text-[13px]">P1</span><span class="text-base-700 ml-1">High</span>
+              </button>
+              <button type="button" @click="priority='critical'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
+                <span class="w-1 h-3 rounded-sm bg-p0 shrink-0"></span><span class="mono text-[13px]">P0</span><span class="text-base-700 ml-1">Critical</span>
+              </button>
             </div>
           </div>
-
-        </div>
-
-        <!-- Footer -->
-        <div class="px-4 py-2 border-t border-base-300 flex items-center justify-end gap-3 shrink-0">
-          <label class="flex items-center gap-2.5 cursor-pointer select-none">
-            <div class="relative w-8 h-[18px] rounded-full transition-colors" :class="createMore ? 'bg-primary' : 'bg-base-300'" @click="createMore=!createMore">
-              <div class="absolute top-[3px] left-[3px] w-3 h-3 bg-white rounded-full shadow transition-transform" :class="createMore ? 'translate-x-[14px]' : ''"></div>
-            </div>
-            <span class="text-sm text-base-content/50">Create more</span>
+          <!-- Story points -->
+          <label class="bg-base-150 border border-base-300 hover:border-base-400 rounded h-8 px-2.5 flex items-center gap-2 shadow-sunk cursor-text">
+            <span class="mono text-[13px] text-base-600 shrink-0">pts</span>
+            <input type="number" name="story_points" min="1" max="999" placeholder="—"
+                   class="mono w-full bg-transparent border-0 p-0 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" class="text-base-600 shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </label>
-          <div class="w-px h-5 bg-base-300 shrink-0"></div>
-          <div class="flex items-center gap-2">
-            <button type="button" @click="close()"
-                    class="px-4 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded-lg">
-              Cancel
-            </button>
-            <button type="submit"
-                    class="px-4 py-1.5 bg-primary text-base-100 text-sm font-medium rounded-lg hover:opacity-90">
-              Create ticket
-            </button>
+          <!-- Sprint (read-only display) -->
+          <div class="col-span-2 bg-base-150 border border-base-300 rounded h-8 px-2.5 flex items-center gap-2 shadow-sunk">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0" aria-hidden="true">
+              <rect x="2.5" y="3.5" width="11" height="10" rx="1"/><path d="M2.5 6.5h11M6 1.5v2M10 1.5v2" stroke-linecap="round"/>
+            </svg>
+            <span class="mono text-[13px] text-base-700 truncate flex-1" x-text="sprintName || 'Backlog'"></span>
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" class="text-base-600 shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
         </div>
-
+        <div class="flex items-center gap-3 border-t border-base-300 bg-base-100/40 -mx-5 -mb-5 px-4 h-12">
+          <!-- Add another toggle -->
+          <button type="button" @click="addAnother = !addAnother"
+                  class="inline-flex items-center gap-2 select-none shrink-0">
+            <span class="relative w-[34px] h-[20px] rounded-full border transition-colors shrink-0"
+                  :class="addAnother ? 'bg-primary-500/20 border-primary-500/50' : 'bg-base-350 border-base-400'">
+              <span class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full transition-all"
+                    :class="addAnother ? 'bg-primary-400' : 'bg-base-700'"
+                    :style="addAnother ? 'left:16px' : 'left:2px'"></span>
+            </span>
+            <span class="text-[14px]" :class="addAnother ? 'text-base-900' : 'text-base-800'">Add another</span>
+          </button>
+          <div class="ml-auto flex items-center gap-2">
+            <button type="button" @click="newTicketModal = false"
+                    class="px-3 py-1 text-[15px] text-base-800 hover:text-base-950 hover:bg-base-250 rounded">Cancel</button>
+            <button type="submit"
+                    class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[15px] px-3 py-1 rounded shadow-lift">Create ticket</button>
+          </div>
+        </div>
       </form>
     </div>
   </div>
 
-  <script src="/static/htmx.min.js"></script>
+  <!-- Ticket drawer -->
+  <div class="fixed inset-0 z-50" x-show="ticketModal" x-cloak style="display:none">
+
+    <!-- Scrim: dims the content behind, click to close -->
+    <div class="absolute inset-0 bg-base-100/70"
+         @click="$dispatch('close-ticket-modal')"></div>
+
+    <!-- Drawer panel -->
+    <div class="absolute inset-0 flex pointer-events-none">
+      <div class="ml-auto w-[940px] max-w-[94vw] h-full bg-base-200 border-l border-base-300 shadow-pop pointer-events-auto relative">
+
+        <!-- HTMX loading skeleton (shown while request is in flight) -->
+        <div id="drawer-skeleton" class="drawer-skeleton htmx-indicator absolute inset-0 z-10 bg-base-200 p-6 pointer-events-none">
+          <div class="h-4 w-24 rounded bg-base-300 animate-pulse"></div>
+          <div class="h-7 w-2/3 rounded bg-base-300 animate-pulse mt-4"></div>
+          <div class="h-3 w-1/3 rounded bg-base-300 animate-pulse mt-3"></div>
+          <div class="space-y-2 mt-6">
+            <div class="h-3 w-full rounded bg-base-300 animate-pulse"></div>
+            <div class="h-3 w-5/6 rounded bg-base-300 animate-pulse"></div>
+            <div class="h-3 w-3/4 rounded bg-base-300 animate-pulse"></div>
+          </div>
+        </div>
+
+        <!-- HTMX target: fetched ticket partial lands here -->
+        <div id="modal-body" class="h-full"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/board.js"></script>
   <script>
-    function mentionInput() {
-      return {
-        mentionOpen: false,
-        mentionUsers: [],
-        ticketOpen: false,
-        mentionTickets: [],
-        _mentionTa: null,
-        mentionInput(e) {
-          this._mentionTa = e.target;
-          const before = e.target.value.slice(0, e.target.selectionStart);
-          const mUser = before.match(/@(\w+)$/);
-          const mTicket = before.match(/#([\w-]+)$/);
-          if (mUser && mUser[1].length >= 1) {
-            this.ticketOpen = false;
-            this._mentionFetch(mUser[1]);
-          } else if (mTicket && mTicket[1].length >= 1) {
-            this.mentionOpen = false;
-            this._ticketFetch(mTicket[1]);
-          } else {
-            this.mentionOpen = false;
-            this.ticketOpen = false;
-          }
-        },
-        async _mentionFetch(q) {
-          try {
-            const r = await fetch('/users/search?q=' + encodeURIComponent(q));
-            if (r.ok) {
-              const data = await r.json();
-              this.mentionUsers = data || [];
-              this.mentionOpen = this.mentionUsers.length > 0;
-            }
-          } catch (_) { this.mentionOpen = false; }
-        },
-        async _ticketFetch(q) {
-          try {
-            const r = await fetch('/tickets/search-mention?q=' + encodeURIComponent(q));
-            if (r.ok) {
-              const data = await r.json();
-              this.mentionTickets = data || [];
-              this.ticketOpen = this.mentionTickets.length > 0;
-            }
-          } catch (_) { this.ticketOpen = false; }
-        },
-        mentionPick(username) {
-          const ta = this._mentionTa;
-          if (!ta) return;
-          const before = ta.value.slice(0, ta.selectionStart);
-          const after = ta.value.slice(ta.selectionStart);
-          const newBefore = before.replace(/@\w+$/, '@' + username + ' ');
-          ta.value = newBefore + after;
-          ta.setSelectionRange(newBefore.length, newBefore.length);
-          ta.focus();
-          this.mentionOpen = false;
-        },
-        ticketPick(displayID) {
-          const ta = this._mentionTa;
-          if (!ta) return;
-          const before = ta.value.slice(0, ta.selectionStart);
-          const after = ta.value.slice(ta.selectionStart);
-          const newBefore = before.replace(/#[\w-]+$/, '#' + displayID + ' ');
-          ta.value = newBefore + after;
-          ta.setSelectionRange(newBefore.length, newBefore.length);
-          ta.focus();
-          this.ticketOpen = false;
-        }
-      };
-    }
+    // Close buttons inside fetched partials can use data-drawer-close attribute
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('[data-drawer-close]')) {
+        document.body.dispatchEvent(new CustomEvent('close-ticket-modal', {bubbles: true}));
+      }
+    });
+
+    // Show skeleton while any request loading into #modal-body is in flight
+    document.body.addEventListener('htmx:beforeRequest', function(e) {
+      if (e.detail.target && e.detail.target.id === 'modal-body') {
+        var sk = document.getElementById('drawer-skeleton');
+        if (sk) sk.classList.add('htmx-request');
+      }
+    });
+    document.body.addEventListener('htmx:afterRequest', function(e) {
+      if (e.detail.target && e.detail.target.id === 'modal-body') {
+        var sk = document.getElementById('drawer-skeleton');
+        if (sk) sk.classList.remove('htmx-request');
+      }
+    });
+
+    // Reset drawer scroll to top after each swap
+    document.body.addEventListener('htmx:afterSwap', function(e) {
+      if (e.detail.target && e.detail.target.id === 'modal-body') {
+        var sc = e.detail.target.querySelector('.overflow-y-auto');
+        if (sc) sc.scrollTop = 0;
+      }
+    });
   </script>
-  <script src="/static/editor.js"></script>
-  <script defer src="/static/alpine.min.js"></script>
-  {{block "scripts" .}}{{end}}
 </body>
 </html>
 {{end}}

@@ -2,18 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
-html { font-size: 110%; }
+/* .mono — IBM Plex Mono with slashed-zero + tabular figures.
+   Used on IDs, counts, timestamps, branch names, uppercase labels.
+   Applied as a utility class, not via font-mono, so feature-settings travel with it. */
+@layer utilities {
+  .mono {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-feature-settings: 'zero' 1, 'tnum' 1;
+  }
+}
+
+@layer base {
+  /* OpenType features on body text: stylistic alternates + tabular figures */
+  body {
+    font-feature-settings: 'ss01' on, 'cv11' on, 'tnum' on;
+  }
+
+  /* Styled scrollbars */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #21262d; border-radius: 5px; border: 2px solid #0d1117; }
+  ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+}
 
 /* Hide Alpine x-cloak elements until Alpine initialises */
 [x-cloak] { display: none !important; }
 
-/* Syntax-highlighted code blocks: scroll internally, never expand container.
-   min-width:0 prevents pre from sizing to max-content in flex/grid contexts. */
+/* Code blocks: scroll internally, never expand their container */
 pre { min-width: 0; overflow-x: auto !important; }
 
-/* Inline code: Slack-style — orange-400 text, dark bg, monospace, no bold, rounded. */
+/* Inline code: orange-tinted, distinct from ticket IDs (emerald) */
 .prose :not(pre) > code {
-  @apply text-orange-400 bg-orange-400/10 font-mono font-normal rounded px-1 py-0.5 text-[0.85em];
+  @apply font-mono font-normal rounded px-1 py-0.5 text-[0.85em];
+  color: #fb923c;
+  background-color: rgb(251 146 60 / 0.10);
 }
 .prose :not(pre) > code::before,
 .prose :not(pre) > code::after { content: none !important; }
+
+/* Priority and points native selects */
+.selwrap { position: relative; }
+.selwrap .chev,
+.selwrap .swatch {
+  position: absolute; top: 50%; transform: translateY(-50%); pointer-events: none;
+}
+.selwrap .chev { right: 8px; }
+.selwrap .swatch { left: 9px; width: 4px; height: 16px; border-radius: 2px; }
+
+select.metasel {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 32px;
+  background: #10151c; border: 1px solid #21262d; border-radius: 4px;
+  color: #e6edf3; font-size: 14px;
+  padding: 0 26px 0 10px;
+  box-shadow: inset 0 1px 0 rgba(0,0,0,.4);
+  cursor: pointer; transition: border-color .12s;
+}
+select.metasel:hover  { border-color: #30363d; }
+select.metasel:focus  { outline: none; border-color: #10b981; box-shadow: 0 0 0 1px #10b981, 0 0 0 4px rgba(16,185,129,.18), inset 0 1px 0 rgba(0,0,0,.4); }
+select.metasel.has-swatch { padding-left: 28px; }
+select.metasel.pts { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-feature-settings: 'zero' 1, 'tnum' 1; }
+select.metasel option { background: #161b22; color: #e6edf3; }
+
+/* HTMX drawer skeleton — invisible at rest, fades in while a request is in-flight */
+.drawer-skeleton { opacity: 0; transition: opacity .12s; pointer-events: none; }
+.htmx-request .drawer-skeleton, .htmx-request.drawer-skeleton { opacity: 1; }
+
+/* Dot-grid background for the login page */
+.grid-bg {
+  background-image: radial-gradient(circle, #30363d 1px, transparent 1px);
+  background-size: 24px 24px;
+}

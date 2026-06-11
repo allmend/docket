@@ -1,0 +1,153 @@
+{{define "ticket-refine"}}
+{{$t := .Ticket}}
+<div id="ticket-refine" class="max-w-[760px] mx-auto px-8 py-6"
+     x-data="{pts:'{{deref $t.StoryPoints}}', pri:'{{$t.Priority.String}}'}">
+
+  <!-- Title block -->
+  <div class="flex items-center gap-2 mb-2">
+    <span class="mono text-[13px] text-primary-400">{{$t.DisplayID}}</span>
+    {{if $t.StoryPoints}}
+    <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-primary-500/15 border border-primary-500/30 mono text-[11px] uppercase tracking-wider text-primary-400">estimated</span>
+    {{else}}
+    <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-warn/15 border border-warn/30 mono text-[11px] uppercase tracking-wider text-warn">needs estimate</span>
+    {{end}}
+  </div>
+  <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950 mb-6">{{$t.Title}}</h1>
+
+  <!-- Estimate + priority grid -->
+  <div class="grid grid-cols-2 gap-6 mb-6">
+
+    <!-- Story points -->
+    <div>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Estimate · points</div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":"1"}' hx-swap="none"
+                @click="pts='1'"
+                :class="pts==='1' ? 'bg-primary-500/15 border-primary-500 text-primary-300 font-medium' : 'bg-base-250 border-base-350 text-base-800 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">1</button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":"2"}' hx-swap="none"
+                @click="pts='2'"
+                :class="pts==='2' ? 'bg-primary-500/15 border-primary-500 text-primary-300 font-medium' : 'bg-base-250 border-base-350 text-base-800 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">2</button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":"3"}' hx-swap="none"
+                @click="pts='3'"
+                :class="pts==='3' ? 'bg-primary-500/15 border-primary-500 text-primary-300 font-medium' : 'bg-base-250 border-base-350 text-base-800 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">3</button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":"5"}' hx-swap="none"
+                @click="pts='5'"
+                :class="pts==='5' ? 'bg-primary-500/15 border-primary-500 text-primary-300 font-medium' : 'bg-base-250 border-base-350 text-base-800 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">5</button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":"8"}' hx-swap="none"
+                @click="pts='8'"
+                :class="pts==='8' ? 'bg-primary-500/15 border-primary-500 text-primary-300 font-medium' : 'bg-base-250 border-base-350 text-base-800 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">8</button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":"13"}' hx-swap="none"
+                @click="pts='13'"
+                :class="pts==='13' ? 'bg-primary-500/15 border-primary-500 text-primary-300 font-medium' : 'bg-base-250 border-base-350 text-base-800 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">13</button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"story_points":""}' hx-swap="none"
+                @click="pts=''"
+                :class="pts==='' ? 'bg-base-300 border-base-400 text-base-800' : 'bg-base-250 border-base-350 text-base-600 hover:border-base-400'"
+                class="h-9 w-11 rounded-md border mono text-[15px]">?</button>
+      </div>
+    </div>
+
+    <!-- Priority -->
+    <div>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Priority</div>
+      <div class="flex flex-wrap gap-2">
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/priority" hx-vals='{"priority":"critical"}' hx-swap="none"
+                @click="pri='critical'"
+                :class="pri==='critical' ? 'border-base-600 text-base-950' : 'border-base-350 text-base-700 hover:border-base-400'"
+                class="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md bg-base-250 border mono text-[14px]">
+          <span class="w-1 h-3 rounded-sm bg-p0 shrink-0" :class="pri!=='critical' ? 'opacity-50' : ''"></span>P0
+        </button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/priority" hx-vals='{"priority":"high"}' hx-swap="none"
+                @click="pri='high'"
+                :class="pri==='high' ? 'border-base-600 text-base-950' : 'border-base-350 text-base-700 hover:border-base-400'"
+                class="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md bg-base-250 border mono text-[14px]">
+          <span class="w-1 h-3 rounded-sm bg-p1 shrink-0" :class="pri!=='high' ? 'opacity-50' : ''"></span>P1
+        </button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/priority" hx-vals='{"priority":"medium"}' hx-swap="none"
+                @click="pri='medium'"
+                :class="pri==='medium' ? 'border-base-600 text-base-950' : 'border-base-350 text-base-700 hover:border-base-400'"
+                class="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md bg-base-250 border mono text-[14px]">
+          <span class="w-1 h-3 rounded-sm bg-p2 shrink-0" :class="pri!=='medium' ? 'opacity-50' : ''"></span>P2
+        </button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/priority" hx-vals='{"priority":"low"}' hx-swap="none"
+                @click="pri='low'"
+                :class="pri==='low' ? 'border-base-600 text-base-950' : 'border-base-350 text-base-700 hover:border-base-400'"
+                class="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md bg-base-250 border mono text-[14px]">
+          <span class="w-1 h-3 rounded-sm bg-p3 shrink-0" :class="pri!=='low' ? 'opacity-50' : ''"></span>P3
+        </button>
+        <button type="button"
+                hx-put="/tickets/{{$t.ID}}/priority" hx-vals='{"priority":""}' hx-swap="none"
+                @click="pri=''"
+                :class="pri==='' ? 'border-base-600 text-base-950' : 'border-base-350 text-base-600 hover:border-base-400'"
+                class="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-md bg-base-250 border mono text-[14px]">
+          <span class="w-1 h-3 rounded-sm bg-base-500 shrink-0" :class="pri!=='' ? 'opacity-50' : ''"></span>—
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tracks & labels -->
+  {{if or .Tags .BoardTags}}
+  <div class="mb-6">
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Tracks &amp; labels</div>
+    <div class="flex flex-wrap items-center gap-2">
+      {{range .Tags}}
+      <span class="inline-flex items-center gap-1.5 h-7 px-2 rounded-sm bg-base-250 border border-base-350">
+        <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+        <span class="text-[14px] text-base-800">{{.Name}}</span>
+      </span>
+      {{end}}
+      {{if .BoardTags}}
+      <div x-data="{open:false}" class="relative">
+        <button @click="open=!open"
+                class="h-7 px-2 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 text-[14px]">+ label</button>
+        <div x-show="open" @click.outside="open=false"
+             class="absolute top-full mt-1 left-0 min-w-[140px] bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1">
+          {{range .BoardTags}}
+          <button type="button"
+                  hx-post="/tickets/{{$t.ID}}/tags"
+                  hx-vals='{"tag_id":"{{.ID}}"}'
+                  hx-swap="none"
+                  hx-on::after-request="htmx.ajax('GET','/tickets/{{$t.ID}}/refine',{target:'#ticket-refine',swap:'outerHTML'})"
+                  @click="open=false"
+                  class="w-full flex items-center gap-2 px-2.5 py-1.5 text-[13px] text-base-900 hover:bg-base-300">
+            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+            {{.Name}}
+          </button>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+  {{end}}
+
+  <!-- Description -->
+  <div class="mb-6">
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Description</div>
+    <div class="bg-base-150 border border-base-300 rounded-md shadow-sunk px-4 py-3 text-[15px] leading-relaxed text-base-800 min-h-[4rem]">
+      {{if $t.Body}}{{$t.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">No description.</span>{{end}}
+    </div>
+  </div>
+
+  <!-- Acceptance criteria -->
+  {{template "ticket-ac-section" $t}}
+
+</div>
+{{end}}

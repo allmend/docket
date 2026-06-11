@@ -1,0 +1,33 @@
+{{define "ticket-priority-select"}}
+{{$pri := .Priority.String}}
+<div id="ticket-priority-select">
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Priority</div>
+  {{if .ClosedAt}}
+  <div class="flex items-center gap-2 px-1 py-1">
+    <span class="w-1 h-3 rounded-sm shrink-0
+      {{if eq $pri "critical"}}bg-p0{{else if eq $pri "high"}}bg-p1{{else if eq $pri "medium"}}bg-p2{{else if eq $pri "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+    <span class="mono text-[14px] text-base-900">
+      {{if eq $pri "critical"}}P0{{else if eq $pri "high"}}P1{{else if eq $pri "medium"}}P2{{else if eq $pri "low"}}P3{{else}}—{{end}}
+    </span>
+  </div>
+  {{else}}
+  <div class="selwrap">
+    <span class="swatch"
+          style="background-color:{{if eq $pri "critical"}}#f85149{{else if eq $pri "high"}}#ff8c42{{else if eq $pri "medium"}}#d29922{{else if eq $pri "low"}}#58a6ff{{else}}#484f58{{end}}"></span>
+    <select name="priority"
+            hx-put="/tickets/{{.ID}}/priority"
+            hx-trigger="change"
+            hx-target="#ticket-priority-select"
+            hx-swap="outerHTML"
+            class="metasel has-swatch">
+      <option value="" {{if eq $pri ""}}selected{{end}}>— none</option>
+      <option value="low"      {{if eq $pri "low"}}selected{{end}}>P3 · Low</option>
+      <option value="medium"   {{if eq $pri "medium"}}selected{{end}}>P2 · Medium</option>
+      <option value="high"     {{if eq $pri "high"}}selected{{end}}>P1 · High</option>
+      <option value="critical" {{if eq $pri "critical"}}selected{{end}}>P0 · Critical</option>
+    </select>
+    <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </div>
+  {{end}}
+</div>
+{{end}}

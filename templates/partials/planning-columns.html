@@ -1,0 +1,49 @@
+{{define "planning-columns"}}
+{{$board := .Board}}
+{{$team  := .Team}}
+
+{{/* Sprint planning layout: backlog source column (left) + sprint columns (right).
+     Served standalone via GET /boards/{id}/planning/columns for HTMX polling. */}}
+<div class="flex min-h-full">
+
+  {{/* Backlog source column */}}
+  <section class="flex flex-col w-[300px] shrink-0 border-r-2 border-primary-500/40 bg-primary-500/[0.03]">
+    <div class="px-3 py-2.5 flex items-center justify-between border-b border-primary-500/30 bg-primary-500/[0.06] shrink-0">
+      <div class="flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#34d399" stroke-width="1.6" aria-hidden="true">
+          <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h7" stroke-linecap="round"/>
+        </svg>
+        <span class="mono text-[13px] uppercase tracking-[0.16em] text-primary-300">backlog</span>
+        {{range .Columns}}{{if .IsBacklog}}
+        <span class="mono text-[13px] text-base-600" data-column-count>{{len .Tickets}}</span>
+        {{end}}{{end}}
+      </div>
+      {{if $team}}
+      <a href="/workspaces/{{$team.Slug}}/backlog"
+         class="mono text-[12px] text-base-600 hover:text-primary-400">view all</a>
+      {{end}}
+    </div>
+    <div class="flex-1 overflow-y-auto p-2.5 space-y-1.5">
+      <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 px-1 pb-0.5">drag right to commit →</div>
+      <div class="backlog-ticket-list space-y-1.5" data-column-id="backlog">
+        {{range .Columns}}{{if .IsBacklog}}
+        {{range .Tickets}}
+        {{template "backlog-planning-card" .}}
+        {{end}}
+        {{end}}{{end}}
+      </div>
+    </div>
+  </section>
+
+  {{/* Sprint columns */}}
+  <div class="flex flex-1 min-w-0 gap-3 p-3">
+    {{range .Columns}}{{if not .IsBacklog}}
+    {{$col := .Column}}
+    {{$isDone := .IsDone}}
+    {{template "board-column" (dict "Board" $board "Col" $col "IsDone" $isDone "Tickets" .Tickets "Mode" "planning" "FirstColumnID" $.FirstColumnID "Points" .TotalPoints)}}
+    {{end}}{{end}}
+    {{template "add-column-card" $board}}
+  </div>
+
+</div>
+{{end}}

@@ -26,6 +26,22 @@ import Sortable from "sortablejs";
   }
 }
 
+// neighbourPositions reads the fractional positions either side of a dropped
+// card so the server can place it between them. With visibleOnly, hidden rows
+// are skipped — the backlog renders a normal and a refine row for the same
+// ticket, and only one of them is ever visible.
+function neighbourPositions(listEl, ticketEl, visibleOnly = false) {
+  let siblings = Array.from(listEl.querySelectorAll("[data-ticket-id]"));
+  if (visibleOnly) siblings = siblings.filter((el) => el.offsetParent !== null);
+  const idx = siblings.indexOf(ticketEl);
+  return {
+    siblings,
+    idx,
+    prevPos: idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0,
+    nextPos: idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0,
+  };
+}
+
 function board(boardID, sprintID) {
   return {
     boardID,
@@ -50,10 +66,11 @@ function board(boardID, sprintID) {
         if (!(t && (t.id === "board-columns" || t.querySelector?.(".ticket-list, .backlog-ticket-list")))) return;
         if (Sortable.dragged) {
           // Board swapped while a drag is active — defer until drag ends.
-          document.addEventListener("dragend", () => { this.initSortables(); this.applyFilters(); }, { once: true });
+          document.addEventListener("dragend", () => { this.initSortables(); this.applyFilters(); this.updateCommittedBar(); }, { once: true });
         } else {
           this.initSortables();
           this.applyFilters();
+          this.updateCommittedBar();
         }
       });
     },
@@ -131,7 +148,7 @@ function board(boardID, sprintID) {
           }
           if (show && hasAge) {
             const ageDays = (now - parseInt(card.dataset.createdUnix || 0)) / 86400;
-            // Age filter = max age: hide tickets OLDER than N days.
+            // The age filter is a maximum: tickets older than N days are hidden.
             if (ageDays > this.filterMaxAgeDays) show = false;
           }
           card.classList.toggle("hidden", !show);
@@ -188,15 +205,7 @@ function board(boardID, sprintID) {
       const fromEl = evt.from;
       const toColumnID = toEl.dataset.columnId;
       const fromColumnID = fromEl.dataset.columnId;
-
-      const siblings = Array.from(toEl.querySelectorAll("[data-ticket-id]"));
-      const idx = siblings.indexOf(ticketEl);
-      const prevPos = idx > 0
-        ? parseFloat(siblings[idx - 1].dataset.position || "0")
-        : 0;
-      const nextPos = idx < siblings.length - 1
-        ? parseFloat(siblings[idx + 1].dataset.position || "0")
-        : 0;
+      const { prevPos, nextPos } = neighbourPositions(toEl, ticketEl);
 
       if (toColumnID === "backlog" && fromColumnID === "backlog") {
         // Reorder within the backlog — persist position only.
@@ -211,12 +220,25 @@ function board(boardID, sprintID) {
             if (!res.ok) console.error("backlog reorder failed", res.status);
           });
       } else if (toColumnID === "backlog") {
-        // Returning from a sprint column to the backlog — un-assign from sprint.
-        const params = new URLSearchParams({ sprint_id: "" });
-        fetch(`/tickets/${ticketID}/sprint`, { method: "POST", body: params })
+        // Returning from a sprint column to the backlog — un-assign from sprint,
+        // then persist the backlog position so refresh doesn't reorder the ticket.
+        const columnID = ticketEl.dataset.ticketColumnId || fromEl.dataset.columnId || "";
+        fetch(`/tickets/${ticketID}/sprint`, { method: "POST", body: new URLSearchParams({ sprint_id: "" }) })
           .then((res) => {
-            if (!res.ok) console.error("sprint-unassign failed", res.status);
-            else { this.updateColumnCounts(fromEl, toEl); this.updateDoneClass(ticketEl, toEl); }
+            if (!res.ok) { console.error("sprint-unassign failed", res.status); return null; }
+            if (!columnID) return res; // no column to move to, skip position update
+            return fetch(`/tickets/${ticketID}/move`, {
+              method: "POST",
+              body: new URLSearchParams({ column_id: columnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
+            });
+          })
+          .then((res) => {
+            if (!res) return;
+            if (!res.ok) { console.error("backlog position update failed", res.status); return; }
+            const pos = res.headers.get("X-New-Position");
+            if (pos) ticketEl.dataset.position = pos;
+            this.updateColumnCounts(fromEl, toEl);
+            this.updateDoneClass(ticketEl, toEl);
           });
       } else if (this.sprintID) {
         // Moving into a sprint column — always use sprint-place so sprint_id is set
@@ -229,8 +251,12 @@ function board(boardID, sprintID) {
         });
         fetch(`/tickets/${ticketID}/sprint-place`, { method: "POST", body: params })
           .then((res) => {
-            if (!res.ok) console.error("sprint-place failed", res.status);
-            else { this.updateColumnCounts(fromEl, toEl); this.updateDoneClass(ticketEl, toEl); }
+            if (!res.ok) { console.error("sprint-place failed", res.status); return res; }
+            const pos = res.headers.get("X-New-Position");
+            if (pos) ticketEl.dataset.position = pos;
+            this.updateColumnCounts(fromEl, toEl);
+            this.updateDoneClass(ticketEl, toEl);
+            return res;
           });
       } else {
         // Kanban / blank board — plain column move.
@@ -241,20 +267,62 @@ function board(boardID, sprintID) {
         });
         fetch(`/tickets/${ticketID}/move`, { method: "POST", body: params })
           .then((res) => {
-            if (!res.ok) console.error("move failed", res.status);
-            else { this.updateColumnCounts(fromEl, toEl); this.updateDoneClass(ticketEl, toEl); }
+            if (!res.ok) { console.error("move failed", res.status); return res; }
+            const pos = res.headers.get("X-New-Position");
+            if (pos) ticketEl.dataset.position = pos;
+            this.updateColumnCounts(fromEl, toEl);
+            this.updateDoneClass(ticketEl, toEl);
+            return res;
           });
       }
     },
 
     updateColumnCounts(fromEl, toEl) {
       const update = (listEl) => {
-        const count = listEl.querySelectorAll("[data-ticket-id]").length;
-        const badge = listEl.parentElement?.querySelector("[data-column-count]");
-        if (badge) badge.textContent = count;
+        const cards = listEl.querySelectorAll("[data-ticket-id]");
+        // Sprint columns: badge is inside parentElement (column container).
+        // Backlog column: badge is in the section header, so one level further up.
+        const container = listEl.parentElement?.querySelector("[data-column-count]")
+          ? listEl.parentElement
+          : listEl.parentElement?.parentElement;
+        const badge = container?.querySelector("[data-column-count]");
+        if (badge) badge.textContent = cards.length;
+        const ptsBadge = container?.querySelector("[data-column-points]");
+        if (ptsBadge) {
+          let pts = 0;
+          cards.forEach((c) => { pts += parseInt(c.dataset.points || "0", 10); });
+          ptsBadge.textContent = pts ? `${pts} pt` : "";
+          ptsBadge.classList.toggle("hidden", pts === 0);
+        }
       };
       update(fromEl);
       if (toEl !== fromEl) update(toEl);
+      this.updateCommittedBar();
+    },
+
+    // Recompute the "committed" stat in the planning context bar from the cards
+    // currently in the DOM. No-op on pages without the bar (active board, kanban).
+    updateCommittedBar() {
+      const ptsEl = document.querySelector("[data-committed-points]");
+      if (!ptsEl) return;
+      let committed = 0;
+      let tickets = 0;
+      let backlogPts = 0;
+      document.querySelectorAll(".ticket-list [data-ticket-id]").forEach((c) => {
+        committed += parseInt(c.dataset.points || "0", 10);
+        tickets++;
+      });
+      document.querySelectorAll(".backlog-ticket-list [data-ticket-id]").forEach((c) => {
+        backlogPts += parseInt(c.dataset.points || "0", 10);
+      });
+      const total = committed + backlogPts;
+      ptsEl.textContent = committed;
+      const suffix = document.querySelector("[data-committed-suffix]");
+      if (suffix) suffix.textContent = backlogPts > 0 ? ` / ${total} pt` : " pt";
+      const bar = document.querySelector("[data-committed-bar]");
+      if (bar) bar.style.width = (total > 0 ? (committed / total) * 100 : 0).toFixed(1) + "%";
+      const meta = document.querySelector("[data-committed-meta]");
+      if (meta) meta.textContent = `${tickets} tickets` + (backlogPts > 0 ? ` · ${backlogPts} pt in backlog` : "");
     },
 
     updateDoneClass(ticketEl, toEl) {
@@ -353,8 +421,17 @@ function backlogList() {
         ghostClass: "opacity-30",
         dragClass: "shadow-2xl",
         handle: ".drag-handle",
-        onEnd: (evt) => this.onDrop(evt),
+        onEnd: (evt) => { this.renumberRanks(); this.onDrop(evt); },
       });
+    },
+
+    renumberRanks() {
+      const list = document.querySelector(".backlog-list");
+      if (!list) return;
+      let rank = 0;
+      // Only normal-mode rows carry .rank-label — compact rows do not, so this
+      // iterates them in their post-drag DOM order and renumbers sequentially.
+      list.querySelectorAll(".rank-label").forEach((lbl) => { lbl.textContent = ++rank; });
     },
 
     onDrop(evt) {
@@ -367,10 +444,7 @@ function backlogList() {
         // Backlog → sprint: place immediately, warn only if the sprint is active.
         const sprintID = evt.to.dataset.sprintId;
         const sprintStatus = evt.to.dataset.sprintStatus;
-        const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
-        const idx = siblings.indexOf(ticketEl);
-        const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
-        const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
+        const { siblings, idx, prevPos, nextPos } = neighbourPositions(evt.to, ticketEl, true);
         const nextTick = idx < siblings.length - 1 ? siblings[idx + 1] : null;
         const prevTick = idx > 0 ? siblings[idx - 1] : null;
         const columnID = (nextTick || prevTick)?.dataset.ticketColumnId || evt.to.dataset.firstColumnId || "";
@@ -379,21 +453,18 @@ function backlogList() {
         if (isActive) params.set("unplanned", "1");
         fetch(`/tickets/${ticketID}/sprint-place`, { method: "POST", body: params })
           .then((res) => {
-            if (!res.ok) console.error("sprint-place failed", res.status);
-            else {
-              if (isActive) showSprintWarning("Sprint commitment is broken — the active sprint was modified.");
-              document.body.dispatchEvent(new CustomEvent("boardUpdated"));
-            }
+            if (!res.ok) { console.error("sprint-place failed", res.status); return; }
+            const pos = res.headers.get("X-New-Position");
+            if (pos) ticketEl.dataset.position = pos;
+            if (isActive) showSprintWarning("Sprint commitment is broken — the active sprint was modified.");
+            document.body.dispatchEvent(new CustomEvent("boardUpdated"));
           });
       } else if (fromSprint && !toSprint) {
         // Sprint → backlog: unassign immediately, warn only if sprint was active.
         const sprintStatus = evt.from.dataset.sprintStatus;
         const isActive = sprintStatus === "active";
         const ticketColumnID = ticketEl.dataset.ticketColumnId;
-        const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
-        const idx = siblings.indexOf(ticketEl);
-        const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
-        const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
+        const { prevPos, nextPos } = neighbourPositions(evt.to, ticketEl, true);
         fetch(`/tickets/${ticketID}/sprint`, {
           method: "POST",
           body: new URLSearchParams({ sprint_id: "" }),
@@ -404,23 +475,24 @@ function backlogList() {
             body: new URLSearchParams({ column_id: ticketColumnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
           });
         }).then((res) => {
-          if (res && !res.ok) console.error("position failed", res.status);
-          else if (res) {
-            if (isActive) showSprintWarning("Sprint commitment is broken — the active sprint was modified.");
-            document.body.dispatchEvent(new CustomEvent("boardUpdated"));
-          }
+          if (!res || !res.ok) { if (res) console.error("position failed", res.status); return; }
+          const pos = res.headers.get("X-New-Position");
+          if (pos) ticketEl.dataset.position = pos;
+          if (isActive) showSprintWarning("Sprint commitment is broken — the active sprint was modified.");
+          document.body.dispatchEvent(new CustomEvent("boardUpdated"));
         });
       } else {
-        // Reorder within same list (backlog or sprint)
+        // Reorder within the same list, backlog or sprint.
         const ticketColumnID = ticketEl.dataset.ticketColumnId;
-        const siblings = Array.from(evt.to.querySelectorAll("[data-ticket-id]"));
-        const idx = siblings.indexOf(ticketEl);
-        const prevPos = idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0;
-        const nextPos = idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0;
+        const { prevPos, nextPos } = neighbourPositions(evt.to, ticketEl, true);
         fetch(`/tickets/${ticketID}/move`, {
           method: "POST",
           body: new URLSearchParams({ column_id: ticketColumnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
-        }).then((res) => { if (!res.ok) console.error("reorder failed", res.status); });
+        }).then((res) => {
+          if (!res.ok) { console.error("reorder failed", res.status); return; }
+          const pos = res.headers.get("X-New-Position");
+          if (pos) ticketEl.dataset.position = pos;
+        });
       }
     },
   };

@@ -19,6 +19,7 @@ import (
 	"github.com/allmend/docket/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/httprate"
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
@@ -66,16 +67,16 @@ func main() {
 	st := store.New(primary, primary) // replica = primary until read replica is provisioned
 
 	// Wire services.
-	authSvc       := service.NewAuthService(st, cfg.JWTSecret)
-	boardSvc      := service.NewBoardService(st)
-	teamSvc       := service.NewTeamService(st, boardSvc)
-	notifSvc      := service.NewNotificationService(st)
-	ticketSvc     := service.NewTicketService(st, notifSvc)
-	commentSvc    := service.NewCommentService(st)
-	linkSvc       := service.NewLinkService(st)
-	retroSvc      := service.NewRetroService(st, ticketSvc, boardSvc)
-	metricsSvc    := service.NewMetricsService(st)
-	tokenSvc      := service.NewTokenService(st)
+	authSvc := service.NewAuthService(st, cfg.JWTSecret)
+	boardSvc := service.NewBoardService(st)
+	teamSvc := service.NewTeamService(st, boardSvc)
+	notifSvc := service.NewNotificationService(st)
+	ticketSvc := service.NewTicketService(st, notifSvc)
+	commentSvc := service.NewCommentService(st)
+	linkSvc := service.NewLinkService(st)
+	retroSvc := service.NewRetroService(st, ticketSvc, boardSvc)
+	metricsSvc := service.NewMetricsService(st)
+	tokenSvc := service.NewTokenService(st)
 
 	// Auto-seed: create default org + admin user on first run.
 	// Silently skips if org already exists (idempotent).
@@ -99,16 +100,16 @@ func main() {
 func startAPI(
 	ctx context.Context,
 	cfg *config.Config,
-	authSvc    *service.AuthService,
-	teamSvc    *service.TeamService,
-	boardSvc   *service.BoardService,
-	ticketSvc  *service.TicketService,
+	authSvc *service.AuthService,
+	teamSvc *service.TeamService,
+	boardSvc *service.BoardService,
+	ticketSvc *service.TicketService,
 	commentSvc *service.CommentService,
-	linkSvc    *service.LinkService,
-	notifSvc   *service.NotificationService,
-	retroSvc   *service.RetroService,
+	linkSvc *service.LinkService,
+	notifSvc *service.NotificationService,
+	retroSvc *service.RetroService,
 	metricsSvc *service.MetricsService,
-	tokenSvc   *service.TokenService,
+	tokenSvc *service.TokenService,
 ) error {
 	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc, "templates")
 	if err != nil {
@@ -117,9 +118,9 @@ func startAPI(
 
 	// Metrics server — separate port, not exposed through the app reverse proxy.
 	metricsSrv := &http.Server{
-		Addr:        ":" + cfg.MetricsPort,
-		Handler:     promhttp.Handler(),
-		ReadTimeout: 5 * time.Second,
+		Addr:         "127.0.0.1:" + cfg.MetricsPort,
+		Handler:      promhttp.Handler(),
+		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
 	go func() {
@@ -139,13 +140,15 @@ func startAPI(
 	r.Use(middleware.Recoverer)
 	r.Use(appMiddleware.Logger)
 	r.Use(appMiddleware.Metrics)
+	r.Use(appMiddleware.SecurityHeaders)
 
 	// Static assets
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static/dist"))))
 
 	// Public routes (no auth)
 	r.Get("/login", h.LoginPage)
-	r.Post("/login", h.Login)
+	// Rate-limit login attempts: 10 per 5 minutes per IP.
+	r.With(httprate.LimitByIP(10, 5*time.Minute)).Post("/login", h.Login)
 	r.Post("/logout", h.Logout)
 	r.Post("/auth/refresh", h.RefreshToken)
 
@@ -199,9 +202,12 @@ func autoSeed(ctx context.Context, authSvc *service.AuthService, cfg *config.Con
 	orgName := getEnvOr("SEED_ORG_NAME", "Allmend")
 	orgSlug := getEnvOr("SEED_ORG_SLUG", "allmend")
 	username := getEnvOr("SEED_USERNAME", "admin")
-	name     := getEnvOr("SEED_NAME", "Admin")
-	email    := getEnvOr("SEED_EMAIL", "admin@example.com")
+	name := getEnvOr("SEED_NAME", "Admin")
+	email := getEnvOr("SEED_EMAIL", "admin@example.com")
 	password := getEnvOr("SEED_PASSWORD", "changeme")
+	if os.Getenv("SEED_PASSWORD") == "" {
+		slog.Warn("SEED_PASSWORD not set — using default 'changeme'. Change the admin password before exposing this instance.")
+	}
 
 	_, err := authSvc.CreateOrgWithAdmin(ctx, orgName, orgSlug, username, name, email, password)
 	if err != nil {

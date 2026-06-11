@@ -5,10 +5,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{{block "title" .}}Docket{{end}}</title>
-  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect x='2' y='3' width='12' height='2' fill='%2310B981'/><rect x='2' y='7' width='12' height='2' fill='%2310B981' opacity='0.45'/><rect x='2' y='11' width='8' height='2' fill='%2310B981' opacity='0.20'/></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/app.css" />
+  <style>
+    .gridbg {
+      background-image:
+        linear-gradient(#161b2255 1px, transparent 1px),
+        linear-gradient(90deg, #161b2255 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+  </style>
 </head>
-<body class="bg-base-100 text-base-content font-sans min-h-screen flex items-center justify-center">
+<body class="bg-base-100 text-base-900 font-sans antialiased selection:bg-primary-500/30 selection:text-base-950 min-h-screen">
   {{block "content" .}}{{end}}
 </body>
 </html>

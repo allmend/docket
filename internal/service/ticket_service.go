@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"regexp"
-	"strings"
 
 	"github.com/allmend/docket/internal/metrics"
 	"github.com/allmend/docket/internal/model"
@@ -118,25 +116,8 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 		actorName = actor.Name
 	}
 
-	if old.Title != title {
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "title", old.Title, title)
-	}
-	if old.Priority != priority {
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "priority", string(old.Priority), string(priority))
-	}
-	oldAssignee := ""
-	if old.AssigneeName != nil {
-		oldAssignee = *old.AssigneeName
-	}
-	newAssignee := ""
-	if updated.AssigneeName != nil {
-		newAssignee = *updated.AssigneeName
-	}
-	if oldAssignee != newAssignee {
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "assignee", oldAssignee, newAssignee)
-	}
-	if old.Body != body {
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "description", "(previous)", "(updated)")
+	for _, c := range ticketFieldChanges(old, updated) {
+		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, c.Field, c.Old, c.New)
 	}
 
 	return updated, nil
@@ -147,22 +128,11 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 func (s *TicketService) MoveTicket(ctx context.Context,
 	orgID, ticketID, targetColumnID uuid.UUID,
 	prevPos, nextPos float64,
-) error {
-	var newPos float64
-	switch {
-	case prevPos == 0 && nextPos == 0:
-		newPos = 1000
-	case prevPos == 0:
-		newPos = nextPos / 2
-	case nextPos == 0:
-		newPos = prevPos + 1000
-	default:
-		newPos = (prevPos + nextPos) / 2
-	}
-
-	if nextPos != 0 && (newPos-prevPos) < 0.001 {
+) (float64, error) {
+	newPos, needsRebalance := nextPosition(prevPos, nextPos)
+	if needsRebalance {
 		if err := s.rebalanceColumn(ctx, orgID, targetColumnID); err != nil {
-			return fmt.Errorf("rebalance: %w", err)
+			return 0, fmt.Errorf("rebalance: %w", err)
 		}
 		return s.MoveTicket(ctx, orgID, ticketID, targetColumnID, prevPos, nextPos)
 	}
@@ -174,16 +144,16 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 	}
 
 	if err := s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos); err != nil {
-		return err
+		return 0, err
 	}
 
 	ticket, _ := s.store.GetTicket(ctx, orgID, ticketID)
 	newCol, _ := s.store.GetColumn(ctx, orgID, targetColumnID)
 	if ticket != nil && newCol != nil {
-		isDone := strings.EqualFold(newCol.Name, "done")
-		if isDone && ticket.ClosedAt == nil {
+		colDone := isDone(newCol.Name)
+		if colDone && ticket.ClosedAt == nil {
 			_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
-		} else if !isDone && ticket.ClosedAt != nil {
+		} else if !colDone && ticket.ClosedAt != nil {
 			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 		}
 
@@ -195,7 +165,7 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		metrics.TicketTransitions.WithLabelValues(orgID.String(), team, fromCol, toCol).Inc()
 	}
 
-	return nil
+	return newPos, nil
 }
 
 // MoveToColumn moves a ticket to a target column (placing it last) and records history.
@@ -216,11 +186,11 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 		return nil, err
 	}
 
-	isDone := strings.EqualFold(newCol.Name, "done")
-	wasDone := oldCol != nil && strings.EqualFold(oldCol.Name, "done")
-	if isDone && old.ClosedAt == nil {
+	colDone := isDone(newCol.Name)
+	wasDone := oldCol != nil && isDone(oldCol.Name)
+	if colDone && old.ClosedAt == nil {
 		_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
-	} else if !isDone && wasDone {
+	} else if !colDone && wasDone {
 		_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 	}
 
@@ -420,13 +390,7 @@ func (s *TicketService) AddACItem(ctx context.Context, orgID, ticketID uuid.UUID
 	if err != nil {
 		return nil, err
 	}
-	line := "- [ ] " + strings.TrimSpace(text)
-	if ac == "" {
-		ac = line
-	} else {
-		ac = strings.TrimRight(ac, "\n") + "\n" + line
-	}
-	return s.store.UpdateTicketAC(ctx, orgID, ticketID, ac)
+	return s.store.UpdateTicketAC(ctx, orgID, ticketID, acAppendItem(ac, text))
 }
 
 // DeleteACItem removes the Nth checklist item from the acceptance criteria.
@@ -435,39 +399,7 @@ func (s *TicketService) DeleteACItem(ctx context.Context, orgID, ticketID uuid.U
 	if err != nil {
 		return nil, err
 	}
-	var kept []string
-	itemIdx := 0
-	for _, line := range strings.Split(ac, "\n") {
-		trimmed := strings.TrimSpace(line)
-		isItem := strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] ")
-		if isItem {
-			if itemIdx != index {
-				kept = append(kept, line)
-			}
-			itemIdx++
-		} else if trimmed != "" {
-			kept = append(kept, line)
-		}
-	}
-	return s.store.UpdateTicketAC(ctx, orgID, ticketID, strings.Join(kept, "\n"))
-}
-
-// checkboxRe matches GFM task-list markers: [ ] or [x] (case-insensitive).
-var checkboxRe = regexp.MustCompile(`\[([ xX])\]`)
-
-func toggleNthCheckbox(src string, n int) string {
-	count := 0
-	return checkboxRe.ReplaceAllStringFunc(src, func(match string) string {
-		if count == n {
-			count++
-			if match == "[ ]" {
-				return "[x]"
-			}
-			return "[ ]"
-		}
-		count++
-		return match
-	})
+	return s.store.UpdateTicketAC(ctx, orgID, ticketID, acDeleteItem(ac, index))
 }
 
 func (s *TicketService) SearchTicketsForLink(ctx context.Context, orgID, excludeID uuid.UUID, q string) ([]model.Ticket, error) {
@@ -493,6 +425,41 @@ func (s *TicketService) ListMyTickets(ctx context.Context, orgID, userID uuid.UU
 // ListInboxActivity returns recent history entries on tickets assigned to the given user.
 func (s *TicketService) ListInboxActivity(ctx context.Context, orgID, userID uuid.UUID) ([]model.InboxEntry, error) {
 	return s.store.ListInboxActivity(ctx, orgID, userID, 50)
+}
+
+// ListActivityByActor returns history entries where the user was the actor in the last 24h.
+func (s *TicketService) ListActivityByActor(ctx context.Context, orgID, actorID uuid.UUID) ([]model.InboxEntry, error) {
+	return s.store.ListActivityByActor(ctx, orgID, actorID)
+}
+
+// ListBlockedTickets returns open blocked tickets org-wide (any sprint or backlog).
+func (s *TicketService) ListBlockedTickets(ctx context.Context, orgID uuid.UUID) ([]model.DashboardBlockedTicket, error) {
+	return s.store.ListBlockedTickets(ctx, orgID)
+}
+
+// ListMyOpenTickets returns all open tickets assigned to the user, grouped by sprint/backlog.
+func (s *TicketService) ListMyOpenTickets(ctx context.Context, orgID, userID uuid.UUID) ([]model.DashboardMyTicket, error) {
+	return s.store.ListMyOpenTickets(ctx, orgID, userID)
+}
+
+// ListRecentOrgActivity returns recent ticket history across the whole org.
+func (s *TicketService) ListRecentOrgActivity(ctx context.Context, orgID uuid.UUID) ([]model.InboxEntry, error) {
+	return s.store.ListRecentOrgActivity(ctx, orgID, 15)
+}
+
+// ListBlockedTicketsByTeam returns blocked tickets scoped to a single team.
+func (s *TicketService) ListBlockedTicketsByTeam(ctx context.Context, orgID, teamID uuid.UUID) ([]model.DashboardBlockedTicket, error) {
+	return s.store.ListBlockedTicketsByTeam(ctx, orgID, teamID)
+}
+
+// ListMyOpenTicketsByTeam returns my open tickets scoped to a single team.
+func (s *TicketService) ListMyOpenTicketsByTeam(ctx context.Context, orgID, userID, teamID uuid.UUID) ([]model.DashboardMyTicket, error) {
+	return s.store.ListMyOpenTicketsByTeam(ctx, orgID, userID, teamID)
+}
+
+// ListRecentTeamActivity returns recent ticket history for a single team.
+func (s *TicketService) ListRecentTeamActivity(ctx context.Context, orgID, teamID uuid.UUID) ([]model.InboxEntry, error) {
+	return s.store.ListRecentTeamActivity(ctx, orgID, teamID, 12)
 }
 
 func (s *TicketService) rebalanceColumn(ctx context.Context, orgID, columnID uuid.UUID) error {

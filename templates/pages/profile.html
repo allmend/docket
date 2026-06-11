@@ -1,0 +1,37 @@
+{{template "base" .}}
+
+{{define "title"}}Profile — Docket{{end}}
+
+{{define "content"}}
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[640px] mx-auto px-8 py-6">
+    <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950 mb-6">Profile</h1>
+
+    {{if .CurrentUser}}
+    {{$u := .CurrentUser}}
+    <div class="bg-base-200 border border-base-300 rounded-md p-6 space-y-4">
+      <div class="flex items-center gap-4">
+        <span class="w-14 h-14 rounded-md bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[22px] font-semibold shrink-0">{{initials $u.Name}}</span>
+        <div>
+          <div class="text-[18px] font-semibold text-base-950">{{$u.Name}}</div>
+          <div class="mono text-[14px] text-base-600">@{{$u.Username}}</div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t border-base-300 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">Email</span>
+          <span class="text-[14px] text-base-900">{{$u.Email}}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">Role</span>
+          <span class="text-[14px] text-base-900">{{$u.Role}}</span>
+        </div>
+      </div>
+    </div>
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center mono text-[13px] text-base-600">Not signed in</div>
+    {{end}}
+  </div>
+</div>
+{{end}}

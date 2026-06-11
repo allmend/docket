@@ -1,0 +1,113 @@
+{{template "base" .}}
+
+{{define "title"}}Sprint Planning — Docket{{end}}
+
+{{define "content"}}
+{{$board    := .Board}}
+{{$team     := .Team}}
+{{$sprintID := .SprintID}}
+
+<div class="flex-1 min-h-0 flex flex-col"
+     x-data="board('{{$board.ID}}', '{{$sprintID}}')">
+
+  {{/* Planning context bar */}}
+  {{$backlogPts := .BacklogPoints}}
+  {{range .Sprints}}{{if .Status.IsPlanning}}
+  {{$sp := .}}
+  <div class="shrink-0 border-b border-base-300 bg-base-200">
+    <div class="px-6 py-5 flex items-start gap-8 flex-wrap"
+         x-data="{
+           dur: '{{if and .StartDate .EndDate}}{{if le (daysBetween .StartDate .EndDate) 9}}1w{{else if ge (daysBetween .StartDate .EndDate) 18}}3w{{else}}2w{{end}}{{else}}2w{{end}}',
+           get weeks() { return this.dur === '1w' ? 1 : this.dur === '3w' ? 3 : 2 },
+           get startISO() { return new Date().toISOString().split('T')[0] },
+           get endISO() {
+             const d = new Date();
+             d.setDate(d.getDate() + this.weeks * 7);
+             return d.toISOString().split('T')[0];
+           },
+           fmtDate(iso) {
+             return new Date(iso).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
+           }
+         }">
+
+      <!-- Name + goal -->
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-2">
+          <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">planning</span>
+          <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-warn/15 border border-warn/30 mono text-[12px] uppercase tracking-wider text-warn">draft</span>
+        </div>
+        <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}" class="space-y-1">
+          <input type="hidden" name="_method" value="PUT">
+          <input type="hidden" name="start_date" :value="startISO">
+          <input type="hidden" name="end_date" :value="endISO">
+          <input name="name" placeholder="Sprint name…"
+                 class="block w-full max-w-[460px] bg-transparent border border-base-300 rounded px-3 py-0.5 text-[22px] font-semibold tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
+          <input name="goal" placeholder="Sprint goal — what will we ship?"
+                 class="block w-full max-w-[560px] bg-transparent border border-base-300 rounded px-3 py-0.5 mono text-[14px] text-base-800 placeholder:text-base-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
+          <button type="submit" class="sr-only">Save</button>
+        </form>
+      </div>
+
+      <!-- Duration picker -->
+      <div class="shrink-0">
+        <div class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 mb-1.5">Duration</div>
+        <div class="inline-flex items-center bg-base-250 border border-base-350 rounded-md p-0.5">
+          <button type="button" @click="dur='1w'" :class="dur==='1w' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+                  class="h-7 px-2.5 rounded-sm mono text-[13px]">1w</button>
+          <button type="button" @click="dur='2w'" :class="dur==='2w' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+                  class="h-7 px-2.5 rounded-sm mono text-[13px]">2w</button>
+          <button type="button" @click="dur='3w'" :class="dur==='3w' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+                  class="h-7 px-2.5 rounded-sm mono text-[13px]">3w</button>
+        </div>
+        {{if and .StartDate .EndDate}}
+        <div class="mono text-[13px] text-base-600 mt-1.5">{{.StartDate.Format "2 Jan"}} → {{.EndDate.Format "2 Jan"}}</div>
+        {{else}}
+        <div class="mono text-[13px] text-base-600 mt-1.5" x-text="fmtDate(startISO) + ' → ' + fmtDate(endISO)"></div>
+        {{end}}
+      </div>
+
+      <!-- Committed points -->
+      {{$total := addf $sp.CommittedPoints $backlogPts}}
+      <div class="shrink-0 w-[200px]">
+        <div class="flex items-center justify-between mb-1.5">
+          <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">committed</span>
+          <span class="mono text-[13px] text-base-900"><span class="text-primary-400" data-committed-points>{{printf "%.0f" $sp.CommittedPoints}}</span><span data-committed-suffix>{{if gt $backlogPts 0}} / {{printf "%.0f" $total}} pt{{else}} pt{{end}}</span></span>
+        </div>
+        <div class="h-1.5 bg-base-300 rounded-sm overflow-hidden">
+          <div class="h-full bg-primary-500" data-committed-bar style="width:{{printf "%.1f" (pctf $sp.CommittedPoints $total)}}%"></div>
+        </div>
+        <div class="mono text-[13px] text-base-600 mt-1.5" data-committed-meta>{{$sp.CommittedTickets}} tickets{{if gt $backlogPts 0}} · {{$backlogPts}} pt in backlog{{end}}</div>
+      </div>
+
+      <!-- Actions -->
+      <div class="shrink-0 flex flex-col gap-2 self-center pt-7">
+        <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}/start">
+          <button type="submit"
+                  class="h-8 px-4 w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
+            Start sprint
+          </button>
+        </form>
+        <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}/delete"
+              onsubmit="return confirm('Cancel sprint planning? Committed tickets return to the backlog.')">
+          <button type="submit"
+                  class="h-8 px-4 w-full inline-flex items-center justify-center bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-700">
+            Cancel
+          </button>
+        </form>
+      </div>
+
+    </div>
+  </div>
+  {{end}}{{end}}
+
+  {{/* Planning columns — HTMX polling target */}}
+  <div id="board-columns"
+       hx-get="/boards/{{$board.ID}}/planning/columns"
+       hx-trigger="boardUpdated from:body, every 30s"
+       hx-swap="innerHTML"
+       class="flex-1 min-h-0 overflow-y-auto">
+    {{template "planning-columns" .}}
+  </div>
+
+</div>
+{{end}}

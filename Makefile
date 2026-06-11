@@ -1,4 +1,4 @@
-.PHONY: dev build migrate sqlc js vet assets rebuild
+.PHONY: dev build migrate sqlc js js-watch css css-watch vet test assets rebuild seed docker-up docker-down dev-docker dev-docker-down
 
 assets:
 	npx tailwindcss -i static/src/app.css -o static/dist/app.css --minify
@@ -35,6 +35,9 @@ css-watch:
 
 vet:
 	go vet ./...
+
+test:
+	go test ./...
 
 docker-up:
 	docker compose -f docker/docker-compose.yml up -d

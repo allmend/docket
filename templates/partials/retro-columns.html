@@ -1,192 +1,148 @@
 {{define "retro-columns"}}
-<div id="retro-columns" class="flex gap-4 flex-1 min-h-0">
+{{$rv     := .RetroView}}
+{{$rb     := $rv.RetroBoard}}
+{{$uid    := .CurrentUserID}}
+{{$closed := $rb.IsClosed}}
 
-  {{$userID := .CurrentUserID}}
-  {{$retroID := .RetroView.RetroBoard.ID}}
-  {{$boardID := .RetroView.Board.ID}}
-  {{$closed := .RetroView.RetroBoard.IsClosed}}
+<div class="grid grid-cols-3 gap-4 px-6 py-5 h-full overflow-hidden">
 
-  <!-- What Went Well -->
-  {{template "retro-col" dict "Col" "went_well" "Label" "What Went Well" "Accent" "text-green-400" "Border" "border-green-800/40" "Cards" .RetroView.WentWell "CurrentUserID" $userID "RetroBoardID" $retroID "BoardID" $boardID "Closed" $closed}}
+  {{/* What went well */}}
+  <section class="flex flex-col min-h-0 min-w-0 bg-base-200 border border-base-300 rounded-md overflow-hidden">
+    <div class="h-1 bg-success shrink-0"></div>
+    <div class="shrink-0 px-4 py-3 flex items-center justify-between border-b border-base-300">
+      <div class="flex items-center gap-2">
+        <span class="text-[15px] font-medium text-base-950">What went well</span>
+        <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-sm bg-base-300 mono text-[13px] text-base-700">{{len $rv.WentWell}}</span>
+      </div>
+      {{if not $closed}}
+      <button x-data @click="$dispatch('retro-add',{col:'went_well'})"
+              class="h-6 w-6 inline-flex items-center justify-center rounded bg-base-250 hover:bg-base-300 border border-base-350 text-base-700 hover:text-base-900 text-[15px] leading-none">+</button>
+      {{end}}
+    </div>
+    <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
+      {{template "retro-add-form" (dict "Col" "went_well" "BoardID" $rb.BoardID "RetroBoardID" $rb.ID "Closed" $closed)}}
+      {{range $rv.WentWell}}{{if not .IsChild}}{{template "retro-card" (dict "Card" . "BoardID" $rb.BoardID "RetroBoardID" $rb.ID "UID" $uid "Closed" $closed "IsAction" false)}}{{end}}{{end}}
+    </div>
+  </section>
 
-  <!-- What Didn't Go Well -->
-  {{template "retro-col" dict "Col" "didnt_go_well" "Label" "What Didn't Go Well" "Accent" "text-red-400" "Border" "border-red-800/40" "Cards" .RetroView.DidntGoWell "CurrentUserID" $userID "RetroBoardID" $retroID "BoardID" $boardID "Closed" $closed}}
+  {{/* What didn't go well */}}
+  <section class="flex flex-col min-h-0 min-w-0 bg-base-200 border border-base-300 rounded-md overflow-hidden">
+    <div class="h-1 bg-danger shrink-0"></div>
+    <div class="shrink-0 px-4 py-3 flex items-center justify-between border-b border-base-300">
+      <div class="flex items-center gap-2">
+        <span class="text-[15px] font-medium text-base-950">What didn't go well</span>
+        <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-sm bg-base-300 mono text-[13px] text-base-700">{{len $rv.DidntGoWell}}</span>
+      </div>
+      {{if not $closed}}
+      <button x-data @click="$dispatch('retro-add',{col:'didnt_go_well'})"
+              class="h-6 w-6 inline-flex items-center justify-center rounded bg-base-250 hover:bg-base-300 border border-base-350 text-base-700 hover:text-base-900 text-[15px] leading-none">+</button>
+      {{end}}
+    </div>
+    <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
+      {{template "retro-add-form" (dict "Col" "didnt_go_well" "BoardID" $rb.BoardID "RetroBoardID" $rb.ID "Closed" $closed)}}
+      {{range $rv.DidntGoWell}}{{if not .IsChild}}{{template "retro-card" (dict "Card" . "BoardID" $rb.BoardID "RetroBoardID" $rb.ID "UID" $uid "Closed" $closed "IsAction" false)}}{{end}}{{end}}
+    </div>
+  </section>
 
-  <!-- Action Items -->
-  {{template "retro-col" dict "Col" "action_item" "Label" "Action Items" "Accent" "text-amber-400" "Border" "border-amber-800/40" "Cards" .RetroView.ActionItems "CurrentUserID" $userID "RetroBoardID" $retroID "BoardID" $boardID "Closed" $closed}}
+  {{/* Action items */}}
+  <section class="flex flex-col min-h-0 min-w-0 bg-base-200 border border-base-300 rounded-md overflow-hidden">
+    <div class="h-1 bg-info shrink-0"></div>
+    <div class="shrink-0 px-4 py-3 flex items-center justify-between border-b border-base-300">
+      <div class="flex items-center gap-2">
+        <span class="text-[15px] font-medium text-base-950">Action items</span>
+        <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-sm bg-base-300 mono text-[13px] text-base-700">{{len $rv.ActionItems}}</span>
+      </div>
+      {{if not $closed}}
+      <button x-data @click="$dispatch('retro-add',{col:'action_item'})"
+              class="h-6 w-6 inline-flex items-center justify-center rounded bg-base-250 hover:bg-base-300 border border-base-350 text-base-700 hover:text-base-900 text-[15px] leading-none">+</button>
+      {{end}}
+    </div>
+    <div class="flex-1 overflow-y-auto p-3 space-y-2.5">
+      {{template "retro-add-form" (dict "Col" "action_item" "BoardID" $rb.BoardID "RetroBoardID" $rb.ID "Closed" $closed)}}
+      {{range $rv.ActionItems}}{{if not .IsChild}}{{template "retro-card" (dict "Card" . "BoardID" $rb.BoardID "RetroBoardID" $rb.ID "UID" $uid "Closed" $closed "IsAction" true)}}{{end}}{{end}}
+    </div>
+  </section>
 
 </div>
 {{end}}
 
-{{define "retro-col"}}
-<div class="flex flex-col flex-1 min-h-0 bg-base-200 border {{.Border}} rounded-lg overflow-hidden">
-  <div class="px-4 py-3 border-b border-base-300 shrink-0 flex items-center justify-between">
-    <span class="text-sm font-semibold {{.Accent}}">{{.Label}}</span>
-    <span class="text-xs text-base-content/30 font-mono">{{len .Cards}}</span>
-  </div>
-
-  <!--
-    Single x-data for the whole cards area — avoids nested scopes that would shadow
-    dragCard/dropTarget/doDrop. Stack open states are tracked in stackOpen[id].
-  -->
-  <div x-data="(() => {
-    const _key = 'retroOpen_{{.RetroBoardID}}_{{.Col}}';
-    return {
-    dragCard: null,
-    dropTarget: null,
-    stackOpen: {},
-    init() {
-      try { const s = sessionStorage.getItem(_key); if (s) this.stackOpen = JSON.parse(s); } catch(e) {}
-      this.$watch('stackOpen', v => { try { sessionStorage.setItem(_key, JSON.stringify(v)); } catch(e) {} });
-    },
-    toggleStack(id) { this.stackOpen = { ...this.stackOpen, [id]: !this.stackOpen[id] }; },
-    isOpen(id) { return !!this.stackOpen[id]; },
-    async doDrop(parentID) {
-      const id = this.dragCard;
-      if (!id || id === parentID) { this.dragCard = null; this.dropTarget = null; return; }
-      this.dragCard = null; this.dropTarget = null;
-      const res = await fetch('/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards/' + id + '/stack', {
-        method: 'POST',
-        body: new URLSearchParams({ parent_id: parentID })
-      });
-      if (res.ok) {
-        const html = await res.text();
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        const newEl = tmp.firstElementChild;
-        document.getElementById('retro-columns').replaceWith(newEl);
-        Alpine.initTree(newEl);
-        htmx.process(newEl);
-      }
-    }
-  }; })()" class="flex flex-col gap-2 p-3 flex-1 overflow-y-auto min-h-0">
-
-    {{range .Cards}}
-
-    {{if .Children}}
-    <!-- Stack: root card with grouped children -->
-    <div class="relative">
-      <!-- Depth shadow layer -->
-      <div class="absolute inset-x-1 bottom-0 h-full translate-y-1 bg-base-300/60 border border-base-300/40 rounded-lg -z-10"></div>
-      <!-- Main card — drop target only (stacks can't be dragged as a whole) -->
-      <div class="bg-base-100 border border-base-300 rounded-lg p-3 flex flex-col gap-2 group relative z-10"
-           {{if not $.Closed}}
-           @dragover.prevent="if (dragCard && dragCard !== '{{.ID}}') dropTarget = '{{.ID}}'"
-           @dragleave="$event.relatedTarget && !$el.contains($event.relatedTarget) && (dropTarget = null)"
-           @drop.prevent="doDrop('{{.ID}}')"
-           :class="{ 'ring-2 ring-primary/50 border-primary/30': dropTarget === '{{.ID}}' }"
-           {{end}}>
-        <p class="text-sm text-base-content/80 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
-        <!-- Stack toggle chip -->
-        <button @click.stop="toggleStack('{{.ID}}')"
-                class="self-start flex items-center gap-1.5 text-xs text-base-content/40 hover:text-base-content/70 transition-colors">
-          <span class="bg-base-300 text-base-content/50 rounded px-1.5 py-0.5 font-mono">+{{len .Children}}</span>
-          <span>similar</span>
-          <svg class="h-3 w-3 transition-transform duration-150"
-               :class="isOpen('{{.ID}}') ? 'rotate-180' : ''"
-               fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
-          </svg>
-        </button>
-        <!-- Expanded stacked children — inside the card -->
-        <div x-show="isOpen('{{.ID}}')" x-cloak class="flex flex-col gap-1.5 border-t border-base-300 pt-2 -mx-3 px-3">
-          {{range .Children}}
-          <div class="bg-base-200 rounded-lg p-2.5 flex items-start gap-2 group/child">
-            <p class="flex-1 text-sm text-base-content/70 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
-            {{if not $.Closed}}
-            <button hx-delete="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards/{{.ID}}/stack"
-                    hx-target="#retro-columns" hx-swap="outerHTML"
-                    title="Remove from stack"
-                    class="shrink-0 mt-0.5 text-base-content/25 hover:text-base-content/60 opacity-0 group-hover/child:opacity-100 transition-all">
-              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 12H6"/></svg>
-            </button>
-            {{end}}
-          </div>
-          {{end}}
-        </div>
-        {{if and (not $.Closed) (eq .AuthorID.String $.CurrentUserID)}}
-        <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-          <button hx-delete="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards/{{.ID}}"
-                  hx-target="#retro-columns" hx-swap="outerHTML"
-                  hx-confirm="Delete this card and all stacked cards?"
-                  class="text-xs text-base-content/30 hover:text-red-400 transition-colors">
-            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          </button>
-        </div>
-        {{end}}
-      </div>
+{{define "retro-add-form"}}
+{{if not .Closed}}
+<div x-data="{open:false}" @retro-add.window="if($event.detail.col==='{{.Col}}') { open=true; $nextTick(()=>$el.querySelector('textarea')?.focus()) }">
+  <form x-show="open" x-cloak
+        hx-post="/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards"
+        hx-target="#retro-columns" hx-swap="innerHTML"
+        @submit="open=false" class="mb-2.5">
+    <input type="hidden" name="column" value="{{.Col}}">
+    <textarea name="body" rows="2" placeholder="Add a card…"
+              class="block w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 shadow-sunk resize-none"></textarea>
+    <div class="flex items-center gap-2 mt-1.5">
+      <button type="submit" class="h-7 px-3 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] rounded shadow-lift">Add</button>
+      <button type="button" @click="open=false" class="h-7 px-3 text-[13px] text-base-700 hover:text-base-900 hover:bg-base-250 rounded">Cancel</button>
     </div>
+  </form>
+</div>
+{{end}}
+{{end}}
 
+{{define "retro-card"}}
+{{$card   := .Card}}
+{{$uid    := .UID}}
+{{$closed := .Closed}}
+{{$isAction := .IsAction}}
+<div class="bg-base-250 border border-base-300 rounded p-3 group/card">
+  {{if $card.Children}}
+  <div class="flex items-center justify-between mb-2">
+    <span class="inline-flex items-center gap-1.5 mono text-[12px] uppercase tracking-[0.14em] text-base-600">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.5" y="2.5" width="7" height="7" rx="1"/><rect x="6.5" y="6.5" width="7" height="7" rx="1" fill="#1c222b"/></svg>
+      {{add (len $card.Children) 1}} similar
+    </span>
+  </div>
+  <p class="text-[14px] leading-snug text-base-900">{{$card.Body}}</p>
+  <div class="space-y-1.5 mt-2">
+    {{range $card.Children}}
+    <div class="bg-base-200 border border-base-300 rounded px-2.5 py-1.5 text-[13px] text-base-800">{{.Body}}</div>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="text-[14px] leading-snug text-base-900">{{$card.Body}}</p>
+  {{end}}
+
+  <div class="flex items-center justify-between mt-2.5">
+    {{if $isAction}}
+    {{if $card.OwnerName}}
+    <span class="inline-flex items-center gap-1.5">
+      <span class="w-5 h-5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold">{{initials $card.OwnerName}}</span>
+      <span class="text-[13px] text-base-700">owner</span>
+    </span>
+    {{else if not $closed}}
+    <span class="text-[13px] text-base-600 italic">unassigned</span>
     {{else}}
-    <!-- Solo root card — draggable and a drop target -->
-    <div class="bg-base-100 border border-base-300 rounded-lg p-3 flex flex-col gap-2 group
-                {{if not $.Closed}}cursor-grab active:cursor-grabbing{{end}}"
-         {{if not $.Closed}}
-         draggable="true"
-         @dragstart="dragCard = '{{.ID}}'; $event.dataTransfer.effectAllowed = 'move'"
-         @dragend="dragCard = null; dropTarget = null"
-         @dragover.prevent="if (dragCard && dragCard !== '{{.ID}}') dropTarget = '{{.ID}}'"
-         @dragleave="$event.relatedTarget && !$el.contains($event.relatedTarget) && (dropTarget = null)"
-         @drop.prevent="doDrop('{{.ID}}')"
-         :class="{ 'ring-2 ring-primary/50 border-primary/30': dropTarget === '{{.ID}}' }"
-         {{end}}>
-      <p class="text-sm text-base-content/80 whitespace-pre-wrap leading-relaxed">{{.Body}}</p>
-
-      {{if eq $.Col "action_item"}}
-        {{if .TicketDisplay}}
-        <a href="/tickets/{{.TicketDisplay}}" class="text-xs font-mono text-primary/60 hover:text-primary self-start">{{.TicketDisplay}}</a>
-        {{end}}
-      {{end}}
-
-      {{if and (not $.Closed) (eq .AuthorID.String $.CurrentUserID)}}
-      <div class="flex justify-end opacity-0 group-hover:opacity-100 transition-opacity">
-        <button hx-delete="/boards/{{$.BoardID}}/retro/{{$.RetroBoardID}}/cards/{{.ID}}"
-                hx-target="#retro-columns" hx-swap="outerHTML"
-                hx-confirm="Delete this card?"
-                class="text-xs text-base-content/30 hover:text-red-400 transition-colors">
-          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-        </button>
-      </div>
-      {{end}}
+    <span class="text-[13px] text-base-600">—</span>
+    {{end}}
+    <div class="flex items-center gap-2">
+      <span class="mono text-[12px] uppercase tracking-[0.14em] text-base-600">action</span>
+      {{if not $closed}}{{if eq $card.AuthorID.String $uid}}
+      <button hx-delete="/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards/{{$card.ID}}"
+              hx-target="#retro-columns" hx-swap="innerHTML"
+              hx-confirm="Delete this card?"
+              class="opacity-0 group-hover/card:opacity-100 mono text-[12px] text-base-600 hover:text-danger">delete</button>
+      {{end}}{{end}}
+    </div>
+    {{else}}
+    <span class="mono text-[12px] text-base-600">anon</span>
+    <div class="flex items-center gap-2">
+      <button class="inline-flex items-center gap-1.5 h-6 px-2 rounded-full bg-base-200 border border-base-350 mono text-[13px] text-base-700 hover:border-base-400 shrink-0">
+        <span class="leading-none text-base-600 text-[10px]">●</span>0
+      </button>
+      {{if not $closed}}{{if eq $card.AuthorID.String $uid}}
+      <button hx-delete="/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards/{{$card.ID}}"
+              hx-target="#retro-columns" hx-swap="innerHTML"
+              hx-confirm="Delete this card?"
+              class="opacity-0 group-hover/card:opacity-100 mono text-[12px] text-base-600 hover:text-danger">delete</button>
+      {{end}}{{end}}
     </div>
     {{end}}
-
-    {{end}}{{/* end range .Cards */}}
   </div>
-
-  <!-- Add card form (hidden when retro is closed) -->
-  {{if not .Closed}}
-  <div class="p-3 border-t border-base-300 shrink-0"
-       x-data="{ open: false, body: '' }">
-    <div x-show="!open">
-      <button @click="open=true; $nextTick(()=>$refs.cardBody&&$refs.cardBody.focus())"
-              class="w-full flex items-center gap-2 text-xs text-base-content/30 hover:text-base-content/60 transition-colors py-1">
-        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-        Add card
-      </button>
-    </div>
-    <form x-show="open" x-cloak
-          hx-post="/boards/{{.BoardID}}/retro/{{.RetroBoardID}}/cards"
-          hx-target="#retro-columns" hx-swap="outerHTML"
-          @htmx:after-request="open=false; body=''"
-          class="flex flex-col gap-2">
-      <input type="hidden" name="column" value="{{.Col}}">
-      <textarea x-ref="cardBody" x-model="body" name="body" rows="3"
-                placeholder="Share your thoughts…"
-                @keydown.escape="open=false; body=''"
-                class="w-full bg-base-100 border border-base-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-primary resize-none text-base-content/80 placeholder:text-base-content/20"></textarea>
-      <div class="flex gap-2">
-        <button type="submit" :disabled="!body.trim()"
-                class="px-3 py-1.5 bg-primary text-base-100 text-xs font-medium rounded hover:opacity-90 disabled:opacity-40">
-          Add
-        </button>
-        <button type="button" @click="open=false; body=''"
-                class="px-3 py-1.5 text-xs text-base-content/40 hover:text-base-content hover:bg-base-300 rounded">
-          Cancel
-        </button>
-      </div>
-    </form>
-  </div>
-  {{end}}
 </div>
 {{end}}

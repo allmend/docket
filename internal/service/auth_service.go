@@ -22,7 +22,7 @@ var (
 )
 
 const (
-	accessTokenTTL  = 5 * 24 * time.Hour
+	accessTokenTTL  = 15 * time.Minute
 	refreshTokenTTL = 5 * 24 * time.Hour
 )
 
@@ -110,6 +110,13 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*mod
 	return user, pair, nil
 }
 
+// RevokeRefreshToken invalidates a raw refresh token so it can no longer be
+// exchanged for new access tokens. Called on logout. Best-effort — errors are
+// not fatal since the cookie has already been cleared on the client.
+func (s *AuthService) RevokeRefreshToken(ctx context.Context, rawToken string) {
+	_ = s.store.RevokeRefreshToken(ctx, hashToken(rawToken))
+}
+
 // CreateOrgWithAdmin bootstraps a new org with a local admin user.
 func (s *AuthService) CreateOrgWithAdmin(ctx context.Context, orgName, orgSlug, username, name, email, password string) (*model.User, error) {
 	org, err := s.store.CreateOrg(ctx, orgName, orgSlug)
@@ -175,10 +182,16 @@ func (s *AuthService) ValidateAccessToken(tokenStr string) (*model.Claims, error
 		return nil, errors.New("invalid claims")
 	}
 
+	sub, ok1 := claims["sub"].(string)
+	org, ok2 := claims["org"].(string)
+	role, ok3 := claims["role"].(string)
+	if !ok1 || !ok2 || !ok3 {
+		return nil, errors.New("malformed token claims")
+	}
 	return &model.Claims{
-		UserID: claims["sub"].(string),
-		OrgID:  claims["org"].(string),
-		Role:   claims["role"].(string),
+		UserID: sub,
+		OrgID:  org,
+		Role:   role,
 	}, nil
 }
 
@@ -226,10 +239,10 @@ func hashToken(raw string) string {
 
 // --- Context helpers (used by middleware and handlers) ---
 
-type ctxKeyOrgID  struct{}
+type ctxKeyOrgID struct{}
 type ctxKeyUserID struct{}
-type ctxKeyRole   struct{}
-type ctxKeyScope  struct{}
+type ctxKeyRole struct{}
+type ctxKeyScope struct{}
 
 // WithIdentity stores identity information on context (called by middleware).
 func WithIdentity(ctx context.Context, orgID, userID uuid.UUID, role string) context.Context {
@@ -277,4 +290,14 @@ func (s *AuthService) GetCurrentUser(ctx context.Context) *model.User {
 	}
 	u, _ := s.store.GetUserByID(ctx, orgID, userID)
 	return u
+}
+
+// GetCurrentOrg returns the Org for the request context.
+func (s *AuthService) GetCurrentOrg(ctx context.Context) *model.Org {
+	orgID := OrgIDFromContext(ctx)
+	if orgID == (uuid.UUID{}) {
+		return nil
+	}
+	org, _ := s.store.GetOrgByID(ctx, orgID)
+	return org
 }

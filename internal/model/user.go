@@ -36,14 +36,14 @@ const (
 
 // APIToken is a long-lived bearer token for machine-to-machine access.
 type APIToken struct {
-	ID          uuid.UUID  `json:"id"`
-	OrgID       uuid.UUID  `json:"org_id"`
-	CreatedBy   uuid.UUID  `json:"created_by"`
-	Name        string     `json:"name"`
-	Scope       TokenScope `json:"scope"`
-	CreatedAt   time.Time  `json:"created_at"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	RevokedAt   *time.Time `json:"revoked_at,omitempty"`
+	ID         uuid.UUID  `json:"id"`
+	OrgID      uuid.UUID  `json:"org_id"`
+	CreatedBy  uuid.UUID  `json:"created_by"`
+	Name       string     `json:"name"`
+	Scope      TokenScope `json:"scope"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
 }
 
 func (t *APIToken) IsRevoked() bool { return t.RevokedAt != nil }

@@ -1,0 +1,126 @@
+{{template "base" .}}
+
+{{define "title"}}{{.Tag.Name}} — Docket{{end}}
+
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">{{.Tag.Name}}</span>
+{{end}}
+
+{{define "content"}}
+{{$tag  := .Tag}}
+{{$team := .Team}}
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[1100px] mx-auto px-8 py-6">
+
+    <!-- Track header -->
+    <div class="flex items-start justify-between mb-5">
+      <div class="flex items-start gap-3">
+        <span class="w-9 h-9 rounded-md inline-flex items-center justify-center shrink-0 mt-0.5"
+              style="background-color:{{$tag.Color}}20; border:1px solid {{$tag.Color}}40">
+          <span class="w-3 h-3 rounded-sm shrink-0" style="background-color:{{$tag.Color}}"></span>
+        </span>
+        <div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">{{$tag.Name}}</h1>
+            <span class="mono text-[13px] text-base-600">track</span>
+          </div>
+          <div class="text-[14px] text-base-700 mt-0.5">
+            {{.Open}} open tickets · {{.TotalPts}} points
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats strip -->
+    <div class="grid grid-cols-5 bg-base-200 border border-base-300 rounded-md divide-x divide-base-300 mb-6">
+      <div class="px-4 py-3">
+        <div class="mono text-[22px] leading-none text-base-950">{{.Open}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.12em] text-base-600 mt-1.5">open</div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="mono text-[22px] leading-none text-info">{{.InProgress}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.12em] text-base-600 mt-1.5">in progress</div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="mono text-[22px] leading-none text-warn">{{.InReview}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.12em] text-base-600 mt-1.5">in review</div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="mono text-[22px] leading-none text-success">{{.Done}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.12em] text-base-600 mt-1.5">done</div>
+      </div>
+      <div class="px-4 py-3">
+        <div class="mono text-[22px] leading-none text-base-950">{{.TotalPts}}</div>
+        <div class="mono text-[13px] uppercase tracking-[0.12em] text-base-600 mt-1.5">points</div>
+      </div>
+    </div>
+
+    {{if .Groups}}
+    <!-- Tickets grouped by column -->
+    <div class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+      {{range .Groups}}
+      {{$col := lower .Name}}
+      <!-- Group header -->
+      <div class="flex items-center gap-2 px-4 h-9 bg-base-250/40 border-b border-base-300">
+        <span class="w-2 h-2 rounded-full shrink-0
+          {{if contains $col "progress"}}bg-info
+          {{else if contains $col "review"}}bg-warn
+          {{else if or (eq $col "done") (contains $col "closed")}}bg-success
+          {{else if or (contains $col "to do") (eq $col "todo")}}bg-base-600
+          {{else}}bg-base-500{{end}}"></span>
+        <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">{{.Name}}</span>
+        <span class="mono text-[13px] text-base-600">{{len .Tickets}}</span>
+      </div>
+      <!-- Ticket rows -->
+      {{range .Tickets}}
+      <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-4 h-11 hover:bg-base-250/40 cursor-pointer border-b border-base-300">
+        <span class="mono text-[13px] text-primary-400 w-[72px] shrink-0">{{.DisplayID}}</span>
+        <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
+        <!-- Priority -->
+        <span class="inline-flex items-center gap-1 w-9 shrink-0">
+          <span class="w-1 h-2.5 rounded-sm
+            {{if eq .Priority.String "critical"}}bg-p0
+            {{else if eq .Priority.String "high"}}bg-p1
+            {{else if eq .Priority.String "medium"}}bg-p2
+            {{else if eq .Priority.String "low"}}bg-p3
+            {{else}}bg-base-500{{end}}"></span>
+          <span class="mono text-[11px] text-base-600">
+            {{if eq .Priority.String "critical"}}P0{{else if eq .Priority.String "high"}}P1{{else if eq .Priority.String "medium"}}P2{{else if eq .Priority.String "low"}}P3{{else}}—{{end}}
+          </span>
+        </span>
+        <!-- Sprint badge -->
+        {{if .SprintID}}
+        <span class="mono text-[12px] text-base-800 px-1.5 h-5 inline-flex items-center rounded-sm border border-base-350 bg-base-250 w-[60px] justify-center shrink-0">sprint</span>
+        {{else}}
+        <span class="mono text-[12px] text-base-600 px-1.5 h-5 inline-flex items-center rounded-sm border border-base-350 w-[60px] justify-center shrink-0">backlog</span>
+        {{end}}
+        <!-- Points -->
+        {{if .StoryPoints}}
+        <span class="mono text-[13px] text-base-700 w-9 text-right shrink-0">{{deref .StoryPoints}} pt</span>
+        {{else}}
+        <span class="mono text-[13px] text-warn w-9 text-right shrink-0">— pt</span>
+        {{end}}
+        <!-- Assignee -->
+        {{if .AssigneeName}}
+        <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials (derefStr .AssigneeName)}}</span>
+        {{else}}
+        <span class="w-6 h-6 rounded-sm border border-dashed border-base-500 shrink-0"></span>
+        {{end}}
+      </a>
+      {{end}}
+      {{end}}
+    </div>
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
+      <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+        <span class="w-5 h-5 rounded-sm" style="background-color:{{$tag.Color}}40; border:1px solid {{$tag.Color}}60"></span>
+      </div>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No tickets in this track</div>
+      <p class="text-[14px] text-base-700">Assign the <span style="color:{{$tag.Color}}" class="font-medium">{{$tag.Name}}</span> label to tickets to see them here.</p>
+    </div>
+    {{end}}
+
+  </div>
+</div>
+{{end}}

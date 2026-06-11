@@ -11,7 +11,8 @@ type Team struct {
 	ID            uuid.UUID `json:"id"`
 	OrgID         uuid.UUID `json:"org_id"`
 	Name          string    `json:"name"`
-	Key           string    `json:"key"` // e.g. "ENG", "BE" — ticket prefix
+	Key           string    `json:"key"`  // e.g. "ENG", "BE" — ticket prefix
+	Slug          string    `json:"slug"` // URL-safe identifier, e.g. "backend-engineering"
 	Description   string    `json:"description"`
 	TicketCounter int       `json:"ticket_counter"`
 	CreatedBy     uuid.UUID `json:"created_by"`
@@ -19,10 +20,13 @@ type Team struct {
 	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-// TeamWithBoard is used for navigation — loads the team and its single board together.
+// TeamWithBoard is used for navigation — loads the team, its board, active sprint, and tags.
 type TeamWithBoard struct {
-	Team  Team
-	Board *Board // nil if the team has no board yet
+	Team         Team
+	Board        *Board  // nil if the team has no board yet
+	ActiveSprint *Sprint // nil if no active sprint
+	Tags         []Tag   // board labels/tracks, empty if none
+	Members      []User  // first few members for avatar display
 }
 
 type BoardMode string
@@ -45,7 +49,7 @@ type Board struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-func (m BoardMode) IsScrum() bool  { return m == BoardModeScrum }
+func (m BoardMode) IsScrum() bool { return m == BoardModeScrum }
 func (m BoardMode) Label() string {
 	switch m {
 	case BoardModeScrum:
@@ -121,16 +125,47 @@ func (s SprintStatus) IsActive() bool    { return s == SprintStatusActive }
 func (s SprintStatus) IsPlanning() bool  { return s == SprintStatusPlanning }
 func (s SprintStatus) IsCompleted() bool { return s == SprintStatusCompleted }
 
+// DayNumber returns the 1-based current day within the sprint (0 if no start date).
+func (s Sprint) DayNumber() int {
+	if s.StartDate == nil {
+		return 0
+	}
+	d := int(time.Since(*s.StartDate).Hours()/24) + 1
+	if d < 1 {
+		return 1
+	}
+	return d
+}
+
+// TotalDays returns the planned length of the sprint in days (0 if dates missing).
+func (s Sprint) TotalDays() int {
+	if s.StartDate == nil || s.EndDate == nil {
+		return 0
+	}
+	return int(s.EndDate.Sub(*s.StartDate).Hours()/24) + 1
+}
+
+// RemainingPoints returns committed − completed story points.
+func (s Sprint) RemainingPoints() float64 {
+	r := s.CommittedPoints - s.CompletedPoints
+	if r < 0 {
+		return 0
+	}
+	return r
+}
+
 // BoardView is the full board with columns and their tickets, used for rendering.
 type BoardView struct {
 	Board               Board
-	Team                *Team               // nil if board has no team
+	Team                *Team // nil if board has no team
 	Columns             []ColumnView
-	ActiveSprint        *Sprint             // nil for kanban/blank boards or scrum boards with no active sprint
-	Sprints             []Sprint            // all sprints for this board (scrum only)
-	SprintViews         []SprintView        // planning sprints with their tickets (backlog page)
-	BacklogCount        int                 // tickets with sprint_id IS NULL (scrum only)
-	FirstColumnID       uuid.UUID           // first column's ID — used by New Ticket button
+	ActiveSprint        *Sprint              // nil for kanban/blank boards or scrum boards with no active sprint
+	Sprints             []Sprint             // all sprints for this board (scrum only)
+	SprintViews         []SprintView         // planning sprints with their tickets (backlog page)
+	BacklogCount        int                  // tickets with sprint_id IS NULL (scrum only)
+	BacklogPoints       int                  // sum of story points for backlog tickets
+	UnestimatedCount    int                  // backlog tickets with no story points
+	FirstColumnID       uuid.UUID            // first column's ID — used by New Ticket button
 	ActiveSprintSection *ActiveSprintSection // backlog page: active sprint tickets grouped by column
 }
 
@@ -160,6 +195,20 @@ type ColumnView struct {
 	Tickets   []Ticket
 	IsBacklog bool // true for the virtual backlog column shown on scrum sprint boards
 	IsDone    bool // true if column name matches "done" (case-insensitive)
+}
+
+// TotalPoints sums story points across all tickets in this column. Returns "" when zero.
+func (cv ColumnView) TotalPoints() string {
+	var total float64
+	for _, t := range cv.Tickets {
+		if t.StoryPoints != nil {
+			total += *t.StoryPoints
+		}
+	}
+	if total == 0 {
+		return ""
+	}
+	return fmt.Sprintf("%.0f pt", total)
 }
 
 // RoadmapTicket is a lightweight ticket summary for the roadmap view.

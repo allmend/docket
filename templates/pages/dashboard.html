@@ -2,11 +2,179 @@
 
 {{define "title"}}Dashboard — Docket{{end}}
 
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Dashboard</span>
+{{end}}
+
 {{define "content"}}
-<div class="p-6 overflow-y-auto flex flex-col gap-2">
-  <h1 class="text-2xl font-semibold">
-    {{if .CurrentUser}}Welcome, {{.CurrentUser.Name}}.{{else}}Welcome.{{end}}
-  </h1>
-  <p class="text-sm text-base-content/50">Pick a team from the sidebar to get started.</p>
+<div class="flex-1 overflow-y-auto">
+  <div class="max-w-[1320px] mx-auto px-8 py-6">
+
+    <!-- Page header -->
+    <div class="flex items-end justify-between mb-6">
+      <div>
+        <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Dashboard</h1>
+        <div class="mono text-[14px] text-base-700 mt-0.5">{{formatDate (now)}}{{if .NavActiveSprint}} · {{.NavActiveSprint.Name}} · day {{.NavActiveSprint.DayNumber}} / {{.NavActiveSprint.TotalDays}}{{end}}</div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-4">
+
+      <!-- Left stack: sprint stats + blocked -->
+      <div class="col-span-8 flex flex-col gap-4">
+
+        <!-- Active sprint card -->
+        {{if .NavActiveSprint}}
+        {{$sp := .NavActiveSprint}}
+        <section class="bg-base-200 border border-base-300 rounded-md">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
+            <div class="flex items-center gap-2.5">
+              <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">active sprint</span>
+              <span class="text-[15px] font-medium text-base-950">{{$sp.Name}}</span>
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-success/15 border border-success/30 mono text-[13px] uppercase tracking-wider text-success">active</span>
+            </div>
+            {{if and $sp.StartDate $sp.EndDate}}
+            <span class="mono text-[14px] text-base-700">{{sub $sp.TotalDays $sp.DayNumber}} days left</span>
+            {{end}}
+          </div>
+          <div class="grid grid-cols-3 divide-x divide-base-300 border-b border-base-300">
+            <div class="px-5 py-3">
+              <div class="mono text-[26px] leading-none text-base-950">{{printf "%.0f" $sp.CommittedPoints}}</div>
+              <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">committed</div>
+            </div>
+            <div class="px-5 py-3">
+              <div class="mono text-[26px] leading-none text-primary-400">{{printf "%.0f" $sp.CompletedPoints}}</div>
+              <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">completed</div>
+            </div>
+            <div class="px-5 py-3">
+              <div class="mono text-[26px] leading-none text-base-950">{{printf "%.0f" $sp.RemainingPoints}}</div>
+              <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">remaining</div>
+            </div>
+          </div>
+          {{if and $sp.StartDate $sp.EndDate}}
+          <div class="px-5 py-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="mono text-[13px] text-base-600">Sprint progress · day {{$sp.DayNumber}} / {{$sp.TotalDays}}</span>
+              <span class="mono text-[13px] text-base-700">{{$sp.PointsPct}}% done</span>
+            </div>
+            <div class="h-1.5 bg-base-300 rounded-sm overflow-hidden">
+              <div class="h-full bg-primary-500 rounded-sm" style="width:{{$sp.PointsPct}}%"></div>
+            </div>
+          </div>
+          {{end}}
+        </section>
+        {{end}}
+
+        <!-- Blocked & at-risk -->
+        <section class="bg-base-200 border border-base-300 rounded-md">
+          <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
+            <div class="flex items-center gap-2">
+              <span class="text-[15px] font-medium text-base-950">Blocked &amp; at-risk</span>
+              {{if .BlockedTickets}}
+              <span class="inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-sm bg-danger/15 border border-danger/30 mono text-[13px] text-danger">{{len .BlockedTickets}}</span>
+              {{end}}
+            </div>
+          </div>
+          {{if .BlockedTickets}}
+          <div class="divide-y divide-base-300">
+            {{range .BlockedTickets}}
+            <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-5 py-3 hover:bg-base-250/40 cursor-pointer">
+              <span class="w-1 h-8 rounded-sm shrink-0
+                {{if eq .Priority "critical"}}bg-p0
+                {{else if eq .Priority "high"}}bg-p1
+                {{else if eq .Priority "medium"}}bg-p2
+                {{else if eq .Priority "low"}}bg-p3
+                {{else}}bg-base-500{{end}}"></span>
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="mono text-[13px] text-primary-400">{{.DisplayID}}</span>
+                  <span class="mono text-[11px] text-base-600">{{if eq .Priority "critical"}}P0{{else if eq .Priority "high"}}P1{{else if eq .Priority "medium"}}P2{{else if eq .Priority "low"}}P3{{end}}</span>
+                </div>
+                <div class="text-[14px] text-base-900 truncate">{{.Title}}</div>
+              </div>
+              <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-danger/15 border border-danger/30 mono text-[13px] uppercase tracking-wider text-danger shrink-0">Blocked</span>
+              {{if .AssigneeName}}
+              <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials .AssigneeName}}</span>
+              {{end}}
+            </a>
+            {{end}}
+          </div>
+          {{else}}
+          <div class="flex flex-col items-center justify-center text-center px-8 py-10">
+            <div class="w-12 h-12 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-3 shadow-sunk">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="text-[16px] font-semibold tracking-tightish text-base-950">Nothing blocked</div>
+            <p class="text-[13px] text-base-700 leading-snug mt-1 max-w-[30ch]">Every in-flight ticket is moving. Blockers and stale work appear here.</p>
+          </div>
+          {{end}}
+        </section>
+
+      </div>
+
+      <!-- Right stack: my day + activity -->
+      <div class="col-span-4 flex flex-col gap-4">
+
+        <!-- My day -->
+        <section class="bg-base-200 border border-base-300 rounded-md">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+            <span class="text-[15px] font-medium text-base-950">My day</span>
+            {{if .MyTickets}}<span class="mono text-[13px] text-base-600">{{len .MyTickets}} tickets{{if .MyTicketsPoints}} · {{printf "%.0f" .MyTicketsPoints}} pt{{end}}</span>{{end}}
+          </div>
+          {{if .MyTickets}}
+          {{$lastCol := ""}}
+          <div class="p-2">
+            {{range .MyTickets}}
+            {{if ne .ColumnName $lastCol}}
+            <div class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 px-2 py-1 {{if ne $lastCol ""}}mt-1{{end}}">{{.ColumnName}}</div>
+            {{end}}
+            {{$lastCol = .ColumnName}}
+            <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-base-250 cursor-pointer">
+              <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
+              <span class="text-[14px] text-base-900 truncate flex-1">{{.Title}}</span>
+              {{if .StoryPoints}}<span class="mono text-[13px] text-base-700 shrink-0">{{deref .StoryPoints}}</span>{{end}}
+            </a>
+            {{end}}
+          </div>
+          {{else}}
+          <div class="px-4 py-6 text-center mono text-[13px] text-base-600">No active tickets</div>
+          {{end}}
+        </section>
+
+        <!-- Recent activity -->
+        <section class="bg-base-200 border border-base-300 rounded-md flex-1">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-base-300">
+            <span class="text-[15px] font-medium text-base-950">Recent activity</span>
+          </div>
+          {{if .Activity}}
+          <div class="p-4 space-y-3.5">
+            {{range .Activity}}
+            <a href="/tickets/{{.TicketDisplayID}}" class="flex gap-2.5 hover:opacity-80 cursor-pointer">
+              <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0 mt-0.5">{{initials .ActorName}}</span>
+              <div class="text-[14px] text-base-800 leading-snug min-w-0">
+                <span class="text-base-950">{{.ActorName}}</span>
+                {{if eq .Field "column"}} moved to <span class="text-base-900">{{.NewValue}}</span>
+                {{else if eq .Field "priority"}} changed priority
+                {{else if eq .Field "story_points"}} estimated <span class="mono text-base-900">{{.NewValue}} pt</span>
+                {{else if eq .Field "comment"}} commented on
+                {{else if eq .Field "title"}} updated title of
+                {{else if eq .Field "assignee"}} assigned
+                {{else}} updated{{end}}
+                <span class="mono text-[13px] text-primary-400">{{.TicketDisplayID}}</span>
+                <div class="text-[13px] text-base-700 truncate">{{.TicketTitle}}</div>
+                <div class="mono text-[12px] text-base-600 mt-0.5">{{timeAgo .CreatedAt}}</div>
+              </div>
+            </a>
+            {{end}}
+          </div>
+          {{else}}
+          <div class="px-4 py-6 text-center mono text-[13px] text-base-600">No recent activity</div>
+          {{end}}
+        </section>
+
+      </div>
+    </div>
+  </div>
 </div>
 {{end}}

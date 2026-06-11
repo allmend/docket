@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// CreateGlobalTicket handles the "New Ticket" button in the navbar.
-// The user picks a team; the ticket lands in that team's board backlog.
+// CreateGlobalTicket handles the "New Ticket" modal form submission.
+// The workspace chip pre-selects the current workspace; the ticket lands in its backlog.
 func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
@@ -73,6 +73,11 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = h.boards.AddTagToTicket(r.Context(), orgID, ticket.ID, uid)
 	}
+	if raw := r.FormValue("story_points"); raw != "" {
+		if pts, err := strconv.ParseFloat(raw, 64); err == nil {
+			_, _ = h.tickets.UpdatePoints(r.Context(), orgID, ticket.ID, userID, &pts)
+		}
+	}
 
 	if r.FormValue("create_more") == "true" {
 		w.WriteHeader(http.StatusNoContent)
@@ -85,9 +90,8 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
 
@@ -137,9 +141,8 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	boardID, err := uuid.Parse(chi.URLParam(r, "boardID"))
-	if err != nil {
-		http.Error(w, "invalid board ID", http.StatusBadRequest)
+	boardID, ok := pathUUID(w, r, "boardID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -184,9 +187,8 @@ func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 // TicketQuickView renders the lightweight modal partial (triggered by card click on the board).
 func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -282,12 +284,37 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
+// TicketRefineView renders the refinement detail pane for a single ticket.
+// Used by the backlog refinement side-by-side view (right pane).
+func (h *Handler) TicketRefineView(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
+		return
+	}
+
+	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
+	if err != nil {
+		http.Error(w, "ticket not found", http.StatusNotFound)
+		return
+	}
+
+	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
+	allBoardTags, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
+	boardTags := filterUnusedTags(allBoardTags, tags)
+
+	h.render(w, "ticket-refine.html", map[string]any{
+		"Ticket":    ticket,
+		"Tags":      tags,
+		"BoardTags": boardTags,
+	})
+}
+
 // TicketBodyView renders the read-only ticket body fragment (used by cancel in edit form).
 func (h *Handler) TicketBodyView(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -304,18 +331,17 @@ func (h *Handler) TicketBodyView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, "ticket-body.html", map[string]any{
-		"Ticket":  ticket,
-		"Board":   board,
-		"Team": team,
+		"Ticket": ticket,
+		"Board":  board,
+		"Team":   team,
 	})
 }
 
 // TicketEditForm returns the inline edit form fragment (HTMX swap into the page).
 func (h *Handler) TicketEditForm(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -330,9 +356,8 @@ func (h *Handler) TicketEditForm(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -369,18 +394,17 @@ func (h *Handler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 
 	// From the ticket page edit form: re-render the body section.
 	h.render(w, "ticket-body.html", map[string]any{
-		"Ticket":  ticket,
-		"Board":   board,
-		"Team": team,
+		"Ticket": ticket,
+		"Board":  board,
+		"Team":   team,
 	})
 }
 
 func (h *Handler) CloseTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -406,9 +430,8 @@ func (h *Handler) CloseTicket(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ReopenTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if _, err := h.tickets.ReopenTicket(r.Context(), orgID, ticketID, userID); err != nil {
@@ -422,9 +445,8 @@ func (h *Handler) ReopenTicket(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -451,9 +473,8 @@ func (h *Handler) DeleteTicket(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) MoveTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -471,20 +492,21 @@ func (h *Handler) MoveTicket(w http.ResponseWriter, r *http.Request) {
 	prevPos, _ := strconv.ParseFloat(r.FormValue("prev_pos"), 64)
 	nextPos, _ := strconv.ParseFloat(r.FormValue("next_pos"), 64)
 
-	if err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos); err != nil {
+	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos)
+	if err != nil {
 		http.Error(w, "failed to move ticket", http.StatusInternalServerError)
 		return
 	}
 
+	w.Header().Set("X-New-Position", strconv.FormatFloat(newPos, 'f', -1, 64))
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) UpdateTicketPriority(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -503,9 +525,8 @@ func (h *Handler) UpdateTicketPriority(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTicketPoints(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -531,9 +552,8 @@ func (h *Handler) UpdateTicketPoints(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) SearchTicketAssignees(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	q := r.URL.Query().Get("q")
@@ -558,9 +578,8 @@ func (h *Handler) SearchTicketAssignees(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) AddTicketAssignee(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	actorID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -589,14 +608,12 @@ func (h *Handler) AddTicketAssignee(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) RemoveTicketAssignee(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	actorID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
-	userID, err := uuid.Parse(chi.URLParam(r, "userID"))
-	if err != nil {
-		http.Error(w, "invalid user ID", http.StatusBadRequest)
+	userID, ok := pathUUID(w, r, "userID")
+	if !ok {
 		return
 	}
 	if err := h.tickets.RemoveAssignee(r.Context(), orgID, ticketID, userID, actorID); err != nil {
@@ -657,12 +674,19 @@ func (h *Handler) MyIssues(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	totalPts := 0
+	for _, t := range tickets {
+		if t.StoryPoints != nil {
+			totalPts += int(*t.StoryPoints)
+		}
+	}
+
 	h.render(w, "my-issues.html", h.pageData(r, map[string]any{
-		"Groups": groups,
-		"Total":  len(tickets),
+		"Groups":      groups,
+		"Total":       len(tickets),
+		"TotalPoints": totalPts,
 	}))
 }
-
 
 func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
@@ -683,9 +707,8 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTicketColumn(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -719,9 +742,8 @@ func (h *Handler) UpdateTicketColumn(w http.ResponseWriter, r *http.Request) {
 // Called when dragging a ticket from the virtual backlog column into a sprint column on the board.
 func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -745,7 +767,8 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "assign to sprint failed", http.StatusInternalServerError)
 		return
 	}
-	if err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos); err != nil {
+	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos)
+	if err != nil {
 		http.Error(w, "move failed", http.StatusInternalServerError)
 		return
 	}
@@ -754,15 +777,15 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 			metrics.SprintUnplannedPoints.WithLabelValues(orgID.String(), sprintID.String()).Add(float64(*t.StoryPoints))
 		}
 	}
+	w.Header().Set("X-New-Position", strconv.FormatFloat(newPos, 'f', -1, 64))
 	w.WriteHeader(http.StatusNoContent)
 }
 
 func (h *Handler) UpdateTicketTitle(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -786,9 +809,8 @@ func (h *Handler) UpdateTicketTitle(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -806,9 +828,8 @@ func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) ToggleACCheckbox(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	var index int
@@ -827,9 +848,8 @@ func (h *Handler) ToggleACCheckbox(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTicketAC(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -847,9 +867,8 @@ func (h *Handler) UpdateTicketAC(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) AddACItem(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	if err := r.ParseForm(); err != nil {
@@ -872,9 +891,8 @@ func (h *Handler) AddACItem(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) DeleteACItem(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	var index int
@@ -893,9 +911,8 @@ func (h *Handler) DeleteACItem(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) SearchTicketsForLink(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 	q := r.URL.Query().Get("q")
@@ -905,8 +922,9 @@ func (h *Handler) SearchTicketsForLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.render(w, "link-search-results.html", map[string]any{
-		"Tickets": tickets,
-		"Query":   q,
+		"Tickets":  tickets,
+		"Query":    q,
+		"TicketID": ticketID,
 	})
 }
 

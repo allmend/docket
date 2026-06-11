@@ -5,16 +5,14 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
 
 func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
 
@@ -61,14 +59,12 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
-	ticketID, err := uuid.Parse(chi.URLParam(r, "ticketID"))
-	if err != nil {
-		http.Error(w, "invalid ticket ID", http.StatusBadRequest)
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
 		return
 	}
-	linkID, err := uuid.Parse(chi.URLParam(r, "linkID"))
-	if err != nil {
-		http.Error(w, "invalid link ID", http.StatusBadRequest)
+	linkID, ok := pathUUID(w, r, "linkID")
+	if !ok {
 		return
 	}
 

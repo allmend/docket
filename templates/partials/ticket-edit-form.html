@@ -1,0 +1,28 @@
+{{define "ticket-edit-form"}}
+<div id="ticket-body" class="space-y-4">
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Edit ticket</div>
+  <form hx-put="/tickets/{{.ID}}"
+        hx-target="#ticket-body"
+        hx-swap="outerHTML"
+        class="space-y-3">
+    <input type="hidden" name="priority" value="{{.Priority}}">
+    <input type="text" name="title" value="{{.Title}}" required autofocus
+           class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-1.5 text-[20px] font-semibold text-base-950 placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk" />
+    <textarea name="body" rows="8"
+              class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-2 text-[14px] text-base-800 leading-relaxed placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk resize-y font-mono">{{.Body}}</textarea>
+    <div class="flex items-center gap-2 justify-end">
+      <button type="button"
+              hx-get="/tickets/{{.ID}}/view"
+              hx-target="#ticket-body"
+              hx-swap="outerHTML"
+              class="px-3 py-1.5 text-[14px] text-base-800 hover:text-base-950 hover:bg-base-250 rounded">
+        Cancel
+      </button>
+      <button type="submit"
+              class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] px-3 py-1.5 rounded shadow-lift">
+        Save
+      </button>
+    </div>
+  </form>
+</div>
+{{end}}

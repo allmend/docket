@@ -11,22 +11,24 @@ import (
 const linkCols = `
 	tl.id, tl.org_id, tl.from_ticket_id, tl.to_ticket_id, tl.relation_type, tl.created_at,
 	COALESCE(ftm.key || '-' || ft.number::text, ft.id::text),
-	ft.title,
+	ft.title, ft.closed_at, COALESCE(ftc.name, ''),
 	COALESCE(ttm.key || '-' || tt.number::text, tt.id::text),
-	tt.title`
+	tt.title, tt.closed_at, COALESCE(ttc.name, '')`
 
 const linkJoins = `
 	FROM ticket_links tl
 	JOIN tickets ft  ON ft.id  = tl.from_ticket_id
 	JOIN tickets tt  ON tt.id  = tl.to_ticket_id
-	LEFT JOIN teams ftm ON ftm.id = ft.team_id
-	LEFT JOIN teams ttm ON ttm.id = tt.team_id`
+	LEFT JOIN teams ftm   ON ftm.id = ft.team_id
+	LEFT JOIN teams ttm   ON ttm.id = tt.team_id
+	LEFT JOIN columns ftc ON ftc.id = ft.column_id
+	LEFT JOIN columns ttc ON ttc.id = tt.column_id`
 
 func scanLink(row interface{ Scan(dest ...any) error }, l *model.TicketLink) error {
 	return row.Scan(
 		&l.ID, &l.OrgID, &l.FromTicketID, &l.ToTicketID, &l.Relation, &l.CreatedAt,
-		&l.FromDisplayID, &l.FromTitle,
-		&l.ToDisplayID, &l.ToTitle,
+		&l.FromDisplayID, &l.FromTitle, &l.FromClosedAt, &l.FromColumnName,
+		&l.ToDisplayID, &l.ToTitle, &l.ToClosedAt, &l.ToColumnName,
 	)
 }
 
@@ -56,6 +58,8 @@ func (s *Store) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) ([]mod
 			l.FromTicketID, l.ToTicketID = l.ToTicketID, l.FromTicketID
 			l.FromDisplayID, l.ToDisplayID = l.ToDisplayID, l.FromDisplayID
 			l.FromTitle, l.ToTitle = l.ToTitle, l.FromTitle
+			l.FromClosedAt, l.ToClosedAt = l.ToClosedAt, l.FromClosedAt
+			l.FromColumnName, l.ToColumnName = l.ToColumnName, l.FromColumnName
 			switch l.Relation {
 			case model.RelationBlocks:
 				l.Relation = "blocked_by" // virtual — not stored, only for display

@@ -1,164 +1,208 @@
-{{define "title"}}Daily Scrum{{if .ActiveSprint}} · {{.ActiveSprint.Name}}{{end}}{{end}}
+{{template "base" .}}
+
+{{define "title"}}Daily Scrum — Docket{{end}}
+
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Daily Scrum</span>
+{{end}}
+
 {{define "content"}}
-<div class="flex flex-col h-full">
+{{$board   := .Board}}
+{{$team    := .Team}}
+{{$sprint  := .ActiveSprint}}
 
-  <!-- Header -->
-  <div class="flex items-center justify-between px-6 py-4 border-b border-base-300 shrink-0">
-    <div class="flex flex-col gap-0.5">
-      <div class="flex items-center gap-2">
-        <h1 class="text-lg font-semibold">Daily Scrum</h1>
-        {{if .ActiveSprint}}
-        <span class="text-base-content/30">·</span>
-        <span class="text-sm text-base-content/60">{{.ActiveSprint.Name}}</span>
-        {{end}}
-      </div>
-      {{if .Team}}
-      <p class="text-xs text-base-content/40 font-mono">{{.Team.Key}} · {{.Team.Name}}</p>
+<div class="flex-1 min-h-0 flex flex-col overflow-hidden"
+     x-data="{
+       speakerIdx: -1,
+       spokenIdxs: [],
+       selectSpeaker(idx, aid) {
+         this.speakerIdx = idx;
+         htmx.ajax('GET', '/boards/{{$board.ID}}/daily/tickets?assignee_id='+aid, {target:'#daily-speaker-panel', swap:'innerHTML'});
+       },
+       next(aids) {
+         if (this.speakerIdx >= 0) this.spokenIdxs.push(this.speakerIdx);
+         const n = this.speakerIdx + 1;
+         if (n < aids.length) this.selectSpeaker(n, aids[n]);
+       },
+       pass(aids) {
+         const n = this.speakerIdx + 1;
+         if (n < aids.length) this.selectSpeaker(n, aids[n]);
+       }
+     }">
+
+  <!-- Context bar -->
+  <div class="shrink-0 h-12 bg-base-200 border-b border-base-300 flex items-center gap-4 px-4 whitespace-nowrap overflow-x-auto">
+    <div class="flex items-center gap-2.5 shrink-0">
+      <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">stand-up</span>
+      {{if $sprint}}
+      <span class="text-[15px] font-medium text-base-950">{{$sprint.Name}}</span>
+      {{if and $sprint.StartDate $sprint.EndDate}}
+      <span class="mono text-[13px] text-base-600">· day {{$sprint.DayNumber}} / {{$sprint.TotalDays}}</span>
+      {{end}}
       {{end}}
     </div>
-    <a href="/boards/{{.Board.ID}}"
-       class="flex items-center gap-1.5 text-sm text-base-content/50 hover:text-base-content transition-colors">
-      <svg class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"/>
-      </svg>
-      Sprint Board
-    </a>
-  </div>
 
-  {{if .ActiveSprint}}
-
-  <!-- Filter bar -->
-  <div class="px-6 py-3 border-b border-base-300 shrink-0"
-       x-data="{
-         q: '{{.Filters.Q}}',
-         assignees: [],
-         tags: [],
-         priorities: [],
-         unassigned: {{if .Filters.FilterUnassigned}}true{{else}}false{{end}},
-         init() {
-           {{range .Filters.AssigneeIDs}}this.assignees.push('{{.}}');{{end}}
-           {{range .Filters.TagIDs}}this.tags.push('{{.}}');{{end}}
-           {{range .Filters.Priorities}}this.priorities.push('{{.}}');{{end}}
-           htmx.on(document.body, 'boardUpdated', () => this.reload());
-         },
-         hasAssignee(id) { return this.assignees.includes(id); },
-         hasTag(id) { return this.tags.includes(id); },
-         hasPriority(p) { return this.priorities.includes(p); },
-         toggle(arr, val) { const i = arr.indexOf(val); if (i >= 0) arr.splice(i, 1); else arr.push(val); },
-         reload() {
-           const p = new URLSearchParams();
-           if (this.q) p.set('q', this.q);
-           this.assignees.forEach(id => p.append('assignee_id', id));
-           this.tags.forEach(id => p.append('tag_id', id));
-           this.priorities.forEach(pr => p.append('priority', pr));
-           if (this.unassigned) p.set('unassigned', '1');
-           const qs = p.toString();
-           htmx.ajax('GET', '/boards/{{.Board.ID}}/daily/tickets' + (qs ? '?' + qs : ''), {target: '#daily-tickets', swap: 'innerHTML'});
-           history.replaceState(null, '', '/boards/{{.Board.ID}}/daily' + (qs ? '?' + qs : ''));
-         }
-       }">
-    <div class="flex items-center gap-2 flex-wrap">
-
-      <!-- Search -->
-      <div class="relative">
-        <input type="text" x-model="q" @input.debounce.300ms="reload()"
-               placeholder="Search tickets…"
-               class="w-52 bg-base-100 border border-base-300 text-sm text-base-content rounded-lg pl-8 pr-3 py-1.5 focus:outline-none focus:border-primary placeholder:text-base-content/30" />
-        <svg class="absolute left-2.5 top-2 h-4 w-4 text-base-content/30 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-        </svg>
+    {{if .AllAssignees}}
+    <!-- Progress: X / N spoke -->
+    <div class="flex items-center gap-2 shrink-0 ml-2">
+      <span class="mono text-[13px] text-base-600"
+            x-text="spokenIdxs.length + ' / {{len .AllAssignees}} spoke'"></span>
+      <div class="w-24 h-1 bg-base-300 rounded-sm overflow-hidden">
+        <div class="h-full bg-primary-500 transition-all"
+             :style="'width:' + Math.round(spokenIdxs.length / {{len .AllAssignees}} * 100) + '%'"></div>
       </div>
+    </div>
+    {{end}}
 
-      <div class="w-px h-5 bg-base-300 shrink-0"></div>
-      <!-- Assignee pills + Unassigned -->
-      <div class="flex items-center gap-1 flex-wrap">
-        <!-- Unassigned pill -->
-        <button type="button"
-                @click="unassigned = !unassigned; reload()"
-                :class="unassigned ? 'bg-primary/15 border-primary/40 text-primary' : (assignees.length ? 'bg-base-200 border-base-300 text-base-content/40 hover:text-base-content hover:bg-base-300' : 'bg-base-200 border-base-300 text-base-content/70 hover:text-base-content hover:bg-base-300')"
-                class="flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-xs transition-colors">
-          <svg class="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-          Unassigned
-        </button>
-        {{range .AllAssignees}}
-        <button type="button"
-                @click="toggle(assignees, '{{.ID}}'); reload()"
-                :class="hasAssignee('{{.ID}}') ? 'bg-primary/15 border-primary/40 text-primary' : (assignees.length || unassigned ? 'bg-base-200 border-base-300 text-base-content/40 hover:text-base-content hover:bg-base-300' : 'bg-base-200 border-base-300 text-base-content/70 hover:text-base-content hover:bg-base-300')"
-                class="flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-xs transition-colors">
-          <span class="w-4 h-4 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-[9px] font-bold text-primary shrink-0">{{initials .Name}}</span>
-          {{.Name}}
-        </button>
-        {{end}}
-      </div>
-
-      {{if .AllTags}}
-      <div class="w-px h-5 bg-base-300 shrink-0"></div>
-      <div class="flex items-center gap-1 flex-wrap">
-        {{range .AllTags}}
-        <button type="button"
-                @click="toggle(tags, '{{.ID}}'); reload()"
-                :class="hasTag('{{.ID}}') ? '' : (tags.length ? 'opacity-40 hover:opacity-70' : '')"
-                class="text-xs border rounded-full px-2.5 py-1 transition-opacity"
-                style="border-color: {{.Color}}50; background-color: {{.Color}}15; color: {{.Color}}">
-          {{.Name}}
-        </button>
-        {{end}}
-      </div>
-      {{end}}
-
-      <div class="w-px h-5 bg-base-300 shrink-0"></div>
-
-      <!-- Priority pills -->
-      <div class="flex items-center gap-1">
-        <button type="button" @click="toggle(priorities, 'critical'); reload()"
-                :class="priorities.length && !hasPriority('critical') ? 'opacity-40 hover:opacity-70' : ''"
-                class="text-xs border border-red-700 text-red-400 rounded-full px-2.5 py-1 transition-opacity">critical</button>
-        <button type="button" @click="toggle(priorities, 'high'); reload()"
-                :class="priorities.length && !hasPriority('high') ? 'opacity-40 hover:opacity-70' : ''"
-                class="text-xs border border-amber-700 text-amber-400 rounded-full px-2.5 py-1 transition-opacity">high</button>
-        <button type="button" @click="toggle(priorities, 'medium'); reload()"
-                :class="priorities.length && !hasPriority('medium') ? 'opacity-40 hover:opacity-70' : ''"
-                class="text-xs border border-blue-700 text-blue-400 rounded-full px-2.5 py-1 transition-opacity">medium</button>
-        <button type="button" @click="toggle(priorities, 'low'); reload()"
-                :class="priorities.length && !hasPriority('low') ? 'opacity-40 hover:opacity-70' : ''"
-                class="text-xs border border-base-300 text-base-content/50 rounded-full px-2.5 py-1 transition-opacity">low</button>
-      </div>
-
-      <!-- Clear filters -->
+    <div class="ml-auto flex items-center gap-2 shrink-0">
+      {{if .AllAssignees}}
+      {{/* serialize assignee IDs for Alpine */}}
+      {{$aids := ""}}{{range $i, $u := .AllAssignees}}{{if $i}}{{$aids = printf "%s," $aids}}{{end}}{{$aids = printf "%s'%s'" $aids $u.ID}}{{end}}
       <button type="button"
-              x-show="q || assignees.length || tags.length || priorities.length || unassigned"
-              x-cloak
-              @click="q = ''; assignees = []; tags = []; priorities = []; unassigned = false; reload()"
-              class="text-xs text-base-content/30 hover:text-base-content transition-colors ml-1">
-        Clear
+              @click="pass([{{$aids}}])"
+              class="h-8 px-3 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-900">Pass</button>
+      <button type="button"
+              @click="next([{{$aids}}])"
+              class="h-8 px-3 inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
+        Next person
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 8h9M9 5l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-
+      {{end}}
+      {{if $team}}
+      <a href="/workspaces/{{$team.Slug}}/board"
+         class="h-8 px-3 inline-flex items-center bg-base-200 hover:bg-base-250 border border-base-350 rounded text-[14px] text-base-700 hover:text-base-900">End stand-up</a>
+      {{end}}
     </div>
   </div>
 
-  <!-- Ticket list -->
-  <div class="flex-1 overflow-y-auto px-6 py-5">
-    <div id="daily-tickets">
-      {{template "daily-tickets" .}}
-    </div>
-  </div>
-
-  {{else}}
-
+  {{if not $sprint}}
   <!-- No active sprint -->
   <div class="flex-1 flex items-center justify-center">
     <div class="text-center">
-      <svg class="h-10 w-10 text-base-content/10 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 9v7.5"/>
-      </svg>
-      <p class="text-sm text-base-content/40">No active sprint</p>
-      <p class="text-xs text-base-content/25 mt-1">Start a sprint to use the Daily Scrum view.</p>
-      <a href="/boards/{{.Board.ID}}" class="mt-4 inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
-        Go to Sprint Board
-      </a>
+      <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk mx-auto">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No active sprint</div>
+      <p class="text-[14px] text-base-700">Start a sprint to run a daily scrum.</p>
     </div>
   </div>
+  {{else}}
 
+  <!-- Split: participants + speaker panel -->
+  <div class="flex-1 grid grid-cols-[300px_1fr] min-h-0">
+
+    <!-- Left: participant rail -->
+    <div class="border-r border-base-300 overflow-y-auto bg-base-100 flex flex-col">
+      <div class="sticky top-0 bg-base-100/95 backdrop-blur px-3 h-9 flex items-center justify-between border-b border-base-300 z-10">
+        <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">round · {{len .AllAssignees}}</span>
+      </div>
+
+      {{range $i, $user := .AllAssignees}}
+      {{/* Find this person's ticket and blocked counts */}}
+      {{$tcount := 0}}{{$bcount := 0}}
+      {{range $.Groups}}{{if eq .User.ID $user.ID}}
+        {{$tcount = len .Tickets}}
+        {{range .Tickets}}{{if .Ticket.IsBlocked}}{{$bcount = add $bcount 1}}{{end}}{{end}}
+      {{end}}{{end}}
+
+      <div class="flex items-center gap-2.5 pl-3 pr-3 py-2.5 cursor-pointer border-b border-base-300 select-none"
+           :class="speakerIdx === {{$i}} ? 'bg-base-250 ring-1 ring-info/30 border-l-2 border-info -ml-[2px]' : 'hover:bg-base-250/40 border-l-2 border-transparent'"
+           @click="selectSpeaker({{$i}}, '{{$user.ID}}')">
+
+        <!-- State indicator -->
+        <span class="w-5 flex items-center justify-center shrink-0">
+          <template x-if="spokenIdxs.includes({{$i}})">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="2"><path d="M3 8.5l3.2 3.2L13 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </template>
+          <template x-if="speakerIdx === {{$i}} && !spokenIdxs.includes({{$i}})">
+            <span class="w-2 h-2 rounded-full bg-info animate-pulse"></span>
+          </template>
+          <template x-if="speakerIdx !== {{$i}} && !spokenIdxs.includes({{$i}})">
+            <span class="w-2 h-2 rounded-full border border-base-500"></span>
+          </template>
+        </span>
+
+        <!-- Avatar -->
+        <span class="w-8 h-8 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0"
+              :class="speakerIdx !== {{$i}} && !spokenIdxs.includes({{$i}}) ? 'opacity-60' : ''">{{initials $user.Name}}</span>
+
+        <!-- Name + detail -->
+        <div class="min-w-0 flex-1">
+          <div class="text-[14px] truncate"
+               :class="speakerIdx === {{$i}} ? 'text-base-950 font-medium' : 'text-base-900'">{{$user.Name}}</div>
+          <div class="mono text-[12px] text-base-600">{{$tcount}}t</div>
+        </div>
+
+        <!-- Right meta -->
+        <div class="flex flex-col items-end gap-1 shrink-0">
+          <span class="mono text-[12px] text-base-600">{{$tcount}}t</span>
+          {{if gt $bcount 0}}
+          <span class="inline-flex items-center gap-1 mono text-[12px] text-danger">
+            <span class="w-1.5 h-1.5 rounded-full bg-danger"></span>{{$bcount}}
+          </span>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+
+      {{/* If nobody has tickets, show unassigned count */}}
+      {{if .Unassigned}}
+      <div class="flex items-center gap-2.5 pl-3 pr-3 py-2.5 border-b border-base-300 opacity-50">
+        <span class="w-5 flex items-center justify-center shrink-0">
+          <span class="w-2 h-2 rounded-full border border-base-500"></span>
+        </span>
+        <span class="w-8 h-8 rounded-sm border border-dashed border-base-500 text-base-600 inline-flex items-center justify-center text-[13px] shrink-0">?</span>
+        <div class="min-w-0 flex-1">
+          <div class="text-[14px] text-base-800">Unassigned</div>
+          <div class="mono text-[12px] text-base-600">{{len .Unassigned}}t</div>
+        </div>
+        <span class="mono text-[12px] text-base-600">{{len .Unassigned}}t</span>
+      </div>
+      {{end}}
+
+      <!-- Sprint health at bottom of rail -->
+      {{if $sprint}}
+      <div class="mt-auto p-3 border-t border-base-300">
+        <div class="bg-base-200 border border-base-300 rounded-md p-3">
+          <div class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 mb-1.5">sprint health</div>
+          {{if and $sprint.StartDate $sprint.EndDate}}
+          <div class="flex items-center justify-between text-[14px]">
+            <span class="text-base-700">day</span>
+            <span class="mono text-base-900">{{$sprint.DayNumber}} / {{$sprint.TotalDays}}</span>
+          </div>
+          {{end}}
+          <div class="flex items-center justify-between text-[14px]">
+            <span class="text-base-700">remaining</span>
+            <span class="mono text-base-900">{{printf "%.0f" $sprint.RemainingPoints}} pt</span>
+          </div>
+          {{/* Count blockers across all groups */}}
+          {{$totalBlocked := 0}}{{range $.Groups}}{{range .Tickets}}{{if .Ticket.IsBlocked}}{{$totalBlocked = add $totalBlocked 1}}{{end}}{{end}}{{end}}
+          {{if gt $totalBlocked 0}}
+          <div class="flex items-center justify-between text-[14px]">
+            <span class="text-base-700">blockers</span>
+            <span class="mono text-danger">{{$totalBlocked}}</span>
+          </div>
+          {{end}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+
+    <!-- Right: speaker panel -->
+    <div id="daily-speaker-panel" class="overflow-y-auto bg-base-100">
+      <!-- Default empty state: prompt to select a participant -->
+      <div class="flex flex-col items-center justify-center h-full text-center px-6 py-16"
+           x-show="speakerIdx === -1">
+        <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 shadow-sunk">
+          <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><circle cx="8" cy="5.5" r="2.4"/><path d="M3.5 13c0-2.3 2-3.6 4.5-3.6s4.5 1.3 4.5 3.6" stroke-linecap="round"/></svg>
+        </div>
+        <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">← select a participant</div>
+        <p class="text-[14px] text-base-700 max-w-[28ch]">Click a name in the rail or press "Next person" to start.</p>
+      </div>
+    </div>
+
+  </div>
   {{end}}
 
 </div>

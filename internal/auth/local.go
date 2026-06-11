@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	ErrInvalidCredentials = errors.New("invalid credentials")
+	ErrInvalidCredentials  = errors.New("invalid credentials")
 	ErrProviderUnsupported = errors.New("operation not supported by this provider")
 )
 

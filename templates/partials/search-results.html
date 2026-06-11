@@ -1,0 +1,22 @@
+{{define "search-results"}}
+<div class="max-w-[700px] mx-auto px-8 py-6">
+  {{if .Query}}
+  <div class="mono text-[13px] text-base-600 mb-4">Results for "{{.Query}}"</div>
+  {{end}}
+  {{if .Tickets}}
+  <div class="bg-base-200 border border-base-300 rounded-md overflow-hidden divide-y divide-base-300">
+    {{range .Tickets}}
+    <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-4 h-11 hover:bg-base-250/40">
+      <span class="mono text-[13px] text-primary-400 shrink-0 w-[72px]">{{.DisplayID}}</span>
+      <span class="text-[15px] text-base-900 flex-1 truncate">{{.Title}}</span>
+      <span class="mono text-[11px] text-base-600 shrink-0">
+        {{if eq .Priority.String "critical"}}P0{{else if eq .Priority.String "high"}}P1{{else if eq .Priority.String "medium"}}P2{{else if eq .Priority.String "low"}}P3{{end}}
+      </span>
+    </a>
+    {{end}}
+  </div>
+  {{else if .Query}}
+  <div class="text-center mono text-[13px] text-base-600 py-8">No results for "{{.Query}}"</div>
+  {{end}}
+</div>
+{{end}}

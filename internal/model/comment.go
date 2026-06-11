@@ -9,15 +9,15 @@ import (
 )
 
 type Comment struct {
-	ID        uuid.UUID `json:"id"`
-	OrgID     uuid.UUID `json:"org_id"`
-	TicketID  uuid.UUID `json:"ticket_id"`
-	AuthorID  uuid.UUID `json:"author_id"`
-	AuthorName string   `json:"author_name"`
-	Body      string    `json:"body"`
-	Edited    bool      `json:"edited"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID         uuid.UUID `json:"id"`
+	OrgID      uuid.UUID `json:"org_id"`
+	TicketID   uuid.UUID `json:"ticket_id"`
+	AuthorID   uuid.UUID `json:"author_id"`
+	AuthorName string    `json:"author_name"`
+	Body       string    `json:"body"`
+	Edited     bool      `json:"edited"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 func (c *Comment) BodyHTML() template.HTML {

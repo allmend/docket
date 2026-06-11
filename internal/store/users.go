@@ -132,6 +132,8 @@ type RefreshTokenRow struct {
 
 func (s *Store) ValidateRefreshToken(ctx context.Context, tokenHash string) (*RefreshTokenRow, error) {
 	var r RefreshTokenRow
+	// NOTE: must use primary when a real read replica is added — replication lag
+	// could make a just-revoked token appear valid on the replica.
 	err := s.replica.QueryRow(ctx,
 		`SELECT rt.user_id, u.org_id FROM refresh_tokens rt
 		 JOIN users u ON u.id = rt.user_id

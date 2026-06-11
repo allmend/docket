@@ -1,16 +1,20 @@
 {{define "comment-edit-form"}}
-<div id="comment-{{.ID}}" class="flex gap-3">
-  <div class="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary shrink-0 mt-0.5">{{initials .AuthorName}}</div>
-  <div class="flex-1 min-w-0">
-    <form hx-put="/comments/{{.ID}}" hx-target="#comment-{{.ID}}" hx-swap="outerHTML" class="flex flex-col gap-2">
-      {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Edit comment…" "Rows" "3")}}
-      <div class="flex items-center gap-2">
-        <button type="submit" class="px-3 py-1.5 bg-primary text-base-100 text-sm font-medium rounded hover:opacity-90">Save</button>
-        <button type="button"
-                hx-get="/comments/{{.ID}}/view" hx-target="#comment-{{.ID}}" hx-swap="outerHTML"
-                class="px-3 py-1.5 text-sm text-base-content/50 hover:text-base-content hover:bg-base-300 rounded">Cancel</button>
-      </div>
-    </form>
-  </div>
+<div id="comment-{{.ID}}">
+  <form hx-put="/comments/{{.ID}}"
+        hx-target="#comment-{{.ID}}"
+        hx-swap="outerHTML"
+        class="space-y-2">
+    <textarea name="body" rows="3" autofocus
+              class="block w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-800 leading-relaxed focus:outline-none focus:border-primary-500 shadow-sunk resize-y">{{.Body}}</textarea>
+    <div class="flex items-center gap-2 justify-end">
+      <button type="button"
+              hx-get="/comments/{{.ID}}/view"
+              hx-target="#comment-{{.ID}}"
+              hx-swap="outerHTML"
+              class="px-3 py-1 text-[13px] text-base-800 hover:text-base-950 hover:bg-base-250 rounded">Cancel</button>
+      <button type="submit"
+              class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] px-2.5 py-1 rounded">Save</button>
+    </div>
+  </form>
 </div>
 {{end}}
