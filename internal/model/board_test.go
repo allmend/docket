@@ -76,6 +76,27 @@ func TestSprintTotalDays(t *testing.T) {
 	}
 }
 
+func TestSprintDayNumber(t *testing.T) {
+	if got := (Sprint{}).DayNumber(); got != 0 {
+		t.Errorf("DayNumber() without start date = %d, want 0", got)
+	}
+	// Day 1 is the start day itself.
+	today := time.Now()
+	if got := (Sprint{StartDate: &today}).DayNumber(); got != 1 {
+		t.Errorf("DayNumber() on start day = %d, want 1", got)
+	}
+	// Three days in → day 4 (1-based, inclusive of start day).
+	threeDaysAgo := today.Add(-3 * 24 * time.Hour)
+	if got := (Sprint{StartDate: &threeDaysAgo}).DayNumber(); got != 4 {
+		t.Errorf("DayNumber() three days in = %d, want 4", got)
+	}
+	// A future start date must clamp to day 1, never 0 or negative.
+	future := today.Add(48 * time.Hour)
+	if got := (Sprint{StartDate: &future}).DayNumber(); got != 1 {
+		t.Errorf("DayNumber() with future start = %d, want 1", got)
+	}
+}
+
 func TestSprintStatus(t *testing.T) {
 	if !SprintStatusActive.IsActive() || SprintStatusActive.IsPlanning() || SprintStatusActive.IsCompleted() {
 		t.Error("active status misreported")

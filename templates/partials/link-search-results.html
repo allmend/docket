@@ -1,26 +1,18 @@
 {{define "link-search-results"}}
-{{range .Tickets}}
-<div x-data="{rel:'relates_to'}" class="flex items-center gap-2 py-1">
-  <select x-model="rel"
-          class="bg-base-300 border border-base-350 rounded px-1 py-0.5 text-[12px] text-base-900 focus:outline-none shrink-0">
-    <option value="relates_to">relates to</option>
-    <option value="blocks">blocks</option>
-    <option value="depends_on">depends on</option>
-    <option value="duplicates">duplicates</option>
-  </select>
-  <span class="mono text-[12px] text-primary-400 shrink-0">{{.DisplayID}}</span>
-  <span class="text-[13px] text-base-800 flex-1 truncate">{{.Title}}</span>
-  <form :action="'/tickets/{{$.TicketID}}/links'" method="POST" @submit.prevent="
-        const fd = new FormData($el);
-        fd.set('relation_type', rel);
-        htmx.ajax('POST', $el.action, {values: Object.fromEntries(fd), swap:'none'});
-        $el.closest('[x-data]').remove()">
-    <input type="hidden" name="to_ticket_id" value="{{.ID}}">
-    <button type="submit"
-            class="shrink-0 h-5 w-5 inline-flex items-center justify-center bg-primary-500 hover:bg-primary-400 text-[#062b1d] rounded text-[13px] font-semibold">+</button>
-  </form>
-</div>
+{{if .Tickets}}
+<ul class="max-h-[240px] overflow-y-auto bg-base-200 border border-base-300 rounded-md shadow-pop p-1 space-y-1">
+  {{range .Tickets}}
+  <li>
+    <button type="button"
+            @click="htmx.ajax('POST','/tickets/{{$.TicketID}}/links',{values:{to_ticket_id:'{{.ID}}',relation_type:rel},target:'#ticket-links',swap:'outerHTML'}); closeAdd()"
+            class="w-full text-left flex items-center gap-2.5 px-2.5 py-1.5 rounded hover:bg-base-300 cursor-pointer">
+      <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
+      <span class="text-[14px] text-base-800 truncate flex-1 min-w-0">{{.Title}}</span>
+    </button>
+  </li>
+  {{end}}
+</ul>
 {{else}}
-<div class="py-2 text-[13px] text-base-600 text-center">No tickets found</div>
+<div class="bg-base-200 border border-base-300 rounded-md shadow-pop px-3 py-2 mono text-[13px] text-base-600">No tickets match that search.</div>
 {{end}}
 {{end}}

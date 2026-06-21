@@ -1,23 +1,86 @@
 {{define "ticket-links"}}
-<div id="ticket-links">
-  {{if .Links}}
-  <div class="bg-base-150 border border-base-300 rounded shadow-sunk divide-y divide-base-300">
+<section id="ticket-links" class="space-y-2.5"
+         x-data="{ open:false, rel:'blocks', q:'',
+                   openAdd(){ this.open=true; this.$nextTick(()=>{ if(this.$refs.linkq) this.$refs.linkq.focus() }) },
+                   closeAdd(){ this.open=false; this.q=''; var r=document.getElementById('link-results'); if(r) r.innerHTML=''; } }">
+  <div class="flex items-center gap-2">
+    <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Linked work</span>
+    <span class="mono text-[13px] text-base-700">{{len .Links}}</span>
+    {{if not .Closed}}
+    <button type="button" @click="open ? closeAdd() : openAdd()"
+            :class="open ? 'bg-base-300' : ''"
+            class="ml-auto h-7 px-2 inline-flex items-center gap-1.5 rounded border border-base-350 bg-base-250 hover:bg-base-300 text-[13px] text-base-900">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+      Link
+    </button>
+    {{end}}
+  </div>
+
+  <div class="bg-base-150 border border-base-300 rounded shadow-sunk divide-y divide-base-300"
+       {{if not .Links}}x-show="open" x-cloak{{end}}>
     {{range .Links}}
-    <div class="flex items-center gap-3 px-3 py-2 group">
-      <span class="mono text-[13px] text-base-600 w-16 shrink-0">{{.Relation.Label}}</span>
-      <span class="mono text-[13px] text-primary-400">{{.ToDisplayID}}</span>
-      <span class="text-[14px] text-base-700 flex-1 truncate">{{.ToTitle}}</span>
-      <button hx-delete="/tickets/{{$.TicketID}}/links/{{.ID}}"
-              hx-target="#ticket-links"
-              hx-swap="outerHTML"
-              class="opacity-0 group-hover:opacity-100 w-5 h-5 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10">
-        <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 3 10 10M13 3 3 13"/></svg>
+    {{$col := lower .ToColumnName}}
+    <div class="group/row flex items-center gap-3 px-3 py-2 hover:bg-base-200/40">
+      <span class="mono text-[13px] w-[88px] shrink-0 whitespace-nowrap {{if or (eq (printf "%s" .Relation) "blocks") (eq (printf "%s" .Relation) "blocked_by")}}text-danger{{else}}text-base-600{{end}}">{{.Relation.Label}}</span>
+      <a href="/tickets/{{.ToDisplayID}}" class="mono text-[13px] text-primary-400 hover:text-primary-300 shrink-0">{{.ToDisplayID}}</a>
+      <span class="text-[14px] text-base-700 truncate flex-1 min-w-0">{{.ToTitle}}</span>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="inline-flex items-center h-5 px-1.5 rounded-sm border mono text-[12px] uppercase tracking-wider whitespace-nowrap
+          {{if .ToClosedAt}}bg-success/15 border-success/30 text-success
+          {{else if contains $col "progress"}}bg-info/15 border-info/30 text-info
+          {{else if contains $col "review"}}bg-warn/15 border-warn/30 text-warn
+          {{else}}bg-base-250 border-base-350 text-base-700{{end}}">
+          {{if .ToClosedAt}}done{{else if eq .ToColumnName ""}}backlog{{else}}{{.ToColumnName}}{{end}}
+        </span>
+        {{if not $.Closed}}
+        <button hx-delete="/tickets/{{$.TicketID}}/links/{{.ID}}"
+                hx-target="#ticket-links"
+                hx-swap="outerHTML"
+                class="opacity-0 group-hover/row:opacity-100 focus:opacity-100 w-5 h-5 inline-flex items-center justify-center rounded-sm text-base-600 hover:text-danger hover:bg-danger/10 transition"
+                aria-label="Remove link">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 3 10 10M13 3 3 13"/></svg>
+        </button>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+
+    {{if not .Closed}}
+    <!-- inline add-row: relationship select + ID/title search -->
+    <div x-show="open" x-cloak class="flex items-center gap-3 px-3 py-2 bg-base-200/40">
+      <div class="selwrap shrink-0 w-[150px]">
+        <select x-model="rel" class="metasel mono" aria-label="Relationship type">
+          <option value="blocks">Blocks</option>
+          <option value="blocked_by_inverse">Blocked by</option>
+          <option value="depends_on">Depends on</option>
+          <option value="relates_to">Relates to</option>
+          <option value="duplicates">Duplicates</option>
+        </select>
+        <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="relative flex-1 min-w-0">
+        <div class="flex items-center gap-2 bg-base-100 border border-base-300 rounded px-2.5 h-8 focus-within:border-primary-500 transition">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0"><circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/></svg>
+          <input x-ref="linkq" x-model="q"
+                 @input.debounce.250="q.trim() ? htmx.ajax('GET','/tickets/{{.TicketID}}/link-search?q='+encodeURIComponent(q.trim()),{target:'#link-results',swap:'innerHTML'}) : (document.getElementById('link-results').innerHTML='')"
+                 @keydown.escape.stop="closeAdd()"
+                 placeholder="Search by ticket ID or title…" autocomplete="off" spellcheck="false"
+                 class="bg-transparent flex-1 min-w-0 mono text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none"/>
+        </div>
+        <div id="link-results" class="absolute left-0 right-0 top-full mt-1 z-50"></div>
+      </div>
+      <button type="button" @click="closeAdd()"
+              class="w-5 h-5 inline-flex items-center justify-center rounded-sm text-base-600 hover:text-danger hover:bg-danger/10 shrink-0" aria-label="Cancel">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 3 10 10M13 3 3 13"/></svg>
       </button>
     </div>
     {{end}}
   </div>
-  {{else}}
-  <div class="mono text-[13px] text-base-600 italic">No linked tickets.</div>
+
+  {{if not .Links}}
+  <div x-show="!open" class="text-[14px] text-base-600 px-0.5">
+    No ticket relationships yet{{if not .Closed}} — <button type="button" @click="openAdd()" class="text-primary-400 hover:text-primary-300">link a ticket</button>{{end}}.
+  </div>
   {{end}}
-</div>
+</section>
 {{end}}

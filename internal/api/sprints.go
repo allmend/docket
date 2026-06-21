@@ -71,7 +71,7 @@ func (h *Handler) StartSprint(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := h.boards.StartSprint(r.Context(), orgID, sprintID); err != nil {
+	if _, err := h.boards.StartSprint(r.Context(), orgID, sprintID, formDate(r, "start_date"), formDate(r, "end_date")); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

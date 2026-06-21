@@ -52,16 +52,6 @@ func (s *AuthService) LoginSingleOrg(ctx context.Context, username, password str
 	return s.loginWithOrg(ctx, org, username, password)
 }
 
-// LoginLocal validates username/password for the given org slug.
-func (s *AuthService) LoginLocal(ctx context.Context, orgSlug, username, password string) (*model.User, *TokenPair, error) {
-	org, err := s.store.GetOrgBySlug(ctx, orgSlug)
-	if err != nil {
-		bcrypt.CompareHashAndPassword([]byte("$2a$10$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), []byte(password)) //nolint
-		return nil, nil, ErrInvalidCredentials
-	}
-	return s.loginWithOrg(ctx, org, username, password)
-}
-
 func (s *AuthService) loginWithOrg(ctx context.Context, org *model.Org, username, password string) (*model.User, *TokenPair, error) {
 	user, err := s.store.GetUserByUsername(ctx, org.ID, username)
 	if err != nil {

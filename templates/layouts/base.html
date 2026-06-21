@@ -157,7 +157,7 @@
         {{end}}
 
         {{$boardPath  := printf "/workspaces/%s/board" $slug}}
-        {{$dailyPath  := printf "/workspaces/%s/daily" $slug}}
+        {{$dailyPath  := printf "/workspaces/%s/board/daily" $slug}}
         {{$boardActive := or (eq .CurrentPath $boardPath) (eq .CurrentPath $dailyPath)}}
         <a href="{{$boardPath}}"
            class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
@@ -167,6 +167,8 @@
         </a>
 
         {{if $b.Mode.IsScrum}}
+        {{/* TODO: re-enable Sprint review + Retros nav once those features are in use.
+
         {{$reviewPath := printf "/workspaces/%s/sprint-review" $slug}}
         <a href="{{$reviewPath}}"
            class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
@@ -184,6 +186,7 @@
           <span class="w-3 h-3 rounded-sm shrink-0 {{if $retrosActive}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
           Retros
         </a>
+        */}}
         {{end}}{{/* end IsScrum workspace items */}}
 
         <!-- Tracks -->

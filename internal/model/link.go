@@ -27,6 +27,8 @@ func (r RelationType) Label() string {
 		return "Duplicates"
 	case RelationRelatesTo:
 		return "Relates to"
+	case "blocked_by": // virtual inverse of blocks — set by the store for display
+		return "Blocked by"
 	default:
 		return string(r)
 	}

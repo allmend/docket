@@ -71,7 +71,7 @@
 
         {{/* Stand-up */}}
         {{if $team}}
-        <a href="/workspaces/{{$team.Slug}}/daily"
+        <a href="/workspaces/{{$team.Slug}}/board/daily"
            class="h-7 px-2.5 inline-flex items-center gap-1.5 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-900">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-700 shrink-0" aria-hidden="true">
             <circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -91,7 +91,7 @@
           <div x-show="open" @click.outside="open=false"
                class="absolute right-0 top-full mt-1 w-48 bg-base-200 border border-base-350 rounded-md shadow-pop p-1 z-20">
             {{if $team}}
-            <a href="/workspaces/{{$team.Slug}}/daily"
+            <a href="/workspaces/{{$team.Slug}}/board/daily"
                class="w-full flex items-center px-2 py-1.5 rounded text-[14px] text-base-900 hover:bg-base-300">
               Start stand-up
             </a>

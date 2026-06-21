@@ -422,11 +422,6 @@ func (s *TicketService) ListMyTickets(ctx context.Context, orgID, userID uuid.UU
 	return s.store.ListTicketsByAssignee(ctx, orgID, userID)
 }
 
-// ListInboxActivity returns recent history entries on tickets assigned to the given user.
-func (s *TicketService) ListInboxActivity(ctx context.Context, orgID, userID uuid.UUID) ([]model.InboxEntry, error) {
-	return s.store.ListInboxActivity(ctx, orgID, userID, 50)
-}
-
 // ListActivityByActor returns history entries where the user was the actor in the last 24h.
 func (s *TicketService) ListActivityByActor(ctx context.Context, orgID, actorID uuid.UUID) ([]model.InboxEntry, error) {
 	return s.store.ListActivityByActor(ctx, orgID, actorID)

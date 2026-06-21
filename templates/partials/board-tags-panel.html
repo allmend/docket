@@ -1,6 +1,6 @@
 {{define "board-tags-panel"}}
 <div id="board-tags-panel" class="w-72 bg-base-200 border border-base-300 rounded-md shadow-pop p-4 space-y-3">
-  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Labels</div>
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Tracks</div>
 
   {{if .Tags}}
   <div class="space-y-1.5">
@@ -10,7 +10,7 @@
       <span class="text-[14px] text-base-900 flex-1">{{.Name}}</span>
       <button hx-delete="/boards/{{$.BoardID}}/tags/{{.ID}}"
               hx-target="#board-tags-panel" hx-swap="outerHTML"
-              hx-confirm="Delete label {{.Name}}?"
+              hx-confirm="Delete track {{.Name}}?"
               class="opacity-0 group-hover:opacity-100 w-5 h-5 inline-flex items-center justify-center rounded text-base-600 hover:text-danger">
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m3 3 10 10M13 3 3 13"/></svg>
       </button>
@@ -25,7 +25,7 @@
         class="flex items-center gap-2 pt-2 border-t border-base-300">
     <input type="color" name="color" value="#8957e5"
            class="w-7 h-7 rounded-sm border border-base-300 cursor-pointer bg-base-150 p-0.5"/>
-    <input type="text" name="name" placeholder="Label name" required
+    <input type="text" name="name" placeholder="Track name" required
            class="flex-1 bg-base-150 border border-base-300 rounded px-2 h-7 text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 shadow-sunk"/>
     <button type="submit"
             class="h-7 px-2.5 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] rounded shadow-lift shrink-0">Add</button>

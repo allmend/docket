@@ -89,19 +89,3 @@ func (t Ticket) ACItems() []ACItem {
 }
 
 func (p Priority) String() string { return string(p) }
-
-// BadgeClass maps priority to a DaisyUI badge class.
-func (p Priority) BadgeClass() string {
-	switch p {
-	case PriorityLow:
-		return "badge-neutral"
-	case PriorityMedium:
-		return "badge-info"
-	case PriorityHigh:
-		return "badge-warning"
-	case PriorityCritical:
-		return "badge-error"
-	default:
-		return "badge-neutral"
-	}
-}

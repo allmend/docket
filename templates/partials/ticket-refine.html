@@ -102,10 +102,10 @@
     </div>
   </div>
 
-  <!-- Tracks & labels -->
+  <!-- Tracks -->
   {{if or .Tags .BoardTags}}
   <div class="mb-6">
-    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Tracks &amp; labels</div>
+    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Tracks</div>
     <div class="flex flex-wrap items-center gap-2">
       {{range .Tags}}
       <span class="inline-flex items-center gap-1.5 h-7 px-2 rounded-sm bg-base-250 border border-base-350">
@@ -116,7 +116,7 @@
       {{if .BoardTags}}
       <div x-data="{open:false}" class="relative">
         <button @click="open=!open"
-                class="h-7 px-2 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 text-[14px]">+ label</button>
+                class="h-7 px-2 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 text-[14px]">+ track</button>
         <div x-show="open" @click.outside="open=false"
              class="absolute top-full mt-1 left-0 min-w-[140px] bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1">
           {{range .BoardTags}}

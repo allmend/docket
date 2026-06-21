@@ -19,6 +19,7 @@
             hx-trigger="change"
             hx-target="#ticket-priority-select"
             hx-swap="outerHTML"
+            hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
             class="metasel has-swatch">
       <option value="" {{if eq $pri ""}}selected{{end}}>— none</option>
       <option value="low"      {{if eq $pri "low"}}selected{{end}}>P3 · Low</option>

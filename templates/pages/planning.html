@@ -66,7 +66,14 @@
         {{end}}
       </div>
 
-      <!-- Committed points -->
+      {{/* Committed points — DISABLED pending per-team capacity.
+           The "/ N pt" denominator was the sum of all backlog points, which is
+           meaningless as a target (it just grows the bigger the backlog gets).
+           TODO: replace with a team-settable sprint capacity (default ~20 pt/sprint,
+           editable per team/sprint). Denominator = capacity; current backlog-sum is
+           wrong. See CLAUDE.md "Potential next steps → Sprint capacity in points".
+           board.js updateCommittedBar() no-ops when these data-* elements are absent.
+
       {{$total := addf $sp.CommittedPoints $backlogPts}}
       <div class="shrink-0 w-[200px]">
         <div class="flex items-center justify-between mb-1.5">
@@ -78,10 +85,13 @@
         </div>
         <div class="mono text-[13px] text-base-600 mt-1.5" data-committed-meta>{{$sp.CommittedTickets}} tickets{{if gt $backlogPts 0}} · {{$backlogPts}} pt in backlog{{end}}</div>
       </div>
+      */}}
 
       <!-- Actions -->
       <div class="shrink-0 flex flex-col gap-2 self-center pt-7">
         <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}/start">
+          <input type="hidden" name="start_date" :value="startISO">
+          <input type="hidden" name="end_date" :value="endISO">
           <button type="submit"
                   class="h-8 px-4 w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
             Start sprint

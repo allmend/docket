@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,14 +22,6 @@ func isDone(name string) bool {
 
 func NewBoardService(st *store.Store) *BoardService {
 	return &BoardService{store: st}
-}
-
-func (s *BoardService) ListBoards(ctx context.Context, orgID uuid.UUID) ([]model.Board, error) {
-	return s.store.ListBoards(ctx, orgID)
-}
-
-func (s *BoardService) ListBoardsByTeam(ctx context.Context, orgID, teamID uuid.UUID) ([]model.Board, error) {
-	return s.store.ListBoardsByTeam(ctx, orgID, teamID)
 }
 
 func (s *BoardService) GetBoard(ctx context.Context, orgID, boardID uuid.UUID) (*model.Board, error) {
@@ -273,13 +266,21 @@ func (s *BoardService) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UU
 
 // StartSprint transitions a planning sprint to active.
 // Only one sprint may be active at a time — the DB unique partial index enforces this.
-func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUID) (*model.Sprint, error) {
+// If the sprint has no dates yet, the start/end passed from the planning duration
+// picker are applied so the board header can show real "day N of M" progress.
+func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUID, startDate, endDate *time.Time) (*model.Sprint, error) {
 	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
 	if err != nil {
 		return nil, err
 	}
 	if sp.Status != model.SprintStatusPlanning {
 		return nil, fmt.Errorf("sprint must be in planning status to start")
+	}
+	// Backfill dates from the planning picker only when none were explicitly set.
+	if sp.StartDate == nil && startDate != nil && endDate != nil {
+		if _, err := s.store.UpdateSprint(ctx, orgID, sprintID, sp.Name, sp.Goal, startDate, endDate); err != nil {
+			return nil, fmt.Errorf("set sprint dates: %w", err)
+		}
 	}
 	return s.store.SetSprintStatus(ctx, orgID, sprintID, model.SprintStatusActive)
 }
@@ -470,10 +471,6 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 
 func (s *BoardService) ListBoardTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model.Tag, error) {
 	return s.store.ListTags(ctx, orgID, boardID)
-}
-
-func (s *BoardService) ListTagsByOrg(ctx context.Context, orgID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
-	return s.store.ListTagsByOrg(ctx, orgID)
 }
 
 func (s *BoardService) GetTag(ctx context.Context, orgID, tagID uuid.UUID) (*model.Tag, error) {
@@ -701,7 +698,7 @@ func filterDailyScrumTickets(tickets []model.Ticket, f model.DailyScrumFilters) 
 		if q != "" && !strings.Contains(strings.ToLower(t.Title), q) {
 			continue
 		}
-		if len(f.Priorities) > 0 && !containsStr(f.Priorities, string(t.Priority)) {
+		if len(f.Priorities) > 0 && !slices.Contains(f.Priorities, string(t.Priority)) {
 			continue
 		}
 		if len(f.AssigneeIDs) > 0 || f.FilterUnassigned {
@@ -746,13 +743,4 @@ func filterDailyScrumTickets(tickets []model.Ticket, f model.DailyScrumFilters) 
 		out = append(out, t)
 	}
 	return out
-}
-
-func containsStr(slice []string, val string) bool {
-	for _, s := range slice {
-		if s == val {
-			return true
-		}
-	}
-	return false
 }

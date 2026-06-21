@@ -17,7 +17,7 @@
       <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Dashboard</h1>
       <div class="mono text-[14px] text-base-700 mt-0.5">
         {{now | formatDate}}
-        {{if .NavActiveSprint}} · <span class="text-base-900">{{.NavActiveSprint.Name}}</span> · day {{.NavActiveSprint.DayNumber}} of {{.NavActiveSprint.TotalDays}}{{end}}
+        {{if .NavActiveSprint}} · <span class="text-base-900">{{.NavActiveSprint.Name}}</span>{{if .NavActiveSprint.TotalDays}} · day {{.NavActiveSprint.DayNumber}} of {{.NavActiveSprint.TotalDays}}{{end}}{{end}}
       </div>
     </div>
     <div class="flex items-center gap-2 shrink-0"></div>

@@ -8,18 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-func (s *Store) GetOrgBySlug(ctx context.Context, slug string) (*model.Org, error) {
-	var o model.Org
-	err := s.replica.QueryRow(ctx,
-		`SELECT id, name, slug, created_at, updated_at FROM orgs WHERE slug = $1`,
-		slug,
-	).Scan(&o.ID, &o.Name, &o.Slug, &o.CreatedAt, &o.UpdatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &o, nil
-}
-
 func (s *Store) GetFirstOrg(ctx context.Context) (*model.Org, error) {
 	var o model.Org
 	err := s.replica.QueryRow(ctx,

@@ -214,7 +214,7 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/workspaces/{teamSlug}/planning", h.BoardPlanning)
 	r.Get("/workspaces/{teamSlug}/backlog", h.BoardBacklog)
 	r.Get("/workspaces/{teamSlug}/backlog/refinement", h.BoardRefinement)
-	r.Get("/workspaces/{teamSlug}/daily", h.BoardDailyScrum)
+	r.Get("/workspaces/{teamSlug}/board/daily", h.BoardDailyScrum)
 	r.Get("/workspaces/{teamSlug}/roadmap", h.BoardRoadmap)
 	r.Get("/workspaces/{teamSlug}/tracks/{tagID}", h.TrackPage)
 	r.Get("/workspaces/{teamSlug}/retros", h.RetrosListPage)

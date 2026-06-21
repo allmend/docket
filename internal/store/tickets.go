@@ -31,7 +31,8 @@ const ticketColsReturning = `
 	number, COALESCE((SELECT key FROM teams WHERE id = team_id), ''),
 	title, body, acceptance_criteria, priority, story_points, position,
 	sprint_id, external_ref, closed_at, close_reason, created_at, updated_at,
-	NULL::text, NULL::text`
+	(SELECT name FROM users WHERE id = assignee_id),
+	COALESCE((SELECT name FROM users WHERE id = created_by), '')`
 
 func scanTicket(row interface{ Scan(dest ...any) error }, t *model.Ticket) error {
 	return row.Scan(
@@ -312,42 +313,6 @@ func (s *Store) ListActivityByActor(ctx context.Context, orgID, actorID uuid.UUI
 		return nil, err
 	}
 	defer rows.Close()
-	var entries []model.InboxEntry
-	for rows.Next() {
-		var e model.InboxEntry
-		if err := rows.Scan(
-			&e.ID, &e.TicketID, &e.ActorID, &e.ActorName,
-			&e.Field, &e.OldValue, &e.NewValue, &e.CreatedAt,
-			&e.TicketDisplayID, &e.TicketTitle,
-		); err != nil {
-			return nil, err
-		}
-		entries = append(entries, e)
-	}
-	return entries, rows.Err()
-}
-
-// ListInboxActivity returns the most recent history entries across all tickets
-// assigned to the given user, newest first.
-func (s *Store) ListInboxActivity(ctx context.Context, orgID, userID uuid.UUID, limit int) ([]model.InboxEntry, error) {
-	rows, err := s.replica.Query(ctx,
-		`SELECT h.id, h.ticket_id, h.actor_id, h.actor_name, h.field, h.old_value, h.new_value, h.created_at,
-		        COALESCE(tm.key || '-' || t.number::text, t.id::text),
-		        t.title
-		 FROM ticket_history h
-		 JOIN tickets t ON t.id = h.ticket_id
-		 LEFT JOIN teams tm ON tm.id = t.team_id
-		 JOIN ticket_assignees ta ON ta.ticket_id = t.id
-		 WHERE t.org_id = $1 AND ta.user_id = $2
-		 ORDER BY h.created_at DESC
-		 LIMIT $3`,
-		orgID, userID, limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
 	var entries []model.InboxEntry
 	for rows.Next() {
 		var e model.InboxEntry
