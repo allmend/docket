@@ -4,8 +4,7 @@
         hx-target="#comment-{{.ID}}"
         hx-swap="outerHTML"
         class="space-y-2">
-    <textarea name="body" rows="3" autofocus
-              class="block w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-800 leading-relaxed focus:outline-none focus:border-primary-500 shadow-sunk resize-y">{{.Body}}</textarea>
+    {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Edit comment… (@username, #TICKET-ID)" "Rows" "3")}}
     <div class="flex items-center gap-2 justify-end">
       <button type="button"
               hx-get="/comments/{{.ID}}/view"

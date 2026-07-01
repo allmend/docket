@@ -328,9 +328,7 @@
         <input x-ref="ntTitle" type="text" name="title" required
                placeholder="Ticket title…"
                class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />
-        <textarea name="body" rows="3"
-                  placeholder="Add description — what &amp; why. Markdown supported."
-                  class="block w-full bg-base-150 border border-base-300 rounded px-3 py-2 text-[14px] text-base-800 leading-relaxed placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk resize-none"></textarea>
+        {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add description — what & why. (@username, #TICKET-ID)" "Rows" "3")}}
         <div class="grid grid-cols-2 gap-2 pt-1">
           <!-- Priority -->
           <div class="relative">
@@ -429,6 +427,77 @@
   </div>
 
   <script src="/static/board.js"></script>
+  <script>
+    // @username / #TICKET-ID autocomplete shared by every rich-editor instance.
+    function mentionInput() {
+      return {
+        mentionOpen: false,
+        mentionUsers: [],
+        ticketOpen: false,
+        mentionTickets: [],
+        _mentionTa: null,
+        mentionInput(e) {
+          this._mentionTa = e.target;
+          const before = e.target.value.slice(0, e.target.selectionStart);
+          const mUser = before.match(/@(\w+)$/);
+          const mTicket = before.match(/#([\w-]+)$/);
+          if (mUser && mUser[1].length >= 1) {
+            this.ticketOpen = false;
+            this._mentionFetch(mUser[1]);
+          } else if (mTicket && mTicket[1].length >= 1) {
+            this.mentionOpen = false;
+            this._ticketFetch(mTicket[1]);
+          } else {
+            this.mentionOpen = false;
+            this.ticketOpen = false;
+          }
+        },
+        async _mentionFetch(q) {
+          try {
+            const r = await fetch('/users/search?q=' + encodeURIComponent(q));
+            if (r.ok) {
+              const data = await r.json();
+              this.mentionUsers = data || [];
+              this.mentionOpen = this.mentionUsers.length > 0;
+            }
+          } catch (_) { this.mentionOpen = false; }
+        },
+        async _ticketFetch(q) {
+          try {
+            const r = await fetch('/tickets/search-mention?q=' + encodeURIComponent(q));
+            if (r.ok) {
+              const data = await r.json();
+              this.mentionTickets = data || [];
+              this.ticketOpen = this.mentionTickets.length > 0;
+            }
+          } catch (_) { this.ticketOpen = false; }
+        },
+        mentionPick(username) {
+          const ta = this._mentionTa;
+          if (!ta) return;
+          const before = ta.value.slice(0, ta.selectionStart);
+          const after = ta.value.slice(ta.selectionStart);
+          const newBefore = before.replace(/@\w+$/, '@' + username + ' ');
+          ta.value = newBefore + after;
+          ta.setSelectionRange(newBefore.length, newBefore.length);
+          ta.focus();
+          this.mentionOpen = false;
+        },
+        ticketPick(displayID) {
+          const ta = this._mentionTa;
+          if (!ta) return;
+          const before = ta.value.slice(0, ta.selectionStart);
+          const after = ta.value.slice(ta.selectionStart);
+          const newBefore = before.replace(/#[\w-]+$/, '#' + displayID + ' ');
+          ta.value = newBefore + after;
+          ta.setSelectionRange(newBefore.length, newBefore.length);
+          ta.focus();
+          this.ticketOpen = false;
+        }
+      };
+    }
+  </script>
+  <script src="/static/editor.js"></script>
   <script>
     // Close buttons inside fetched partials can use data-drawer-close attribute
     document.addEventListener('click', function(e) {

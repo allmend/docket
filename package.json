@@ -2,7 +2,7 @@
   "name": "docket",
   "private": true,
   "scripts": {
-    "build": "npm run css && npm run js",
+    "build": "npm run vendor && npm run css && npm run js",
     "css": "tailwindcss -i static/src/app.css -o static/dist/app.css --minify",
     "css:watch": "tailwindcss -i static/src/app.css -o static/dist/app.css --watch",
     "js": "esbuild static/src/board.js static/src/editor.js --bundle --minify --outdir=static/dist",

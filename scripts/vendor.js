@@ -1,12 +1,14 @@
 /**
  * Downloads vendored JS libraries into static/dist/.
- * Run once: node scripts/vendor.js
+ * Run via `make vendor` (also runs as part of `make assets`).
+ * Skips files that already exist — pass --force to re-download.
  */
 
 const https = require("https");
 const fs = require("fs");
 const path = require("path");
 
+const force = process.argv.includes("--force");
 const dist = path.join(__dirname, "..", "static", "dist");
 fs.mkdirSync(dist, { recursive: true });
 
@@ -21,19 +23,54 @@ const files = [
   },
 ];
 
-for (const { url, dest } of files) {
-  process.stdout.write(`Downloading ${path.basename(dest)}… `);
-  const file = fs.createWriteStream(dest);
-  https.get(url, (res) => {
-    // Follow one redirect.
-    if (res.statusCode === 301 || res.statusCode === 302) {
-      https.get(res.headers.location, (res2) => {
-        res2.pipe(file);
-        file.on("finish", () => { file.close(); console.log("done"); });
-      });
-    } else {
-      res.pipe(file);
-      file.on("finish", () => { file.close(); console.log("done"); });
-    }
-  }).on("error", (e) => console.error(e));
+function download(url, dest, redirectsLeft = 3) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(url, (res) => {
+        if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
+          if (redirectsLeft <= 0) {
+            reject(new Error(`too many redirects fetching ${url}`));
+            return;
+          }
+          res.resume();
+          download(res.headers.location, dest, redirectsLeft - 1).then(resolve, reject);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`${url} → HTTP ${res.statusCode}`));
+          return;
+        }
+        const file = fs.createWriteStream(dest);
+        res.pipe(file);
+        file.on("finish", () => file.close(resolve));
+        file.on("error", reject);
+      })
+      .on("error", reject);
+  });
 }
+
+async function main() {
+  for (const { url, dest } of files) {
+    const name = path.basename(dest);
+    if (!force && fs.existsSync(dest) && fs.statSync(dest).size > 0) {
+      console.log(`${name}: already present, skipping (use --force to re-download)`);
+      continue;
+    }
+    process.stdout.write(`${name}: downloading from ${url} … `);
+    try {
+      await download(url, dest);
+      const size = fs.statSync(dest).size;
+      if (size === 0) throw new Error("downloaded file is empty");
+      console.log(`done (${size} bytes)`);
+    } catch (err) {
+      console.log("FAILED");
+      fs.rmSync(dest, { force: true });
+      throw err;
+    }
+  }
+}
+
+main().catch((err) => {
+  console.error(`\nvendor.js: ${err.message}`);
+  process.exit(1);
+});

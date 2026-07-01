@@ -141,7 +141,7 @@
   <!-- Description -->
   <div class="mb-6">
     <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Description</div>
-    <div class="bg-base-150 border border-base-300 rounded-md shadow-sunk px-4 py-3 text-[15px] leading-relaxed text-base-800 min-h-[4rem]">
+    <div class="prose prose-sm prose-invert max-w-none bg-base-150 border border-base-300 rounded-md shadow-sunk px-4 py-3 text-[15px] leading-relaxed text-base-800 [&_a]:text-primary-400 [&_a]:hover:underline min-h-[4rem]">
       {{if $t.Body}}{{$t.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">No description.</span>{{end}}
     </div>
   </div>

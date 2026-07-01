@@ -120,29 +120,19 @@
 
         <!-- Comment composer -->
         {{if not $closed}}
-        <div class="bg-base-150 border border-base-300 rounded shadow-sunk">
-          <form hx-post="/tickets/{{$t.ID}}/comments"
-                hx-target="#ticket-activity"
-                hx-swap="beforeend"
-                @submit="$el.reset()">
-            <textarea name="body" rows="2"
-                      placeholder="Leave a comment · markdown supported"
-                      class="block w-full bg-transparent border-0 px-3 py-2.5 text-[14px] text-base-800 placeholder:text-base-600 focus:outline-none resize-none"></textarea>
-            <div class="h-9 px-2.5 flex items-center justify-between border-t border-base-300">
-              <div class="flex items-center gap-1.5 mono text-[13px] text-base-600">
-                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">**b**</span>
-                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">_i_</span>
-                <span class="bg-base-200 border border-base-300 rounded-sm px-1 py-px text-base-700 select-none">`code`</span>
-                <span class="text-base-500 mx-0.5">·</span>
-                <span>@ # tickets</span>
-              </div>
-              <button type="submit"
-                      class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] px-2.5 py-1 rounded">
-                Comment
-              </button>
-            </div>
-          </form>
-        </div>
+        <form hx-post="/tickets/{{$t.ID}}/comments"
+              hx-target="#ticket-activity"
+              hx-swap="beforeend"
+              hx-on::after-request="if(event.detail.successful) this.reset()"
+              class="flex flex-col gap-2">
+          {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Leave a comment… (@username, #TICKET-ID)" "Rows" "2")}}
+          <div class="flex justify-end">
+            <button type="submit"
+                    class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] px-2.5 py-1 rounded">
+              Comment
+            </button>
+          </div>
+        </form>
         {{end}}
       </section>
 

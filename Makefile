@@ -1,6 +1,9 @@
-.PHONY: dev build migrate sqlc js js-watch css css-watch vet test assets rebuild seed docker-up docker-down dev-docker dev-docker-down
+.PHONY: dev build migrate sqlc js js-watch css css-watch vet test assets vendor rebuild seed docker-up docker-down dev-docker dev-docker-down
 
-assets:
+vendor:
+	node scripts/vendor.js
+
+assets: vendor
 	npx tailwindcss -i static/src/app.css -o static/dist/app.css --minify
 	npx esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --minify
 

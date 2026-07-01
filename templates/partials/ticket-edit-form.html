@@ -8,8 +8,7 @@
     <input type="hidden" name="priority" value="{{.Priority}}">
     <input type="text" name="title" value="{{.Title}}" required autofocus
            class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-1.5 text-[20px] font-semibold text-base-950 placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk" />
-    <textarea name="body" rows="8"
-              class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-2 text-[14px] text-base-800 leading-relaxed placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk resize-y font-mono">{{.Body}}</textarea>
+    {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Write a description… (@username, #TICKET-ID)" "Rows" "8")}}
     <div class="flex items-center gap-2 justify-end">
       <button type="button"
               hx-get="/tickets/{{.ID}}/view"
