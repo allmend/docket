@@ -285,11 +285,13 @@ func (h *Handler) TicketRefineView(w http.ResponseWriter, r *http.Request) {
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
 	allBoardTags, _ := h.boards.ListBoardTags(r.Context(), orgID, ticket.BoardID)
 	boardTags := filterUnusedTags(allBoardTags, tags)
+	links, _ := h.links.ListLinks(r.Context(), orgID, ticket.ID)
 
 	h.render(w, "ticket-refine.html", map[string]any{
 		"Ticket":    ticket,
 		"Tags":      tags,
 		"BoardTags": boardTags,
+		"Links":     links,
 	})
 }
 

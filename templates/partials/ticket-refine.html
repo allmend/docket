@@ -12,7 +12,10 @@
     <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-warn/15 border border-warn/30 mono text-[11px] uppercase tracking-wider text-warn">needs estimate</span>
     {{end}}
   </div>
-  <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950 mb-6">{{$t.Title}}</h1>
+  <!-- Title + description: shared click-to-edit partial (same as drawer/permalink) -->
+  <div class="mb-6">
+    {{template "ticket-body" (dict "Ticket" $t "Board" nil "Team" nil)}}
+  </div>
 
   <!-- Estimate + priority grid -->
   <div class="grid grid-cols-2 gap-6 mb-6">
@@ -138,16 +141,13 @@
   </div>
   {{end}}
 
-  <!-- Description -->
-  <div class="mb-6">
-    <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-2">Description</div>
-    <div class="prose prose-sm prose-invert max-w-none bg-base-150 border border-base-300 rounded-md shadow-sunk px-4 py-3 text-[15px] leading-relaxed text-base-800 [&_a]:text-primary-400 [&_a]:hover:underline min-h-[4rem]">
-      {{if $t.Body}}{{$t.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">No description.</span>{{end}}
-    </div>
-  </div>
-
   <!-- Acceptance criteria -->
   {{template "ticket-ac-section" $t}}
+
+  <!-- Linked work -->
+  <div class="mt-6">
+    {{template "ticket-links" (dict "TicketID" $t.ID "Links" .Links "Closed" $t.ClosedAt)}}
+  </div>
 
 </div>
 {{end}}

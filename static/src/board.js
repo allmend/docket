@@ -238,7 +238,7 @@ function board(boardID, sprintID) {
             const pos = res.headers.get("X-New-Position");
             if (pos) ticketEl.dataset.position = pos;
             this.updateColumnCounts(fromEl, toEl);
-            this.updateDoneClass(ticketEl, toEl);
+            this.refreshIfDoneChanged(fromEl, toEl);
           });
       } else if (this.sprintID) {
         // Moving into a sprint column — always use sprint-place so sprint_id is set
@@ -255,7 +255,7 @@ function board(boardID, sprintID) {
             const pos = res.headers.get("X-New-Position");
             if (pos) ticketEl.dataset.position = pos;
             this.updateColumnCounts(fromEl, toEl);
-            this.updateDoneClass(ticketEl, toEl);
+            this.refreshIfDoneChanged(fromEl, toEl);
             return res;
           });
       } else {
@@ -271,7 +271,7 @@ function board(boardID, sprintID) {
             const pos = res.headers.get("X-New-Position");
             if (pos) ticketEl.dataset.position = pos;
             this.updateColumnCounts(fromEl, toEl);
-            this.updateDoneClass(ticketEl, toEl);
+            this.refreshIfDoneChanged(fromEl, toEl);
             return res;
           });
       }
@@ -325,26 +325,12 @@ function board(boardID, sprintID) {
       if (meta) meta.textContent = `${tickets} tickets` + (backlogPts > 0 ? ` · ${backlogPts} pt in backlog` : "");
     },
 
-    updateDoneClass(ticketEl, toEl) {
-      const isDone = toEl.dataset.isDone === "true";
-      ticketEl.classList.toggle("opacity-50", isDone);
-
-      // Sync the "closed" chip. The server sets/clears closed_at on column moves,
-      // but the card DOM isn't re-rendered — we mirror the change client-side.
-      const metaRow = ticketEl.querySelector(".flex.items-center.gap-2");
-      if (!metaRow) return;
-      const existing = metaRow.querySelector("[data-closed-chip]");
-      if (isDone && !existing) {
-        const link = metaRow.querySelector("a");
-        if (link) {
-          const chip = document.createElement("span");
-          chip.setAttribute("data-closed-chip", "");
-          chip.className = "text-xs border border-amber-800/50 text-amber-600/70 rounded-md px-1.5 py-0.5";
-          chip.textContent = "closed";
-          link.insertAdjacentElement("afterend", chip);
-        }
-      } else if (!isDone && existing) {
-        existing.remove();
+    // Moving into or out of a Done column changes server-rendered card state
+    // (strikethrough ID, checkmark, hidden priority, closed_at) that the
+    // optimistic DOM move can't mirror — re-render the board from the server.
+    refreshIfDoneChanged(fromEl, toEl) {
+      if (fromEl.dataset.isDone === "true" || toEl.dataset.isDone === "true") {
+        document.body.dispatchEvent(new CustomEvent("boardUpdated"));
       }
     },
   };

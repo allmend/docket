@@ -4,6 +4,7 @@
   <form hx-put="/tickets/{{.ID}}"
         hx-target="#ticket-body"
         hx-swap="outerHTML"
+        hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
         class="space-y-3">
     <input type="hidden" name="priority" value="{{.Priority}}">
     <input type="text" name="title" value="{{.Title}}" required autofocus

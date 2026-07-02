@@ -126,6 +126,7 @@
       {{$ready := .StoryPoints}}
       <div class="backlog-ticket-row flex items-center gap-2 border-b border-base-300 cursor-pointer"
            data-ticket-id="{{.ID}}"
+           data-display-id="{{.DisplayID}}"
            data-rank="{{$i}}"
            data-position="{{.Position}}"
            data-ticket-column-id="{{.ColumnID}}"
@@ -137,6 +138,7 @@
              });
              $el.classList.add('bg-base-250','ring-1','ring-info/20','border-l-2','border-info','-ml-[2px]');
              window._docketRefineTicketID = '{{.ID}}';
+             history.replaceState(null, '', '#{{.DisplayID}}');
              if(typeof _updateRefineCounter === 'function') _updateRefineCounter({{$i}});
              htmx.ajax('GET', '/tickets/{{.ID}}/refine', {target:'#refine-detail-pane', swap:'innerHTML'});
            ">

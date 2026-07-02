@@ -217,7 +217,7 @@ function advanceRefine() {
 
 document.addEventListener('keydown', function(e) {
   if (!window._docketRefineMode) return;
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) return;
   if (e.key !== 'j' && e.key !== 'k') return;
   e.preventDefault();
   const rows = Array.from(document.querySelectorAll('.backlog-ticket-row')).filter(r => r.offsetParent !== null);
@@ -225,6 +225,29 @@ document.addEventListener('keydown', function(e) {
   let idx = active ? rows.indexOf(active) : -1;
   idx = e.key === 'j' ? Math.min(idx + 1, rows.length - 1) : Math.max(idx - 1, 0);
   if (rows[idx]) rows[idx].click();
+});
+
+// Points/priority/AC changes fire boardUpdated, which re-fetches the list and
+// wipes the client-side selection classes — re-apply them after every swap so
+// j/k navigation keeps its anchor and the counter stays correct.
+document.addEventListener('htmx:afterSwap', function(e) {
+  if (!window._docketRefineMode || !window._docketRefineTicketID) return;
+  if (!e.detail.target || e.detail.target.id !== 'backlog-ticket-list') return;
+  const row = document.querySelector('.backlog-ticket-row[x-show="refineMode"][data-ticket-id="' + window._docketRefineTicketID + '"]');
+  if (!row) return;
+  row.classList.add('bg-base-250','ring-1','ring-info/20','border-l-2','border-info','-ml-[2px]');
+  const rank = parseInt(row.dataset.rank || '0', 10);
+  if (rank) _updateRefineCounter(rank);
+});
+
+// Restore the selected ticket from the URL hash (#BE-42) so a refresh resumes
+// where the user left off. Runs after Alpine so the row's @click handler exists.
+document.addEventListener('alpine:initialized', function() {
+  if (!window._docketRefineMode) return;
+  const ref = decodeURIComponent(window.location.hash.slice(1));
+  if (!ref) return;
+  const row = document.querySelector('.backlog-ticket-row[x-show="refineMode"][data-display-id="' + ref + '"]');
+  if (row) row.click();
 });
 </script>
 {{end}}
