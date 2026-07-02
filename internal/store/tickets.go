@@ -149,7 +149,9 @@ func (s *Store) MoveTicket(ctx context.Context, orgID, ticketID, columnID uuid.U
 		 SET column_id  = CASE WHEN $3 = '00000000-0000-0000-0000-000000000000'::uuid THEN column_id ELSE $3 END,
 		     position   = $4,
 		     updated_at = NOW()
-		 WHERE org_id = $1 AND id = $2`,
+		 WHERE org_id = $1 AND id = $2
+		   AND ($3 = '00000000-0000-0000-0000-000000000000'::uuid
+		        OR EXISTS (SELECT 1 FROM columns WHERE id = $3 AND org_id = $1))`,
 		orgID, ticketID, columnID, position,
 	)
 	return err
@@ -439,18 +441,29 @@ func (s *Store) ListTicketAssignees(ctx context.Context, ticketID uuid.UUID) ([]
 	return users, rows.Err()
 }
 
-func (s *Store) AddTicketAssignee(ctx context.Context, ticketID, userID uuid.UUID) error {
+// AddTicketAssignee links a user to a ticket. The write only happens if both
+// the ticket and the assignee belong to orgID — ticket_assignees has no org_id
+// column of its own, so org isolation is enforced via EXISTS guards here.
+func (s *Store) AddTicketAssignee(ctx context.Context, orgID, ticketID, userID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
-		`INSERT INTO ticket_assignees (ticket_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-		ticketID, userID,
+		`INSERT INTO ticket_assignees (ticket_id, user_id)
+		 SELECT $2, $3
+		 WHERE EXISTS (SELECT 1 FROM tickets WHERE id = $2 AND org_id = $1)
+		   AND EXISTS (SELECT 1 FROM users   WHERE id = $3 AND org_id = $1)
+		 ON CONFLICT DO NOTHING`,
+		orgID, ticketID, userID,
 	)
 	return err
 }
 
-func (s *Store) RemoveTicketAssignee(ctx context.Context, ticketID, userID uuid.UUID) error {
+// RemoveTicketAssignee unlinks a user from a ticket, scoped to orgID: the
+// delete only touches rows whose ticket belongs to the org.
+func (s *Store) RemoveTicketAssignee(ctx context.Context, orgID, ticketID, userID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
-		`DELETE FROM ticket_assignees WHERE ticket_id = $1 AND user_id = $2`,
-		ticketID, userID,
+		`DELETE FROM ticket_assignees
+		 WHERE ticket_id = $2 AND user_id = $3
+		   AND EXISTS (SELECT 1 FROM tickets WHERE id = $2 AND org_id = $1)`,
+		orgID, ticketID, userID,
 	)
 	return err
 }

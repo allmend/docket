@@ -56,12 +56,7 @@
         <div x-show="open" x-cloak class="divide-y divide-base-300">
           {{range $tickets}}
           <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-5 h-10 hover:bg-base-250/40">
-            <span class="w-1 h-2.5 rounded-sm shrink-0
-              {{if eq .Priority.String "critical"}}bg-p0
-              {{else if eq .Priority.String "high"}}bg-p1
-              {{else if eq .Priority.String "medium"}}bg-p2
-              {{else if eq .Priority.String "low"}}bg-p3
-              {{else}}bg-base-500{{end}}"></span>
+            <span class="w-1 h-2.5 rounded-sm shrink-0 {{priorityColor .Priority.String}}"></span>
             <span class="mono text-[13px] text-primary-400 shrink-0 w-[72px]">{{.DisplayID}}</span>
             <span class="text-[14px] {{if .IsDone}}text-base-600 line-through decoration-base-500{{else}}text-base-900{{end}} flex-1 truncate">{{.Title}}</span>
             {{if .IsDone}}<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="1.8"><path d="M2.5 8.5l3.5 3.5 7-8" stroke-linecap="round" stroke-linejoin="round"/></svg>{{end}}

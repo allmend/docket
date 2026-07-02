@@ -31,7 +31,42 @@ func templateFuncs() template.FuncMap {
 		"hashColor":   hashColor,
 		"timeAgo":     timeAgo,
 		"dict":        dict,
+
+		"priorityColor": priorityColor,
+		"priorityLabel": priorityLabel,
 	}
+}
+
+// priorityColor maps a ticket priority to its color-bar utility class.
+// These classes are safelisted in tailwind.config.js since they no longer
+// appear literally in templates.
+func priorityColor(priority string) string {
+	switch priority {
+	case "critical":
+		return "bg-p0"
+	case "high":
+		return "bg-p1"
+	case "medium":
+		return "bg-p2"
+	case "low":
+		return "bg-p3"
+	}
+	return "bg-base-500"
+}
+
+// priorityLabel maps a ticket priority to its short display label.
+func priorityLabel(priority string) string {
+	switch priority {
+	case "critical":
+		return "P0"
+	case "high":
+		return "P1"
+	case "medium":
+		return "P2"
+	case "low":
+		return "P3"
+	}
+	return "—"
 }
 
 // toFloat widens ints and float64s; everything else counts as zero.

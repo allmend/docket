@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
@@ -10,6 +11,10 @@ import (
 )
 
 // --- Tag handlers ---
+
+// Tag colors are embedded in inline styles (including "{{.Color}}20" alpha
+// concatenation), so only a strict #RRGGBB value is accepted.
+var hexColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func filterUnusedTags(all, applied []model.Tag) []model.Tag {
 	used := make(map[uuid.UUID]bool, len(applied))
@@ -64,14 +69,17 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	name := r.FormValue("name")
 	color := r.FormValue("color")
 	if name == "" || color == "" {
 		http.Error(w, "name and color required", http.StatusBadRequest)
+		return
+	}
+	if !hexColorRe.MatchString(color) {
+		http.Error(w, "color must be a #RRGGBB hex value", http.StatusBadRequest)
 		return
 	}
 	if _, err := h.boards.CreateTag(r.Context(), orgID, boardID, name, color); err != nil {
@@ -109,8 +117,7 @@ func (h *Handler) AddTagToTicket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	tagID, err := uuid.Parse(r.FormValue("tag_id"))

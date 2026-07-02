@@ -1,4 +1,4 @@
-.PHONY: dev build migrate sqlc js js-watch css css-watch vet test assets vendor rebuild seed docker-up docker-down dev-docker dev-docker-down
+.PHONY: dev build migrate js js-watch css css-watch vet test test-short assets vendor rebuild docker-up docker-down dev-docker dev-docker-down
 
 vendor:
 	node scripts/vendor.js
@@ -18,12 +18,6 @@ build:
 migrate:
 	go run ./cmd/serve --migrate-only
 
-seed:
-	go run ./cmd/seed
-
-sqlc:
-	sqlc generate
-
 js:
 	npx esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --minify
 
@@ -41,6 +35,10 @@ vet:
 
 test:
 	go test ./...
+
+# Fast inner loop — skips store integration tests (no Docker/Postgres needed).
+test-short:
+	go test -short ./...
 
 docker-up:
 	docker compose -f docker/docker-compose.yml up -d

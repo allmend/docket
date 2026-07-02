@@ -45,14 +45,9 @@
             <span class="mono text-[13px] text-primary-400">{{.Ticket.DisplayID}}</span>
             {{if .Ticket.Priority.String}}
             <span class="inline-flex items-center gap-1">
-              <span class="w-1 h-2.5 rounded-sm
-                {{if eq .Ticket.Priority.String "critical"}}bg-p0
-                {{else if eq .Ticket.Priority.String "high"}}bg-p1
-                {{else if eq .Ticket.Priority.String "medium"}}bg-p2
-                {{else if eq .Ticket.Priority.String "low"}}bg-p3
-                {{else}}bg-base-500{{end}}"></span>
+              <span class="w-1 h-2.5 rounded-sm {{priorityColor .Ticket.Priority.String}}"></span>
               <span class="mono text-[11px] text-base-600">
-                {{if eq .Ticket.Priority.String "critical"}}P0{{else if eq .Ticket.Priority.String "high"}}P1{{else if eq .Ticket.Priority.String "medium"}}P2{{else if eq .Ticket.Priority.String "low"}}P3{{end}}
+                {{priorityLabel .Ticket.Priority.String}}
               </span>
             </span>
             {{end}}

@@ -7,6 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+
+	"github.com/allmend/docket/internal/model"
+	"github.com/allmend/docket/internal/service"
 )
 
 // pathUUID parses the named chi URL parameter as a UUID. On failure it writes
@@ -19,6 +22,33 @@ func pathUUID(w http.ResponseWriter, r *http.Request, name string) (uuid.UUID, b
 		return uuid.Nil, false
 	}
 	return id, true
+}
+
+// parseForm parses the request form. On failure it writes a 400 response and
+// returns false, so callers can simply return.
+func parseForm(w http.ResponseWriter, r *http.Request) bool {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return false
+	}
+	return true
+}
+
+// ticketFromPath parses {ticketID} from the URL and loads the ticket for the
+// org on the request context. On failure it writes the error response and
+// returns false, so callers can simply return.
+func (h *Handler) ticketFromPath(w http.ResponseWriter, r *http.Request) (*model.Ticket, uuid.UUID, bool) {
+	orgID := service.OrgIDFromContext(r.Context())
+	ticketID, ok := pathUUID(w, r, "ticketID")
+	if !ok {
+		return nil, uuid.Nil, false
+	}
+	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
+	if err != nil {
+		http.Error(w, "ticket not found", http.StatusNotFound)
+		return nil, uuid.Nil, false
+	}
+	return ticket, orgID, true
 }
 
 // formDate parses a YYYY-MM-DD form value. Empty or malformed values return nil —

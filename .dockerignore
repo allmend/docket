@@ -1,0 +1,16 @@
+## Keep the Docker build context lean. Both docker/Dockerfile (release) and
+## docker/Dockerfile.dev build with the repo root as context.
+## Needed in context: Go sources, go.mod/go.sum, migrations/, templates/,
+## static/ (dist is prebuilt by `make assets` in CI), scripts/, package.json.
+.git
+.github
+.claude
+node_modules
+notes
+docs
+deploy
+tmp
+.tmp
+docket
+.env
+*.md

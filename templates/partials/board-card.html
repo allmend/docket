@@ -21,18 +21,9 @@
     <span class="mono text-[11px] text-success">✓</span>
     {{else}}
     <div class="flex items-center gap-1">
-      <span class="w-1 h-2.5 rounded-sm
-        {{if eq $t.Priority.String "critical"}}bg-p0
-        {{else if eq $t.Priority.String "high"}}bg-p1
-        {{else if eq $t.Priority.String "medium"}}bg-p2
-        {{else if eq $t.Priority.String "low"}}bg-p3
-        {{else}}bg-base-500{{end}}"></span>
+      <span class="w-1 h-2.5 rounded-sm {{priorityColor $t.Priority.String}}"></span>
       <span class="mono text-[11px] {{if eq $t.Priority.String "critical"}}text-danger{{else}}text-base-600{{end}}">
-        {{if eq $t.Priority.String "critical"}}P0
-        {{else if eq $t.Priority.String "high"}}P1
-        {{else if eq $t.Priority.String "medium"}}P2
-        {{else if eq $t.Priority.String "low"}}P3
-        {{else}}—{{end}}
+        {{priorityLabel $t.Priority.String}}
       </span>
     </div>
     {{end}}

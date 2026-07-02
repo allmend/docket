@@ -258,7 +258,9 @@ func (s *Store) BulkListTicketTags(ctx context.Context, boardID uuid.UUID) (map[
 func (s *Store) AddTagToTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
 		`INSERT INTO ticket_tags (ticket_id, tag_id)
-		 SELECT $1, $2 FROM tickets WHERE id = $1 AND org_id = $3
+		 SELECT $1, $2
+		 WHERE EXISTS (SELECT 1 FROM tickets WHERE id = $1 AND org_id = $3)
+		   AND EXISTS (SELECT 1 FROM tags    WHERE id = $2 AND org_id = $3)
 		 ON CONFLICT DO NOTHING`,
 		ticketID, tagID, orgID,
 	)

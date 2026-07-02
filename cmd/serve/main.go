@@ -9,12 +9,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/allmend/docket/internal/api"
 	"github.com/allmend/docket/internal/config"
 	appMiddleware "github.com/allmend/docket/internal/middleware"
+	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/allmend/docket/internal/store"
 	"github.com/go-chi/chi/v5"
@@ -142,8 +144,8 @@ func startAPI(
 	r.Use(appMiddleware.Metrics)
 	r.Use(appMiddleware.SecurityHeaders)
 
-	// Static assets
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static/dist"))))
+	// Static assets — directory listings disabled, files only.
+	r.Handle("/static/*", http.StripPrefix("/static/", noDirListing(http.FileServer(http.Dir("static/dist")))))
 
 	// Public routes (no auth)
 	r.Get("/login", h.LoginPage)
@@ -155,6 +157,9 @@ func startAPI(
 	// Authenticated routes — HTMX UI (HTML responses)
 	r.Group(func(r chi.Router) {
 		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc))
+		// The UI surface mutates freely, so read-only and metrics-only API
+		// tokens must not reach it. JWT sessions always carry api:write scope.
+		r.Use(appMiddleware.RequireScope(model.ScopeAPIWrite))
 		h.Routes(r)
 	})
 
@@ -186,6 +191,17 @@ func startAPI(
 		return err
 	}
 	return nil
+}
+
+// noDirListing rejects directory paths so the file server never renders an index.
+func noDirListing(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
+			http.NotFound(w, r)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func runMigrations(dsn string) error {

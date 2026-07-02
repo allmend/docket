@@ -48,9 +48,13 @@ func (s *Store) SeedSprintCapacity(ctx context.Context, orgID, sprintID, teamID 
 
 // UpsertSprintCapacity sets focus_pct for one member in a sprint.
 func (s *Store) UpsertSprintCapacity(ctx context.Context, orgID, sprintID, userID uuid.UUID, focusPct int) error {
+	// The INSERT only proceeds when the sprint belongs to orgID, so a caller
+	// cannot write (or, via ON CONFLICT, overwrite) capacity for another org's
+	// sprint by guessing its UUID.
 	_, err := s.primary.Exec(ctx, `
 		INSERT INTO sprint_capacity (sprint_id, user_id, org_id, focus_pct, updated_at)
-		VALUES ($1, $2, $3, $4, NOW())
+		SELECT $1, $2, $3, $4, NOW()
+		WHERE EXISTS (SELECT 1 FROM sprints WHERE id = $1 AND org_id = $3)
 		ON CONFLICT (sprint_id, user_id) DO UPDATE
 		  SET focus_pct = EXCLUDED.focus_pct,
 		      updated_at = NOW()

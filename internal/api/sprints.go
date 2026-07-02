@@ -26,8 +26,7 @@ func (h *Handler) CreateSprint(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	name := r.FormValue("name")
@@ -48,8 +47,7 @@ func (h *Handler) UpdateSprint(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	_, err := h.boards.UpdateSprint(r.Context(), orgID, sprintID, r.FormValue("name"), r.FormValue("goal"), formDate(r, "start_date"), formDate(r, "end_date"))
@@ -121,8 +119,7 @@ func (h *Handler) AssignTicketToSprint(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	var sprintID *uuid.UUID
@@ -154,8 +151,7 @@ func (h *Handler) AssignTicketsToSprint(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	for _, raw := range r.Form["ticket_ids"] {
@@ -211,8 +207,7 @@ func (h *Handler) UpdateMemberCapacity(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	var focusPct int

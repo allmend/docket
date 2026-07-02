@@ -120,7 +120,7 @@
             <div class="flex items-center gap-3 px-4 h-10 hover:bg-base-250/40 cursor-pointer"
                  hx-get="/tickets/{{.ID}}/quick" hx-target="#modal-body" hx-swap="innerHTML"
                  hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
-              <span class="w-1 h-2.5 rounded-sm shrink-0 {{if eq .Priority.String "critical"}}bg-p0{{else if eq .Priority.String "high"}}bg-p1{{else if eq .Priority.String "medium"}}bg-p2{{else if eq .Priority.String "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+              <span class="w-1 h-2.5 rounded-sm shrink-0 {{priorityColor .Priority.String}}"></span>
               <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
               <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>
             </div>
@@ -147,13 +147,14 @@
             <div class="sprint-list divide-y divide-base-300"
                  data-sprint-id="{{$sv.Sprint.ID}}"
                  data-sprint-status="planning"
+                 data-first-column-id="{{$.FirstColumnID}}"
                  data-board-id="{{if $board}}{{$board.ID}}{{end}}">
               {{range $sv.Tickets}}
               <div class="sprint-ticket flex items-center gap-3 px-4 h-10 hover:bg-base-250/40 cursor-pointer"
                    data-ticket-id="{{.ID}}" data-position="{{.Position}}"
                    hx-get="/tickets/{{.ID}}/quick" hx-target="#modal-body" hx-swap="innerHTML"
                    hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
-                <span class="w-1 h-2.5 rounded-sm shrink-0 {{if eq .Priority.String "critical"}}bg-p0{{else if eq .Priority.String "high"}}bg-p1{{else if eq .Priority.String "medium"}}bg-p2{{else if eq .Priority.String "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+                <span class="w-1 h-2.5 rounded-sm shrink-0 {{priorityColor .Priority.String}}"></span>
                 {{if .StoryPoints}}<span class="mono text-[13px] text-base-700 bg-primary-500/10 border border-primary-500/20 rounded-sm px-1 shrink-0">{{deref .StoryPoints}}</span>{{end}}
                 <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
                 <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>

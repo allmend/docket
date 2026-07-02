@@ -287,8 +287,7 @@ func (h *Handler) UpdateBoard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 

@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-07-02
+
+### Security
+- API tokens with `metrics:read` or `api:read` scope could perform writes through the internal HTMX endpoints, which accepted any valid API token regardless of scope. The UI surface now requires `api:write` scope; browser sessions are unaffected.
+- Ticket drag-and-drop now verifies the target column belongs to the caller's org, and assigning a label to a ticket now verifies the label's org — closing two cross-tenant integrity gaps ahead of multi-org deployments.
+- Label colors are validated as strict `#RRGGBB` hex values at creation time.
+- Member creation failures no longer echo internal database error details to the client.
+- Logout now clears session cookies with the same HttpOnly/Secure/SameSite attributes they were set with, and `/static/` no longer serves directory listings.
+
+### Added
+- Store-layer integration tests that run against a real PostgreSQL (via testcontainers). `make test-short` skips them for a fast inner loop without Docker.
+- Tagged releases now automatically publish a GitHub Release with notes extracted from this changelog, alongside the container image push to `ghcr.io/allmend/docket`.
+
+### Changed
+- API handler cleanup: shared `parseForm` and `ticketFromPath` helpers replace repeated parse/lookup/error boilerplate across the ticket handlers.
+- Priority color-bar and label rendering moved from long per-template conditionals into `priorityColor`/`priorityLabel` template functions (the emitted classes are safelisted in the Tailwind config).
+- Docker build context slimmed with a `.dockerignore` (excludes `.git`, `node_modules`, scratch dirs) — faster image builds, no change to image contents.
+- Dependency updates: pgx 5.9.2, golang.org/x/crypto 0.51.0, golang.org/x/net 0.53.0; markdown/highlighting libraries now correctly declared as direct dependencies.
+
+### Removed
+- Leftover sqlc scaffolding (`sqlc.yaml`, `sql/queries/`, `make sqlc`) — the store has always used pgx directly; the config was never wired up and its queries referenced tables from before the projects→teams rename.
+- `cmd/seed` and `make seed` — superseded by the idempotent auto-seed that runs on every startup with the same `SEED_*` environment variables.
+- Valkey/Redis from all compose files, `REDIS_URL` from the config — nothing consumes it; it was plumbing for a queue that Docket never grew. It can return with the WebSocket fan-out phase.
+- `daisyui` from devDependencies — dropped from the Tailwind config during the pure-Tailwind migration, the package itself was never removed.
+
+### Fixed
+- The self-hosting `deploy/docker-compose.yml` declared a `wget`-based container healthcheck, but the image is distroless (no shell, no wget), so the container could never report healthy. Removed in favour of external probing; the Kubernetes manifests were unaffected (kubelet-driven `httpGet` probes).
+
 ## [0.8.0] - 2026-07-01
 
 ### Added

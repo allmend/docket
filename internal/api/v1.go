@@ -24,24 +24,29 @@ import (
 //
 // All mutations accept JSON bodies. All responses are JSON.
 func (h *Handler) V1Routes(r chi.Router) {
-	// Teams
-	r.Get("/teams", h.v1ListTeams)
-	r.Post("/teams", h.v1CreateTeam)
-	r.Get("/teams/{key}", h.v1GetTeam)
-	r.Put("/teams/{key}", h.v1UpdateTeam)
-	r.Delete("/teams/{key}", h.v1DeleteTeam)
+	// Read endpoints require at least api:read scope (JWT sessions always pass).
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RequireScope(model.ScopeAPIRead))
+		r.Get("/teams", h.v1ListTeams)
+		r.Get("/teams/{key}", h.v1GetTeam)
+		r.Get("/teams/{key}/tickets", h.v1ListTickets)
+		r.Get("/tickets/{ref}", h.v1GetTicket)
+	})
 
-	// Tickets nested under team key
-	r.Get("/teams/{key}/tickets", h.v1ListTickets)
-	r.Post("/teams/{key}/tickets", h.v1CreateTicket)
-
-	// Ticket by ref (KEY-N)
-	r.Get("/tickets/{ref}", h.v1GetTicket)
-	r.Put("/tickets/{ref}", h.v1UpdateTicket)
-	r.Delete("/tickets/{ref}", h.v1DeleteTicket)
+	// Write endpoints require api:write scope — a read-only or metrics-only
+	// token must not be able to create, update, or delete anything.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.RequireScope(model.ScopeAPIWrite))
+		r.Post("/teams", h.v1CreateTeam)
+		r.Put("/teams/{key}", h.v1UpdateTeam)
+		r.Delete("/teams/{key}", h.v1DeleteTeam)
+		r.Post("/teams/{key}/tickets", h.v1CreateTicket)
+		r.Put("/tickets/{ref}", h.v1UpdateTicket)
+		r.Delete("/tickets/{ref}", h.v1DeleteTicket)
+	})
 
 	// Business metrics — Prometheus text format, scoped to the caller's org.
-	// Requires at least metrics:read scope (API tokens) or a valid JWT session.
+	// The lowest scope (metrics:read) suffices.
 	r.With(middleware.RequireScope(model.ScopeMetricsRead)).Get("/metrics", h.v1Metrics)
 }
 

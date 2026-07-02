@@ -24,8 +24,10 @@ Part of the [Allmend](https://github.com/allmend) suite of open-source tools.
 - Acceptance criteria with interactive checkboxes
 - Story points
 - Ticket detail with inline editing, Markdown support, and syntax highlighting
+- Dual-mode rich text editor (Visual / Code) with `@mention` and `#ticket` autocomplete
 - Assignees, priority, status, tags/labels
 - Comments with `@mention` and `#ticket` linking and autocomplete
+- Scoped API tokens (`metrics:read` / `api:read` / `api:write`) for the JSON API under `/api/v1`
 - Ticket linking (blocks / relates to)
 - Sprint review and retrospective board
 - Notification inbox
@@ -74,7 +76,6 @@ Full list of environment variables:
 |---|---|---|
 | `JWT_SECRET` | — | **Required.** Long random string for signing sessions. |
 | `DATABASE_URL` | *(postgres service)* | PostgreSQL connection string. |
-| `REDIS_URL` | *(valkey service)* | Redis-compatible connection string. |
 | `HTTP_PORT` | `8081` | Port the app listens on. |
 | `METRICS_PORT` | `9412` | Prometheus metrics port. |
 | `SEED_ORG_NAME` | `My Team` | Organisation name, set on first run. |
@@ -110,7 +111,7 @@ The deployment runs 2 replicas behind a ClusterIP service. The ingress example u
 **Requirements:** Go 1.25+, PostgreSQL 16+, Node.js 22+
 
 ```bash
-# Start dependencies (Postgres + Valkey + Mailpit)
+# Start dependencies (Postgres + Mailpit)
 make docker-up
 
 # Build frontend assets
@@ -152,7 +153,7 @@ To build and push a Docker image:
 docker build -f docker/Dockerfile -t docket .
 ```
 
-Releases are built automatically via GitHub Actions on every `v*` tag and pushed to `ghcr.io/allmend/docket`.
+Every `v*` tag triggers GitHub Actions to build the container image, push it to `ghcr.io/allmend/docket` (`x.y.z`, `x.y`, and `latest` tags), and publish a [GitHub Release](https://github.com/allmend/docket/releases) with notes from the [CHANGELOG](CHANGELOG.md). The image is a ~24 MB distroless build containing everything it needs — binary, migrations, templates, and static assets.
 
 ---
 

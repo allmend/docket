@@ -79,14 +79,9 @@
         <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
         <!-- Priority -->
         <span class="inline-flex items-center gap-1 w-9 shrink-0">
-          <span class="w-1 h-2.5 rounded-sm
-            {{if eq .Priority.String "critical"}}bg-p0
-            {{else if eq .Priority.String "high"}}bg-p1
-            {{else if eq .Priority.String "medium"}}bg-p2
-            {{else if eq .Priority.String "low"}}bg-p3
-            {{else}}bg-base-500{{end}}"></span>
+          <span class="w-1 h-2.5 rounded-sm {{priorityColor .Priority.String}}"></span>
           <span class="mono text-[11px] text-base-600">
-            {{if eq .Priority.String "critical"}}P0{{else if eq .Priority.String "high"}}P1{{else if eq .Priority.String "medium"}}P2{{else if eq .Priority.String "low"}}P3{{else}}—{{end}}
+            {{priorityLabel .Priority.String}}
           </span>
         </span>
         <!-- Sprint badge -->

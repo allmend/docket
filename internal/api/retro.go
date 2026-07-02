@@ -145,8 +145,7 @@ func (h *Handler) CreateRetroCard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -209,8 +208,7 @@ func (h *Handler) AssignRetroCardOwner(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	ownerID, err := uuid.Parse(r.FormValue("owner_id"))
@@ -242,8 +240,7 @@ func (h *Handler) StackRetroCard(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	parentID, err := uuid.Parse(r.FormValue("parent_id"))

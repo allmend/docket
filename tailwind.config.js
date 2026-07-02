@@ -87,6 +87,8 @@ module.exports = {
     "border-info", "ring-1", "ring-info/20", "bg-base-250", "border-l-2", "-ml-px",
     "border-p0", "border-p1", "border-p2", "border-p3",
     "bg-p0/10", "bg-p1/10", "bg-p2/10", "bg-p3/10",
+    // returned by the priorityColor template func in Go
+    "bg-p0", "bg-p1", "bg-p2", "bg-p3", "bg-base-500",
   ],
   plugins: [
     require("@tailwindcss/forms"),

@@ -124,10 +124,7 @@
                hx-target="#modal-body"
                hx-swap="innerHTML"
                hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
-            {{if eq .Priority "critical"}}<span class="w-1 h-8 rounded-sm bg-p0 shrink-0"></span>
-            {{else if eq .Priority "high"}}<span class="w-1 h-8 rounded-sm bg-p1 shrink-0"></span>
-            {{else if eq .Priority "medium"}}<span class="w-1 h-8 rounded-sm bg-p2 shrink-0"></span>
-            {{else}}<span class="w-1 h-8 rounded-sm bg-p3 shrink-0"></span>{{end}}
+            <span class="w-1 h-8 rounded-sm shrink-0 {{priorityColor .Priority}}"></span>
             <div class="min-w-0 flex-1">
               <div class="flex items-center gap-2">
                 <span class="mono text-[13px] text-primary-400">{{.DisplayID}}</span>

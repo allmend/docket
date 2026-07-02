@@ -80,16 +80,11 @@
           <div class="divide-y divide-base-300">
             {{range .BlockedTickets}}
             <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-5 py-3 hover:bg-base-250/40 cursor-pointer">
-              <span class="w-1 h-8 rounded-sm shrink-0
-                {{if eq .Priority "critical"}}bg-p0
-                {{else if eq .Priority "high"}}bg-p1
-                {{else if eq .Priority "medium"}}bg-p2
-                {{else if eq .Priority "low"}}bg-p3
-                {{else}}bg-base-500{{end}}"></span>
+              <span class="w-1 h-8 rounded-sm shrink-0 {{priorityColor .Priority}}"></span>
               <div class="min-w-0 flex-1">
                 <div class="flex items-center gap-2">
                   <span class="mono text-[13px] text-primary-400">{{.DisplayID}}</span>
-                  <span class="mono text-[11px] text-base-600">{{if eq .Priority "critical"}}P0{{else if eq .Priority "high"}}P1{{else if eq .Priority "medium"}}P2{{else if eq .Priority "low"}}P3{{end}}</span>
+                  <span class="mono text-[11px] text-base-600">{{priorityLabel .Priority}}</span>
                 </div>
                 <div class="text-[14px] text-base-900 truncate">{{.Title}}</div>
               </div>

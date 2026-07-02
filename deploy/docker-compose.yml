@@ -24,7 +24,6 @@ services:
       - "9412:9412"   # Prometheus metrics — restrict this port in production
     environment:
       DATABASE_URL: postgres://docket:docket@postgres:5432/docket?sslmode=disable
-      REDIS_URL: redis://valkey:6379
       HTTP_PORT: "8081"
       METRICS_PORT: "9412"
       MODE: all
@@ -38,14 +37,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      valkey:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/login || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+    # No container healthcheck: the image is distroless (no shell, no wget),
+    # so exec-based checks cannot run. Probe http://host:8081/login externally.
 
   postgres:
     image: postgres:16-alpine
@@ -62,17 +55,5 @@ services:
       timeout: 5s
       retries: 5
 
-  valkey:
-    image: valkey/valkey:8-alpine
-    restart: unless-stopped
-    volumes:
-      - valkey_data:/data
-    healthcheck:
-      test: ["CMD", "valkey-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
 volumes:
   postgres_data:
-  valkey_data:

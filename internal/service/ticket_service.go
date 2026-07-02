@@ -284,7 +284,7 @@ func (s *TicketService) ListAssignees(ctx context.Context, ticketID uuid.UUID) (
 }
 
 func (s *TicketService) AddAssignee(ctx context.Context, orgID, ticketID, userID, actorID uuid.UUID) error {
-	if err := s.store.AddTicketAssignee(ctx, ticketID, userID); err != nil {
+	if err := s.store.AddTicketAssignee(ctx, orgID, ticketID, userID); err != nil {
 		return err
 	}
 	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
@@ -305,7 +305,7 @@ func (s *TicketService) AddAssignee(ctx context.Context, orgID, ticketID, userID
 
 func (s *TicketService) RemoveAssignee(ctx context.Context, orgID, ticketID, userID, actorID uuid.UUID) error {
 	removed, _ := s.store.GetUserByID(ctx, orgID, userID)
-	if err := s.store.RemoveTicketAssignee(ctx, ticketID, userID); err != nil {
+	if err := s.store.RemoveTicketAssignee(ctx, orgID, ticketID, userID); err != nil {
 		return err
 	}
 	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)

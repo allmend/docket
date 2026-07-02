@@ -91,11 +91,35 @@ func TestTimeAgo(t *testing.T) {
 }
 
 func TestHashColorIsStable(t *testing.T) {
-	if hashColor("alice") != hashColor("alice") {
-		t.Error("hashColor must be deterministic")
+	first := hashColor("alice")
+	if got := hashColor("alice"); got != first {
+		t.Errorf("hashColor not deterministic: %q then %q", first, got)
 	}
 	if hashColor("") == "" {
 		t.Error("hashColor of empty string must still return a color")
+	}
+}
+
+func TestPriorityColorAndLabel(t *testing.T) {
+	tests := []struct {
+		priority string
+		color    string
+		label    string
+	}{
+		{"critical", "bg-p0", "P0"},
+		{"high", "bg-p1", "P1"},
+		{"medium", "bg-p2", "P2"},
+		{"low", "bg-p3", "P3"},
+		{"", "bg-base-500", "—"},
+		{"bogus", "bg-base-500", "—"},
+	}
+	for _, tt := range tests {
+		if got := priorityColor(tt.priority); got != tt.color {
+			t.Errorf("priorityColor(%q) = %q, want %q", tt.priority, got, tt.color)
+		}
+		if got := priorityLabel(tt.priority); got != tt.label {
+			t.Errorf("priorityLabel(%q) = %q, want %q", tt.priority, got, tt.label)
+		}
 	}
 }
 

@@ -81,6 +81,14 @@ func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 
 func clearTokenCookies(w http.ResponseWriter) {
 	for _, name := range []string{"access_token", "refresh_token"} {
-		http.SetCookie(w, &http.Cookie{Name: name, Value: "", MaxAge: -1, Path: "/"})
+		http.SetCookie(w, &http.Cookie{
+			Name:     name,
+			Value:    "",
+			MaxAge:   -1,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteLaxMode,
+		})
 	}
 }

@@ -19,8 +19,7 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -95,8 +94,7 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -145,8 +143,7 @@ func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	title := r.FormValue("title")
@@ -186,15 +183,8 @@ func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 
 // TicketQuickView renders the lightweight modal partial (triggered by card click on the board).
 func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, ok := pathUUID(w, r, "ticketID")
+	ticket, orgID, ok := h.ticketFromPath(w, r)
 	if !ok {
-		return
-	}
-
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
 
@@ -287,15 +277,8 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 // TicketRefineView renders the refinement detail pane for a single ticket.
 // Used by the backlog refinement side-by-side view (right pane).
 func (h *Handler) TicketRefineView(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, ok := pathUUID(w, r, "ticketID")
+	ticket, orgID, ok := h.ticketFromPath(w, r)
 	if !ok {
-		return
-	}
-
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
 
@@ -312,15 +295,8 @@ func (h *Handler) TicketRefineView(w http.ResponseWriter, r *http.Request) {
 
 // TicketBodyView renders the read-only ticket body fragment (used by cancel in edit form).
 func (h *Handler) TicketBodyView(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, ok := pathUUID(w, r, "ticketID")
+	ticket, orgID, ok := h.ticketFromPath(w, r)
 	if !ok {
-		return
-	}
-
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
 
@@ -339,15 +315,8 @@ func (h *Handler) TicketBodyView(w http.ResponseWriter, r *http.Request) {
 
 // TicketEditForm returns the inline edit form fragment (HTMX swap into the page).
 func (h *Handler) TicketEditForm(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, ok := pathUUID(w, r, "ticketID")
+	ticket, _, ok := h.ticketFromPath(w, r)
 	if !ok {
-		return
-	}
-
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
 		return
 	}
 
@@ -361,8 +330,7 @@ func (h *Handler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -407,8 +375,7 @@ func (h *Handler) CloseTicket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	reason := r.FormValue("reason")
@@ -444,19 +411,12 @@ func (h *Handler) ReopenTicket(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) DeleteTicket(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, ok := pathUUID(w, r, "ticketID")
+	ticket, orgID, ok := h.ticketFromPath(w, r)
 	if !ok {
 		return
 	}
 
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
-		return
-	}
-
-	if err := h.tickets.DeleteTicket(r.Context(), orgID, ticketID); err != nil {
+	if err := h.tickets.DeleteTicket(r.Context(), orgID, ticket.ID); err != nil {
 		http.Error(w, "failed to delete ticket", http.StatusInternalServerError)
 		return
 	}
@@ -478,8 +438,7 @@ func (h *Handler) MoveTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -509,8 +468,7 @@ func (h *Handler) UpdateTicketPriority(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	ticket, err := h.tickets.UpdatePriority(r.Context(), orgID, ticketID, userID, model.Priority(r.FormValue("priority")))
@@ -529,8 +487,7 @@ func (h *Handler) UpdateTicketPoints(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	var points *float64
@@ -582,8 +539,7 @@ func (h *Handler) AddTicketAssignee(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	userID, err := uuid.Parse(r.FormValue("user_id"))
@@ -711,8 +667,7 @@ func (h *Handler) UpdateTicketColumn(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	columnID, err := uuid.Parse(r.FormValue("column_id"))
@@ -746,8 +701,7 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	sprintID, err := uuid.Parse(r.FormValue("sprint_id"))
@@ -788,8 +742,7 @@ func (h *Handler) UpdateTicketTitle(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	title := r.FormValue("title")
@@ -813,8 +766,7 @@ func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	ticket, err := h.tickets.UpdateTicketBody(r.Context(), orgID, ticketID, userID, r.FormValue("body"))
@@ -852,8 +804,7 @@ func (h *Handler) UpdateTicketAC(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	ticket, err := h.tickets.UpdateTicketAC(r.Context(), orgID, ticketID, userID, r.FormValue("ac"))
@@ -871,8 +822,7 @@ func (h *Handler) AddACItem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	text := r.FormValue("text")

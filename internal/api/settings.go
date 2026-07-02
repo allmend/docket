@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/allmend/docket/internal/model"
@@ -28,8 +29,7 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	userID := service.UserIDFromContext(r.Context())
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -83,8 +83,7 @@ func (h *Handler) CreateMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 
@@ -103,7 +102,8 @@ func (h *Handler) CreateMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.auth.CreateLocalUser(r.Context(), orgID, username, name, email, password, role); err != nil {
-		http.Error(w, "failed to create user: "+err.Error(), http.StatusInternalServerError)
+		slog.Error("create member", "org_id", orgID, "err", err)
+		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
 
@@ -125,8 +125,7 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 

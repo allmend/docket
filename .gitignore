@@ -7,3 +7,4 @@ static/dist/*.css
 node_modules/
 notes/
 CLAUDE.md
+.DS_Store

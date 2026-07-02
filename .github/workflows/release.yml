@@ -6,8 +6,8 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
-  packages: write
+  contents: write # create the GitHub Release
+  packages: write # push the container image to GHCR
 
 jobs:
   release:
@@ -59,3 +59,44 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Only runs after the image push succeeded — a release is never
+      # published for a tag whose image failed to build.
+      - name: Extract release notes from CHANGELOG
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            index($0, "## [" ver "]") == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' > release-notes.md
+
+          if [ ! -s release-notes.md ]; then
+            echo "No CHANGELOG section found for $VERSION — falling back to plain notes." >&2
+            echo "_No changelog entry for this release._" > release-notes.md
+          fi
+
+          {
+            echo ""
+            echo "---"
+            echo ""
+            echo "**Container image**"
+            echo ""
+            echo '```'
+            echo "docker pull ghcr.io/allmend/docket:$VERSION"
+            echo '```'
+          } >> release-notes.md
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists — skipping."
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file release-notes.md \
+            --verify-tag

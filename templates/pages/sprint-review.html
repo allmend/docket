@@ -96,12 +96,7 @@
           <div class="divide-y divide-base-300">
             {{range $d.Returned}}
             <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-4 h-11 hover:bg-base-250/40">
-              <span class="w-1 h-6 rounded-sm shrink-0
-                {{if eq .Priority.String "critical"}}bg-p0
-                {{else if eq .Priority.String "high"}}bg-p1
-                {{else if eq .Priority.String "medium"}}bg-p2
-                {{else if eq .Priority.String "low"}}bg-p3
-                {{else}}bg-base-500{{end}}"></span>
+              <span class="w-1 h-6 rounded-sm shrink-0 {{priorityColor .Priority.String}}"></span>
               <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
               <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>
               {{if .Tags}}

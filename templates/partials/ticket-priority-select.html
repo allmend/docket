@@ -4,10 +4,9 @@
   <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Priority</div>
   {{if .ClosedAt}}
   <div class="flex items-center gap-2 px-1 py-1">
-    <span class="w-1 h-3 rounded-sm shrink-0
-      {{if eq $pri "critical"}}bg-p0{{else if eq $pri "high"}}bg-p1{{else if eq $pri "medium"}}bg-p2{{else if eq $pri "low"}}bg-p3{{else}}bg-base-500{{end}}"></span>
+    <span class="w-1 h-3 rounded-sm shrink-0 {{priorityColor $pri}}"></span>
     <span class="mono text-[14px] text-base-900">
-      {{if eq $pri "critical"}}P0{{else if eq $pri "high"}}P1{{else if eq $pri "medium"}}P2{{else if eq $pri "low"}}P3{{else}}—{{end}}
+      {{priorityLabel $pri}}
     </span>
   </div>
   {{else}}

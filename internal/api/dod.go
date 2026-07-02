@@ -27,8 +27,7 @@ func (h *Handler) CreateDodItem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	text := r.FormValue("text")
@@ -68,19 +67,13 @@ func (h *Handler) DeleteDodItem(w http.ResponseWriter, r *http.Request) {
 
 // TicketDodPartial renders the DoD checklist for a ticket (HTMX swap target).
 func (h *Handler) TicketDodPartial(w http.ResponseWriter, r *http.Request) {
-	orgID := service.OrgIDFromContext(r.Context())
-	ticketID, ok := pathUUID(w, r, "ticketID")
+	ticket, orgID, ok := h.ticketFromPath(w, r)
 	if !ok {
 		return
 	}
-	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	if err != nil {
-		http.Error(w, "ticket not found", http.StatusNotFound)
-		return
-	}
-	items, _ := h.boards.GetTicketDod(r.Context(), orgID, ticket.BoardID, ticketID)
+	items, _ := h.boards.GetTicketDod(r.Context(), orgID, ticket.BoardID, ticket.ID)
 	h.render(w, "ticket-dod-partial.html", map[string]any{
-		"TicketID": ticketID,
+		"TicketID": ticket.ID,
 		"BoardID":  ticket.BoardID,
 		"Items":    items,
 		"IsClosed": ticket.ClosedAt != nil,
@@ -98,8 +91,7 @@ func (h *Handler) ToggleDodCheck(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+	if !parseForm(w, r) {
 		return
 	}
 	checked := r.FormValue("checked") == "true"
