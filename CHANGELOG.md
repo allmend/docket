@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `CONTRIBUTING.md` — dev setup, PR checklist, conventions, and the contributor license agreement (previously referenced but missing).
+
+### Changed
+- `COMMERCIAL.md` rewritten to accurately describe what the AGPL-3.0 permits and obliges: third-party hosting is legal but requires full source disclosure to the service's users and may not use the Docket name; commercial licenses are the escape hatch from copyleft, not a hosting permit.
+- README: added full-text search and user management to features, `MODE` to the env-var table, contributing section, and copyright notice.
+
 ## [0.9.0] - 2026-07-02
 
 ### Security

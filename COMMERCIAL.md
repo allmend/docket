@@ -1,57 +1,52 @@
-# Commercial Use
+# Licensing & Commercial Use
 
-Docket is open-source software licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+Docket is free software, licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+Copyright © 2026 the Docket contributors.
 
 ---
 
 ## What is always free
 
-- **Self-hosting** — run Docket on your own infrastructure, for any team, at any scale, forever free.
-- **Contributing** — submit issues, pull requests, and improvements. See [CONTRIBUTING.md](CONTRIBUTING.md).
-- **Forking** — fork and modify for your own use, subject to the terms of the AGPL-3.0.
-
-There is no "open core". There is no feature gating. The community gets the full product.
+- **Self-hosting** — run Docket on your own infrastructure for your organisation's use, for any team, at any scale, forever free. This includes agencies and consultancies hosting Docket for their own clients' internal use.
+- **The full product** — there is no "open core", no feature gating, no enterprise edition. The community gets everything.
+- **Forking and modifying** — under the terms of the AGPL-3.0.
+- **Contributing** — issues, pull requests, improvements. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## What requires a commercial license
+## Hosting Docket as a service for others
 
-A commercial license is required if you:
+The AGPL-3.0 is a true open-source license, so it does not forbid offering Docket as a hosted or managed service. It does, however, attach obligations that exist precisely for this case:
 
-- Offer Docket (or a derivative of it) as a **hosted or managed service** to third parties — i.e. "Managed Docket", "Docket Cloud", or any product where customers pay to use a Docket instance you operate.
-- Distribute Docket as part of a **commercial product or appliance** where the AGPL-3.0 terms are incompatible with your distribution model.
-- Require a license that does **not** carry the AGPL-3.0 copyleft obligations.
+1. **Network copyleft (AGPL §13).** Every user of your hosted service must be offered the complete corresponding source code of *exactly* what you run — including every modification you have made. There is no such thing as a proprietary hosted fork of Docket. Any improvement you build, your competitors (and this project) get for free.
+2. **The name is not licensed.** "Docket" and the Allmend project names and logos are trademarks of the project. They may **not** be used to name, market, or advertise a third-party hosted offering. You may host the software; you may not call it Docket, "Managed Docket", "Docket Cloud", or anything confusingly similar. Those names are reserved for the official offering.
 
-The intent is simple: self-hosting is and will always be free. Selling access to a hosted Docket instance built on this community's work is not.
+If you cannot or do not want to meet the AGPL's obligations — for example to embed Docket in a proprietary product or appliance, or to run a hosted derivative without source disclosure — that is what a **commercial license** is for. Get in touch (below).
 
 ---
 
 ## Why this model
 
-Open-source only works long-term if the people who build it can sustain the work. This model follows in the footsteps of projects like Nextcloud, Metabase, and GitLab:
+Open source only works long-term if the people who build it can sustain the work. Docket follows the path of Nextcloud and Grafana rather than the path that burned Redis and Elasticsearch: those projects were permissively licensed, which let cloud vendors resell them *with* proprietary improvements and *without* giving anything back. The AGPL closes that door structurally:
 
-- The community gets the full, unmodified product under a strong copyleft license.
-- Organizations that profit commercially from the software contribute back — financially, not just in code.
-- There is no bait-and-switch. The AGPL-3.0 license on the community edition is permanent and irrevocable.
+- The community gets the full, unmodified product under a strong copyleft license — permanently and irrevocably.
+- Anyone who builds on Docket must share what they build.
+- The project sustains itself through **donations** and, in the future, an **official Docket Cloud** — the only hosted offering allowed to carry the name.
 
 ---
 
 ## Contributor License Agreement
 
-To keep dual licensing viable and the project legally coherent, all contributors are required to sign a Contributor License Agreement (CLA) before their first pull request is merged. The CLA assigns sufficient rights to the project maintainers to offer commercial licenses while preserving your right to use your own contributions under the AGPL-3.0.
-
-Details are in [CONTRIBUTING.md](CONTRIBUTING.md).
+To keep the project legally coherent and an official hosted offering viable, contributors sign a lightweight Contributor License Agreement (CLA) with their first pull request. It grants the maintainers the right to license contributions commercially, while you keep full rights to your own work — and the community edition stays AGPL-3.0 forever. Details in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
 ## Contact
 
-To inquire about a commercial license, reach out at:
+To ask about a commercial license — or if you are unsure whether your use case needs one — open a GitHub issue (a dedicated contact address is coming with the project website).
 
-Open a GitHub issue in the meanwhile we set up domain and website.
-
-We are reasonable people. If you are a small agency or consultancy self-hosting Docket for your own clients' internal use (not reselling access), that is self-hosting and does not require a commercial license. When in doubt, ask.
+We are reasonable people. Self-hosting for your own organisation never requires a commercial license. When in doubt, ask.
 
 ---
 
-_This document is a statement of intent, not a legal contract. The AGPL-3.0 license governs all use. Commercial license terms are agreed separately in writing._
+_This document is a statement of intent, not legal advice or a contract. The AGPL-3.0 license text governs all use of the software. Commercial license terms are agreed separately in writing._

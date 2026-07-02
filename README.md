@@ -31,6 +31,8 @@ Part of the [Allmend](https://github.com/allmend) suite of open-source tools.
 - Ticket linking (blocks / relates to)
 - Sprint review and retrospective board
 - Notification inbox
+- Full-text ticket search (`/` to focus)
+- User management with admin/member roles
 - Ticket and comment history
 - Prometheus metrics endpoint (`/metrics`)
 - Keyboard shortcuts (`?` for help)
@@ -78,6 +80,7 @@ Full list of environment variables:
 | `DATABASE_URL` | *(postgres service)* | PostgreSQL connection string. |
 | `HTTP_PORT` | `8081` | Port the app listens on. |
 | `METRICS_PORT` | `9412` | Prometheus metrics port. |
+| `MODE` | `all` | `all`, `api`, or `worker`. Single-instance deployments use `all`. |
 | `SEED_ORG_NAME` | `My Team` | Organisation name, set on first run. |
 | `SEED_ORG_SLUG` | `myteam` | Organisation slug, set on first run. |
 | `SEED_USERNAME` | `admin` | Admin username, set on first run. |
@@ -157,6 +160,14 @@ Every `v*` tag triggers GitHub Actions to build the container image, push it to 
 
 ---
 
+## Contributing
+
+Issues and pull requests welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for the dev setup, conventions, and the contributor agreement.
+
+---
+
 ## License
 
-[AGPL-3.0](LICENSE) — self-hosting is free, forever. See [COMMERCIAL.md](COMMERCIAL.md) for commercial use.
+[AGPL-3.0](LICENSE) — free software, no feature gating, self-hosting is free forever. Hosting Docket as a service for others carries the AGPL's source-disclosure obligations and may not use the Docket name — see [COMMERCIAL.md](COMMERCIAL.md) for the full picture and commercial licensing.
+
+Copyright © 2026 the Docket contributors.
