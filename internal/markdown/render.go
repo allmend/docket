@@ -12,7 +12,42 @@ import (
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/renderer/html"
+	"github.com/yuin/goldmark/util"
 )
+
+// fenceDot returns the accent color for a code fence's language dot.
+func fenceDot(lang string) string {
+	switch strings.ToLower(lang) {
+	case "shell", "sh", "bash", "zsh", "console":
+		return "#7ee787"
+	case "json":
+		return "#79c0ff"
+	default:
+		return "#10b981"
+	}
+}
+
+// codeBlockWrapper renders the Codex-style code block shell: a panel with a
+// header bar (colored dot + language label) above the highlighted code.
+// PreventSurroundingPre makes chroma emit only the token spans, so the
+// <pre><code> pair written here is the one the CSS styles.
+func codeBlockWrapper(w util.BufWriter, c highlighting.CodeBlockContext, entering bool) {
+	if !entering {
+		_, _ = w.WriteString("</code></pre>")
+		return
+	}
+	lang := ""
+	if l, ok := c.Language(); ok {
+		lang = string(l)
+	}
+	_, _ = w.WriteString(`<pre class="codeblock">`)
+	if lang != "" {
+		_, _ = w.WriteString(`<span class="pre-head"><span class="fdot" style="background:` + fenceDot(lang) + `"></span>`)
+		_, _ = w.WriteString(template.HTMLEscapeString(lang))
+		_, _ = w.WriteString(`</span>`)
+	}
+	_, _ = w.WriteString("<code>")
+}
 
 var md = goldmark.New(
 	goldmark.WithExtensions(
@@ -21,7 +56,9 @@ var md = goldmark.New(
 			highlighting.WithStyle("dracula"),
 			highlighting.WithFormatOptions(
 				chromahtml.WithLineNumbers(false),
+				chromahtml.PreventSurroundingPre(true),
 			),
+			highlighting.WithWrapperRenderer(codeBlockWrapper),
 		),
 	),
 	goldmark.WithRendererOptions(
@@ -37,6 +74,8 @@ var policy = func() *bluemonday.Policy {
 	// Allow inline styles produced by chroma syntax highlighting.
 	p.AllowAttrs("style").OnElements("span", "pre", "code")
 	p.AllowAttrs("class").OnElements("pre", "code")
+	// Code block header bar (language label + colored dot).
+	p.AllowAttrs("class").Matching(regexp.MustCompile(`^(pre-head|fdot)$`)).OnElements("span")
 	// Allow task-list checkboxes (GFM extension renders these).
 	p.AllowAttrs("type").Matching(regexp.MustCompile(`^checkbox$`)).OnElements("input")
 	p.AllowAttrs("checked").OnElements("input")

@@ -31,6 +31,51 @@
 /* Code blocks: scroll internally, never expand their container */
 pre { min-width: 0; overflow-x: auto !important; }
 
+/* Codex-style code block panels — server-rendered markdown (.prose) and the
+   rich editor's visual pane share the same markup: an optional .pre-head bar
+   (colored language dot + label), then a <code> block that scrolls on its
+   own so the header stays fixed. Scrolling moves to the inner code, hence
+   the overflow override on the panel itself. */
+.prose pre.codeblock,
+.rich-visual pre {
+  margin: 1.1em 0;
+  padding: 0;
+  background: #11161e;
+  border: 1px solid #21262d;
+  border-radius: 6px;
+  overflow: hidden !important;
+}
+.prose pre.codeblock > code,
+.rich-visual pre > code {
+  display: block;
+  padding: 12px 14px;
+  background: none;
+  border: 0;
+  overflow-x: auto;
+  white-space: pre;
+  color: #c9d3de;
+  @apply font-mono text-[0.85em] leading-relaxed;
+}
+pre .pre-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid #21262d;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #8b949e;
+  user-select: none;
+  @apply font-mono;
+}
+pre .pre-head .fdot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
 /* Inline code: orange-tinted, distinct from ticket IDs (emerald) */
 .prose :not(pre) > code {
   @apply font-mono font-normal rounded px-1 py-0.5 text-[0.85em];

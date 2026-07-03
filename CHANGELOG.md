@@ -5,14 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] - 2026-07-03
 
 ### Added
+- Code blocks in tickets and comments now render as panels with a header bar — a colored language dot (green for shell, blue for JSON, emerald otherwise) and the language label — with syntax highlighting unchanged inside. The editor's visual pane shows the same treatment.
+- Quote and link buttons in the editor toolbar, working in both Visual and Code modes.
+- The formatting toolbar now works in Code mode too: buttons insert (and toggle) the markdown syntax directly in the textarea — bold/italic/strike/inline-code wrapping, heading prefixes, list and quote line prefixes, code fences, links.
 - `CONTRIBUTING.md` — dev setup, PR checklist, conventions, and the contributor license agreement (previously referenced but missing).
 
 ### Changed
+- The visual editor was rebuilt on native browser editing: typing, Enter, and undo now behave like any text field, fixing erratic cursor jumps and invisible-caret issues when pressing Enter. The block-type dropdown is replaced by discrete H1/H2/H3 buttons, and the mode switch is a segmented Visual/Code toggle.
+- The editor pane keeps its height when switching between Visual and Code modes.
+- Lists converted from the visual pane now use tight `- item` / `1. item` markers instead of column-padded ones.
 - `COMMERCIAL.md` rewritten to accurately describe what the AGPL-3.0 permits and obliges: third-party hosting is legal but requires full source disclosure to the service's users and may not use the Docket name; commercial licenses are the escape hatch from copyleft, not a hosting permit.
 - README: added full-text search and user management to features, `MODE` to the env-var table, contributing section, and copyright notice.
+
+### Fixed
+- Refinement: the selected ticket survives list re-renders (points/priority/AC edits no longer reset the selection), and the selection is written to the URL hash so a refresh resumes where you left off.
+- Board cards re-render when dragged into or out of a Done column (strikethrough and checkmark update immediately).
+- The refinement detail pane offers the full description editor and ticket links, matching the drawer and permalink page.
 
 ## [0.9.0] - 2026-07-02
 
