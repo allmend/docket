@@ -8,7 +8,7 @@
 
   <!-- Speaker header -->
   <div class="flex items-center gap-3.5 mb-6">
-    <span class="w-12 h-12 rounded-md bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[18px] font-semibold shrink-0">{{initials $user.Name}}</span>
+    <span class="w-12 h-12 rounded-md text-[#0d1117] inline-flex items-center justify-center mono text-[18px] font-semibold shrink-0" style="background-color:{{avatarColor $user.Name}}">{{initials $user.Name}}</span>
     <div class="flex-1 min-w-0">
       <div class="flex items-center gap-2.5">
         <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">{{$user.Name}}</h1>

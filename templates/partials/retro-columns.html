@@ -112,7 +112,7 @@
     {{if $isAction}}
     {{if $card.OwnerName}}
     <span class="inline-flex items-center gap-1.5">
-      <span class="w-5 h-5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold">{{initials $card.OwnerName}}</span>
+      <span class="w-5 h-5 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold" style="background-color:{{avatarColor $card.OwnerName}}">{{initials $card.OwnerName}}</span>
       <span class="text-[13px] text-base-700">owner</span>
     </span>
     {{else if not $closed}}

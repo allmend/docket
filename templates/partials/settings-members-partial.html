@@ -35,7 +35,7 @@
     <div class="grid grid-cols-[1fr_140px_40px] items-center gap-3 px-4 h-14 border-b border-base-300 hover:bg-base-250/30">
       <!-- Identity -->
       <div class="flex items-center gap-3 min-w-0">
-        <span class="w-8 h-8 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0">{{initials .Name}}</span>
+        <span class="w-8 h-8 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
         <div class="min-w-0">
           <div class="text-[14px] text-base-950 truncate">
             {{.Name}}

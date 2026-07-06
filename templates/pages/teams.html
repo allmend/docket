@@ -109,7 +109,7 @@
         <!-- Member avatar stack -->
         <span class="inline-flex items-center -space-x-1.5">
           {{range $members}}
-          <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold ring-1 ring-base-200">{{initials .Name}}</span>
+          <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold ring-1 ring-base-200" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
           {{end}}
           {{if not $members}}<span class="mono text-[13px] text-base-600">no members</span>{{end}}
         </span>

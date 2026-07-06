@@ -7,7 +7,7 @@
         hx-swap="outerHTML"
         hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
         class="w-full flex items-center gap-2 px-2 py-1.5 text-[13px] text-base-900 hover:bg-base-300 rounded">
-  <span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold shrink-0">{{initials .Name}}</span>
+  <span class="w-4 h-4 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold shrink-0" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
   <span class="truncate">{{.Name}}</span>
   <span class="mono text-[12px] text-base-600 shrink-0">{{.Username}}</span>
 </button>

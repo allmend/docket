@@ -1,6 +1,7 @@
 package api
 
 import (
+	"regexp"
 	"testing"
 	"time"
 )
@@ -136,5 +137,35 @@ func TestDict(t *testing.T) {
 	}
 	if _, err := dict(1, "x"); err == nil {
 		t.Error("dict with non-string key should error")
+	}
+}
+
+func TestAvatarColor(t *testing.T) {
+	hexRe := regexp.MustCompile(`^#[0-9a-f]{6}$`)
+
+	// Whitespace/case normalisation (also covers determinism).
+	if avatarColor("  john   smith ") != avatarColor("John Smith") {
+		t.Error("avatarColor should normalise whitespace and case")
+	}
+
+	names := []string{
+		"John Smith", "Jane Smith", "John Smyth",
+		"Ludwig van Beethoven", "David H. Letterman", "Anders",
+	}
+	seen := map[string]string{}
+	for _, n := range names {
+		c := avatarColor(n)
+		if !hexRe.MatchString(c) {
+			t.Errorf("avatarColor(%q) = %q, not a #rrggbb hex color", n, c)
+		}
+		if prev, dup := seen[c]; dup {
+			t.Errorf("avatarColor collision: %q and %q both map to %s", prev, n, c)
+		}
+		seen[c] = n
+	}
+
+	// Empty name falls back to a fixed color rather than erroring.
+	if !hexRe.MatchString(avatarColor("")) {
+		t.Error("avatarColor(\"\") should return a valid hex fallback")
 	}
 }

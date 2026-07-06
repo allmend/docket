@@ -10,7 +10,7 @@
   <div class="space-y-2">
     {{range .Capacity.Members}}
     <div class="flex items-center gap-3">
-      <span class="w-5 h-5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold shrink-0">{{initials .Name}}</span>
+      <span class="w-5 h-5 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold shrink-0" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
       <span class="text-[13px] text-base-900 flex-1 truncate">{{.Name}}</span>
       <input type="number" min="0" max="100" value="{{.FocusPct}}"
              hx-put="/boards/{{$.BoardID}}/sprints/{{$sp.ID}}/capacity/{{.UserID}}"

@@ -124,8 +124,8 @@
         </span>
 
         <!-- Avatar -->
-        <span class="w-8 h-8 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0"
-              :class="speakerIdx !== {{$i}} && !spokenIdxs.includes({{$i}}) ? 'opacity-60' : ''">{{initials $user.Name}}</span>
+        <span class="w-8 h-8 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0"
+              :class="speakerIdx !== {{$i}} && !spokenIdxs.includes({{$i}}) ? 'opacity-60' : ''" style="background-color:{{avatarColor $user.Name}}">{{initials $user.Name}}</span>
 
         <!-- Name + detail -->
         <div class="min-w-0 flex-1">

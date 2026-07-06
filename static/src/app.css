@@ -75,6 +75,18 @@ pre .pre-head .fdot {
   border-radius: 2px;
   flex: none;
 }
+/* Editable language label in the rich editor's code block header. The head
+   is user-select:none / contenteditable=false; the label opts back in. */
+.rich-visual pre .pre-head .lang {
+  display: inline-block;
+  min-width: 3ch;
+  outline: none;
+  user-select: text;
+}
+.rich-visual pre .pre-head .lang:empty::before {
+  content: "lang";
+  opacity: 0.45;
+}
 
 /* Inline code: orange-tinted, distinct from ticket IDs (emerald) */
 .prose :not(pre) > code {

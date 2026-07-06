@@ -9,20 +9,29 @@
 
 {{define "content"}}
 {{$team := .Team}}
+{{$tab := .Tab}}
 <div class="flex-1 overflow-y-auto">
-  <div class="max-w-[960px] mx-auto px-8 py-6">
+  <div class="max-w-[1100px] mx-auto px-8 py-6">
 
-    <div class="flex gap-8">
-      <!-- Settings nav -->
-      <nav class="w-44 shrink-0 space-y-0.5">
+    {{if $team}}
+    <div class="mb-6">
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">{{$team.Name}}</div>
+      <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950 mt-0.5">Workspace settings</h1>
+    </div>
+    {{end}}
+
+    <div class="grid grid-cols-[180px_1fr] gap-8 items-start">
+      <!-- Settings sub-nav -->
+      <nav class="space-y-0.5 sticky top-0">
         {{if $team}}
-        <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 px-3 mb-2">Workspace</div>
-        <a class="block px-3 py-1.5 rounded text-[14px] text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px] cursor-pointer">Members</a>
-        <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Sprint defaults</a>
+        <a href="?tab=general" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "general"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">General</a>
+        <a href="?" class="block px-3 py-1.5 rounded text-[14px] {{if or (eq $tab "") (eq $tab "members")}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Members</a>
+        <a href="?tab=tracks" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "tracks"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Tracks</a>
+        <a href="?tab=sprint" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "sprint"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Sprint defaults</a>
         <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Integrations</a>
         <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Notifications</a>
-        <div class="h-px bg-base-300 my-1.5 mx-3"></div>
-        <a class="block px-3 py-1.5 rounded text-[14px] text-base-700 hover:text-base-900 hover:bg-base-200 cursor-pointer">Danger zone</a>
+        <div class="h-px bg-base-300 my-2 mx-3"></div>
+        <a href="?tab=danger" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "danger"}}text-danger bg-danger/10 border-l-2 border-danger -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Danger zone</a>
         {{else}}
         <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 px-3 mb-2">Account</div>
         <a href="?tab=tokens" class="block px-3 py-1.5 rounded text-[14px] {{if eq .Tab "tokens"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">API tokens</a>
@@ -34,34 +43,83 @@
       </nav>
 
       <!-- Content panel -->
-      <div class="flex-1 min-w-0">
+      <div class="min-w-0">
 
         {{if $team}}
-        {{/* Team settings: members */}}
-        <div class="flex items-end justify-between mb-4">
-          <div>
-            <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">Members</h2>
-            {{if .Members}}<div class="mono text-[14px] text-base-700 mt-0.5">{{len .Members}} people</div>{{end}}
-          </div>
-          <div class="flex items-center gap-2">
-            <div x-data="{q:''}" class="relative">
-              <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 h-8 shadow-sunk w-[200px]">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0"><circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/></svg>
-                <input x-model="q"
-                       @input.debounce.300="htmx.ajax('GET','/workspaces/{{$team.Slug}}/members/search?q='+q,{target:'#member-add-results',swap:'innerHTML'})"
-                       placeholder="Add member…"
-                       class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0"/>
-              </div>
-              <div id="member-add-results" x-show="q.length>0"
-                   class="absolute top-full mt-1 left-0 w-64 bg-base-250 border border-base-350 rounded shadow-pop z-10"></div>
-            </div>
-          </div>
-        </div>
-        {{template "team-members" (dict "Team" $team "Members" .Members)}}
 
-        <!-- Danger zone -->
-        <div class="mt-8 bg-danger/5 border border-danger/30 rounded-md p-5">
-          <h3 class="text-[15px] font-semibold text-danger mb-1">Danger zone</h3>
+        {{if eq $tab "general"}}
+        {{/* ── General ── */}}
+        <div class="mb-4">
+          <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">General</h2>
+          <div class="mono text-[14px] text-base-700 mt-0.5">Name and description of this workspace</div>
+        </div>
+        <div class="bg-base-200 border border-base-300 rounded-md p-5">
+          <form hx-put="/workspaces/{{$team.Slug}}" hx-swap="none"
+                x-data="{saved:false}"
+                hx-on::after-request="if(event.detail.successful){saved=true; setTimeout(()=>saved=false, 2000)}"
+                class="space-y-4 max-w-[520px]">
+            <div>
+              <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5" for="ws-name">Name</label>
+              <input id="ws-name" type="text" name="name" value="{{$team.Name}}" required
+                     class="w-full bg-base-150 border border-base-300 rounded px-2.5 py-1.5 text-[14px] text-base-900 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk"/>
+            </div>
+            <div>
+              <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5" for="ws-desc">Description</label>
+              <input id="ws-desc" type="text" name="description" value="{{$team.Description}}"
+                     class="w-full bg-base-150 border border-base-300 rounded px-2.5 py-1.5 text-[14px] text-base-900 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk"/>
+            </div>
+            <div>
+              <div class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Ticket key</div>
+              <div class="mono text-[14px] text-base-900">{{$team.Key}} <span class="text-base-600">— tickets are numbered {{$team.Key}}-1, {{$team.Key}}-2, …</span></div>
+            </div>
+            <div class="flex items-center gap-3">
+              <button type="submit"
+                      class="h-8 px-3 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] rounded shadow-lift">Save</button>
+              <span x-show="saved" x-cloak class="mono text-[13px] text-success">saved</span>
+            </div>
+          </form>
+          <p class="text-[14px] text-base-700 mt-4 max-w-[52ch]">Renaming the workspace changes its URL slug. The ticket key never changes — existing references stay valid.</p>
+        </div>
+
+        {{else if eq $tab "tracks"}}
+        {{/* ── Tracks ── */}}
+        {{template "settings-tracks-partial" (dict "Team" $team "Tracks" .Tracks "Members" .Members)}}
+
+        {{else if eq $tab "sprint"}}
+        {{/* ── Sprint defaults ── */}}
+        <div class="mb-4">
+          <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">Sprint defaults</h2>
+          <div class="mono text-[14px] text-base-700 mt-0.5">Defaults applied when planning a new sprint</div>
+        </div>
+        <div class="bg-base-200 border border-base-300 rounded-md p-5">
+          <form hx-put="/workspaces/{{$team.Slug}}/capacity" hx-swap="none"
+                x-data="{saved:false}"
+                hx-on::after-request="if(event.detail.successful){saved=true; setTimeout(()=>saved=false, 2000)}"
+                class="flex items-end gap-3">
+            <div>
+              <label class="block mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5" for="sprint-capacity">Sprint capacity</label>
+              <div class="flex items-center gap-2">
+                <input id="sprint-capacity" type="number" name="sprint_capacity" min="1" max="999"
+                       value="{{$team.SprintCapacity}}"
+                       class="w-24 bg-base-150 border border-base-300 rounded px-2.5 py-1.5 mono text-[14px] text-base-900 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk"/>
+                <span class="mono text-[14px] text-base-700">pt / sprint</span>
+              </div>
+            </div>
+            <button type="submit"
+                    class="h-8 px-3 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] rounded shadow-lift">Save</button>
+            <span x-show="saved" x-cloak class="mono text-[13px] text-success pb-1.5">saved</span>
+          </form>
+          <p class="text-[14px] text-base-700 mt-4 max-w-[52ch]">The points the team can commit to in one sprint. Shown as the target of the committed bar on the Sprint Planning view.</p>
+        </div>
+
+        {{else if eq $tab "danger"}}
+        {{/* ── Danger zone ── */}}
+        <div class="mb-4">
+          <h2 class="text-[17px] font-semibold tracking-tightish text-danger">Danger zone</h2>
+          <div class="mono text-[14px] text-base-700 mt-0.5">Irreversible actions</div>
+        </div>
+        <div class="bg-danger/5 border border-danger/30 rounded-md p-5">
+          <h3 class="text-[15px] font-semibold text-danger mb-1">Delete workspace</h3>
           <p class="text-[14px] text-base-700 mb-4">Deleting this workspace is permanent and cannot be undone. All tickets, sprints, and retros will be lost.</p>
           <form method="POST" action="/workspaces/{{$team.Slug}}"
                 onsubmit="return confirm('Delete workspace {{$team.Name}}? This cannot be undone.')">
@@ -74,7 +132,47 @@
         </div>
 
         {{else}}
-        {{/* Org settings: tokens and members */}}
+        {{/* ── Members (default) ── */}}
+        <div x-data="{
+               filterMembers(q) {
+                 const v = q.toLowerCase();
+                 document.querySelectorAll('#team-members [data-member-row]').forEach(row => {
+                   row.style.display = (!v || row.textContent.toLowerCase().includes(v)) ? '' : 'none';
+                 });
+               }
+             }">
+          <div class="flex items-end justify-between mb-4">
+            <div>
+              <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">Members</h2>
+              {{if .Members}}<div class="mono text-[14px] text-base-700 mt-0.5">{{len .Members}} people</div>{{end}}
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 h-8 shadow-sunk w-[200px]">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0"><circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/></svg>
+                <input placeholder="Filter members…"
+                       @input="filterMembers($el.value)"
+                       class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0"/>
+              </div>
+              <div x-data="{q:''}" class="relative">
+                <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 h-8 shadow-sunk w-[200px]">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
+                  <input x-model="q"
+                         @input.debounce.300="htmx.ajax('GET','/workspaces/{{$team.Slug}}/members/search?q='+encodeURIComponent(q),{target:'#member-add-results',swap:'innerHTML'})"
+                         placeholder="Add member…"
+                         class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0"/>
+                </div>
+                <div id="member-add-results" x-show="q.length>0"
+                     class="absolute top-full mt-1 right-0 w-64 bg-base-250 border border-base-350 rounded shadow-pop z-10"></div>
+              </div>
+            </div>
+          </div>
+          {{template "team-members" (dict "Team" $team "Members" .Members)}}
+          <div class="mono text-[13px] text-base-600 mt-3">Roles: <span class="text-info">Admin</span> manages settings · <span class="text-base-800">Member</span> creates &amp; edits tickets.</div>
+        </div>
+        {{end}}
+
+        {{else}}
+        {{/* ── Org settings: tokens and members ── */}}
         {{if eq .Tab "members"}}
         <div class="flex items-end justify-between mb-4">
           <div>
@@ -84,7 +182,6 @@
         </div>
         {{template "settings-members-partial" (dict "Members" .Members "CurrentUser" .CurrentUser)}}
         {{else}}
-        <!-- Tokens (default tab) -->
         <div class="flex items-end justify-between mb-4">
           <div>
             <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">API tokens</h2>

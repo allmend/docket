@@ -6,7 +6,7 @@
         hx-vals='{"user_id":"{{.ID}}"}'
         hx-target="#team-members" hx-swap="outerHTML"
         class="w-full flex items-center gap-2 px-2.5 py-2 text-[14px] text-base-900 hover:bg-base-300 rounded">
-  <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials .Name}}</span>
+  <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
   <div class="min-w-0 flex-1 text-left">
     <div class="text-[14px] text-base-900 truncate">{{.Name}}</div>
     <div class="mono text-[12px] text-base-600 truncate">{{.Username}}</div>

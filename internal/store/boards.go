@@ -179,24 +179,59 @@ func (s *Store) ListTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model
 	return tags, rows.Err()
 }
 
-func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color string) (*model.Tag, error) {
+func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
 	var t model.Tag
 	err := s.primary.QueryRow(ctx,
-		`INSERT INTO tags (org_id, board_id, name, color) VALUES ($1, $2, $3, $4)
-		 RETURNING id, org_id, board_id, name, color`,
-		orgID, boardID, name, color,
-	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color)
+		`INSERT INTO tags (org_id, board_id, name, color, description, lead_user_id)
+		 VALUES ($1, $2, $3, $4, $5, $6)
+		 RETURNING id, org_id, board_id, name, color, description, lead_user_id`,
+		orgID, boardID, name, color, description, leadUserID,
+	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color, &t.Description, &t.LeadUserID)
 	return &t, err
 }
 
-func (s *Store) UpdateTag(ctx context.Context, orgID, tagID uuid.UUID, name, color string) (*model.Tag, error) {
+func (s *Store) UpdateTag(ctx context.Context, orgID, tagID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
 	var t model.Tag
 	err := s.primary.QueryRow(ctx,
-		`UPDATE tags SET name = $3, color = $4 WHERE org_id = $1 AND id = $2
-		 RETURNING id, org_id, board_id, name, color`,
-		orgID, tagID, name, color,
-	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color)
+		`UPDATE tags SET name = $3, color = $4, description = $5, lead_user_id = $6
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING id, org_id, board_id, name, color, description, lead_user_id`,
+		orgID, tagID, name, color, description, leadUserID,
+	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color, &t.Description, &t.LeadUserID)
 	return &t, err
+}
+
+// ListTrackStats returns the board's tags with lead names and open-ticket
+// counters for the workspace settings Tracks panel.
+func (s *Store) ListTrackStats(ctx context.Context, orgID, boardID uuid.UUID) ([]model.TrackStat, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT g.id, g.org_id, g.board_id, g.name, g.color, g.description, g.lead_user_id,
+		        COALESCE(u.name, ''),
+		        COUNT(t.id) FILTER (WHERE t.closed_at IS NULL),
+		        COALESCE(SUM(t.story_points) FILTER (WHERE t.closed_at IS NULL), 0)
+		 FROM tags g
+		 LEFT JOIN users u ON u.id = g.lead_user_id
+		 LEFT JOIN ticket_tags tt ON tt.tag_id = g.id
+		 LEFT JOIN tickets t ON t.id = tt.ticket_id
+		 WHERE g.org_id = $1 AND g.board_id = $2
+		 GROUP BY g.id, u.name
+		 ORDER BY g.name`,
+		orgID, boardID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []model.TrackStat
+	for rows.Next() {
+		var ts model.TrackStat
+		if err := rows.Scan(&ts.ID, &ts.OrgID, &ts.BoardID, &ts.Name, &ts.Color, &ts.Description, &ts.LeadUserID,
+			&ts.LeadName, &ts.OpenCount, &ts.OpenPoints); err != nil {
+			return nil, err
+		}
+		out = append(out, ts)
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) DeleteTag(ctx context.Context, orgID, tagID uuid.UUID) error {

@@ -14,7 +14,8 @@ type Team struct {
 	Key           string    `json:"key"`  // e.g. "ENG", "BE" — ticket prefix
 	Slug          string    `json:"slug"` // URL-safe identifier, e.g. "backend-engineering"
 	Description   string    `json:"description"`
-	TicketCounter int       `json:"ticket_counter"`
+	TicketCounter  int      `json:"ticket_counter"`
+	SprintCapacity int      `json:"sprint_capacity"` // story points per sprint, denominator of the planning committed bar
 	CreatedBy     uuid.UUID `json:"created_by"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`
@@ -72,11 +73,22 @@ type Column struct {
 }
 
 type Tag struct {
-	ID      uuid.UUID `json:"id"`
-	OrgID   uuid.UUID `json:"org_id"`
-	BoardID uuid.UUID `json:"board_id"`
-	Name    string    `json:"name"`
-	Color   string    `json:"color"`
+	ID          uuid.UUID  `json:"id"`
+	OrgID       uuid.UUID  `json:"org_id"`
+	BoardID     uuid.UUID  `json:"board_id"`
+	Name        string     `json:"name"`
+	Color       string     `json:"color"`
+	Description string     `json:"description"`
+	LeadUserID  *uuid.UUID `json:"lead_user_id"` // optional track lead
+}
+
+// TrackStat is a tag with its lead and open-work counters, for the
+// workspace settings Tracks panel.
+type TrackStat struct {
+	Tag
+	LeadName   string
+	OpenCount  int
+	OpenPoints float64
 }
 
 type SprintStatus string
@@ -167,6 +179,7 @@ type BoardView struct {
 	UnestimatedCount    int                  // backlog tickets with no story points
 	FirstColumnID       uuid.UUID            // first column's ID — used by New Ticket button
 	ActiveSprintSection *ActiveSprintSection // backlog page: active sprint tickets grouped by column
+	BoardTags           []Tag                // all board labels/tracks — used by the board filter
 }
 
 // ActiveSprintSection is the active sprint shown above the backlog list.

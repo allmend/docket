@@ -91,6 +91,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 	if len(cols) > 0 {
 		view.FirstColumnID = cols[0].ID
 	}
+	view.BoardTags, _ = s.store.ListTags(ctx, orgID, boardID)
 
 	if board.Mode == model.BoardModeScrum {
 		// Load all sprints for sidebar/header display.
@@ -481,8 +482,16 @@ func (s *BoardService) ListTicketsByTag(ctx context.Context, orgID, tagID uuid.U
 	return s.store.ListTicketsByTag(ctx, orgID, tagID)
 }
 
-func (s *BoardService) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color string) (*model.Tag, error) {
-	return s.store.CreateTag(ctx, orgID, boardID, name, color)
+func (s *BoardService) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
+	return s.store.CreateTag(ctx, orgID, boardID, name, color, description, leadUserID)
+}
+
+func (s *BoardService) UpdateTag(ctx context.Context, orgID, tagID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
+	return s.store.UpdateTag(ctx, orgID, tagID, name, color, description, leadUserID)
+}
+
+func (s *BoardService) ListTrackStats(ctx context.Context, orgID, boardID uuid.UUID) ([]model.TrackStat, error) {
+	return s.store.ListTrackStats(ctx, orgID, boardID)
 }
 
 func (s *BoardService) DeleteTag(ctx context.Context, orgID, tagID uuid.UUID) error {

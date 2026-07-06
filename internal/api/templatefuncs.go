@@ -2,7 +2,9 @@ package api
 
 import (
 	"fmt"
+	"hash/fnv"
 	"html/template"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -29,6 +31,7 @@ func templateFuncs() template.FuncMap {
 		"isToday":     isToday,
 		"formatDate":  func(t time.Time) string { return t.Format("Monday, 2 Jan 2006") },
 		"hashColor":   hashColor,
+		"avatarColor": avatarColor,
 		"timeAgo":     timeAgo,
 		"dict":        dict,
 
@@ -143,6 +146,55 @@ func isToday(t time.Time) bool {
 	y, m, d := t.Date()
 	yn, mn, dn := n.Date()
 	return y == yn && m == mn && d == dn
+}
+
+// avatarColor derives a stable per-user avatar color from a display name.
+// The hue mixes hashes of the full name, the initials, and the number of
+// name parts so similar names still land on different colors. Saturation
+// and lightness stay in a band where the dark avatar text remains readable.
+func avatarColor(name string) string {
+	n := strings.Join(strings.Fields(strings.ToLower(name)), " ")
+	if n == "" {
+		return "#8957e5"
+	}
+	full := fnvHash(n)
+	ini := fnvHash(strings.ToLower(initials(name)))
+	parts := uint32(len(strings.Fields(name)))
+	hue := float64((full + ini*131 + parts*977) % 360)
+	sat := 0.52 + float64((full>>9)%18)/100  // 0.52–0.69
+	lig := 0.60 + float64((full>>17)%12)/100 // 0.60–0.71
+	r, g, b := hslToRGB(hue, sat, lig)
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+func fnvHash(s string) uint32 {
+	h := fnv.New32a()
+	h.Write([]byte(s))
+	return h.Sum32()
+}
+
+// hslToRGB converts hue [0,360), saturation and lightness [0,1] to 8-bit RGB.
+func hslToRGB(h, s, l float64) (uint8, uint8, uint8) {
+	c := (1 - math.Abs(2*l-1)) * s
+	hp := h / 60
+	x := c * (1 - math.Abs(math.Mod(hp, 2)-1))
+	var r, g, b float64
+	switch {
+	case hp < 1:
+		r, g, b = c, x, 0
+	case hp < 2:
+		r, g, b = x, c, 0
+	case hp < 3:
+		r, g, b = 0, c, x
+	case hp < 4:
+		r, g, b = 0, x, c
+	case hp < 5:
+		r, g, b = x, 0, c
+	default:
+		r, g, b = c, 0, x
+	}
+	m := l - c/2
+	return uint8((r + m) * 255), uint8((g + m) * 255), uint8((b + m) * 255)
 }
 
 // hashColor picks a stable avatar color for a name from a fixed palette.

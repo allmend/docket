@@ -3,31 +3,16 @@
 {{$closed := .Ticket.ClosedAt}}
 <div id="ticket-body" class="space-y-4">
 
-  <!-- Title -->
-  <div id="ticket-title-section">
-    {{if not $closed}}
-    <h3 id="ticket-title"
-        hx-get="/tickets/{{$t.ID}}/edit"
-        hx-target="#ticket-body"
-        hx-swap="outerHTML"
-        class="text-[22px] leading-8 font-semibold tracking-tightish text-base-950 cursor-pointer hover:text-primary-400 transition-colors">{{$t.Title}}</h3>
-    {{else}}
-    <h3 class="text-[22px] leading-8 font-semibold tracking-tightish text-base-900">{{$t.Title}}</h3>
-    {{end}}
-    <div class="mono text-[13px] text-base-600 mt-1 flex items-center gap-2">
-      <span>{{timeAgo $t.CreatedAt}}</span>
-      <span>·</span>
-      <span>updated {{timeAgo $t.UpdatedAt}}</span>
-    </div>
-  </div>
+  <!-- Title (inline edit, separate from description) -->
+  {{template "ticket-title-section" $t}}
 
   <!-- Body / Description -->
   <section id="ticket-body-section" class="space-y-2">
     <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Description</div>
     {{if not $closed}}
     <div class="prose prose-sm prose-invert max-w-none text-[15px] leading-[22px] text-base-800 [&_a]:text-primary-400 [&_a]:hover:underline cursor-pointer hover:bg-base-200/40 rounded px-2 py-1.5 -mx-2 transition-colors min-h-[3em]"
-         hx-get="/tickets/{{$t.ID}}/edit"
-         hx-target="#ticket-body"
+         hx-get="/tickets/{{$t.ID}}/body/edit"
+         hx-target="#ticket-body-section"
          hx-swap="outerHTML">
       {{if $t.Body}}{{$t.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">Click to add a description…</span>{{end}}
     </div>

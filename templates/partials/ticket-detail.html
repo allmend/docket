@@ -10,7 +10,7 @@
   <header class="shrink-0 h-12 px-4 flex items-center gap-3 border-b border-base-300">
     <div class="flex items-center gap-2">
       {{if .Tags}}<span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{(index .Tags 0).Color}}"></span>{{end}}
-      <span class="mono text-[13px] text-primary-400">{{$t.DisplayID}}</span>
+      <a href="/tickets/{{$t.DisplayID}}" class="mono text-[13px] text-primary-400 hover:underline">{{$t.DisplayID}}</a>
     </div>
     {{range .Columns}}{{if eq .ID $t.ColumnID}}
     {{$col := lower .Name}}
@@ -26,7 +26,7 @@
     <span class="mono text-[13px] text-base-600">opened {{timeAgo $t.CreatedAt}}{{if $t.CreatedByName}} by{{end}}</span>
     {{if $t.CreatedByName}}
     <span class="inline-flex items-center gap-1.5 mono text-[13px] text-base-800 shrink-0">
-      <span class="w-3.5 h-3.5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center text-[9px] font-semibold">{{initials $t.CreatedByName}}</span>
+      <span class="w-3.5 h-3.5 rounded-sm text-[#0d1117] inline-flex items-center justify-center text-[9px] font-semibold" style="background-color:{{avatarColor $t.CreatedByName}}">{{initials $t.CreatedByName}}</span>
       {{$t.CreatedByName}}
     </span>
     {{end}}
@@ -93,6 +93,7 @@
             {{else if eq .Field "comment"}}commented
             {{else if eq .Field "link_added"}}linked <span class="mono text-base-900">{{.NewValue}}</span>
             {{else if eq .Field "link_removed"}}removed link to <span class="mono text-base-900">{{.OldValue}}</span>
+            {{else if eq .Field "link_cleared"}}cleared link <span class="mono text-base-900">{{.OldValue}}</span> — blocker resolved
             {{else}}{{.Field}}: {{.NewValue}}
             {{end}}
             <span class="ml-auto mono text-[12px] text-base-600 shrink-0">{{timeAgo .CreatedAt}}</span>

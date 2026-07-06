@@ -133,6 +133,44 @@ func (s *Store) ListBlockingLinksForDoneTickets(ctx context.Context, orgID, spri
 	return links, rows.Err()
 }
 
+// ListBlockingLinksFromTicket returns "blocks" links originating from the given
+// ticket, so callers can record history before clearing them on close.
+func (s *Store) ListBlockingLinksFromTicket(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.TicketLink, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT `+linkCols+linkJoins+`
+		 WHERE tl.org_id = $1
+		   AND tl.relation_type = 'blocks'
+		   AND tl.from_ticket_id = $2`,
+		orgID, ticketID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var links []model.TicketLink
+	for rows.Next() {
+		var l model.TicketLink
+		if err := scanLink(rows, &l); err != nil {
+			return nil, err
+		}
+		links = append(links, l)
+	}
+	return links, rows.Err()
+}
+
+// DeleteBlockingLinksFromTicket removes "blocks" links originating from the given
+// ticket. Called when the ticket closes so the tickets it blocked become unblocked.
+func (s *Store) DeleteBlockingLinksFromTicket(ctx context.Context, orgID, ticketID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`DELETE FROM ticket_links
+		 WHERE org_id = $1
+		   AND relation_type = 'blocks'
+		   AND from_ticket_id = $2`,
+		orgID, ticketID,
+	)
+	return err
+}
+
 // ClearBlockingLinksForDoneTickets removes "blocks" links where the blocker ticket
 // is in a Done column of the given sprint. Called on sprint close so that tickets
 // resolved within the sprint no longer block others going into the next sprint.

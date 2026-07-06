@@ -3,7 +3,7 @@
 {{$closed := false}}{{if $t}}{{if $t.ClosedAt}}{{$closed = true}}{{end}}{{end}}
 <div id="ticket-tags">
   <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Tracks</div>
-  <div class="flex flex-wrap gap-1.5">
+  <div class="flex flex-wrap items-center gap-1.5">
     {{range .Tags}}
     <span class="inline-flex items-center gap-1.5 h-5 px-1.5 rounded-sm bg-base-250 border border-base-350 text-[13px] text-base-800 group">
       <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
@@ -17,14 +17,21 @@
     </span>
     {{end}}
     {{if and (not $closed) .BoardTags}}
-    <div x-data="{open:false}" class="relative">
-      <button @click="open=!open"
+    {{/* Fixed-position popup — see ticket-assignees.html for the pattern rationale. */}}
+    <div x-data="{open:false, pos:{top:0,left:0}}" class="flex" @close-popups.window="open=false">
+      {{/* Handler must start with `let` — see ticket-assignees.html. */}}
+      <button @click="let was=open; window.dispatchEvent(new CustomEvent('close-popups'));
+                      if(!was){ let r=$el.getBoundingClientRect();
+                        pos={top:r.bottom+4, left:Math.max(8, Math.min(r.left, window.innerWidth-148))};
+                        open=true }"
               class="inline-flex items-center gap-1 h-5 px-1.5 rounded-sm border border-dashed border-base-500 mono text-[13px] text-base-600 hover:text-base-900 hover:border-base-400">
         <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
         Add
       </button>
-      <div x-show="open" @click.outside="open=false"
-           class="absolute top-full mt-1 left-0 min-w-[140px] bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1">
+      {{/* Object-form :style — see ticket-assignees.html. */}}
+      <div x-show="open" x-cloak @click.outside="open=false" data-popup
+           :style="{top: pos.top+'px', left: pos.left+'px'}"
+           class="fixed min-w-[140px] bg-base-250 border border-base-350 rounded shadow-pop z-[60] py-1">
         {{range .BoardTags}}
         <button type="button"
                 hx-post="/tickets/{{$t.ID}}/tags"

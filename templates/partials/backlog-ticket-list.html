@@ -71,7 +71,7 @@
         <span class="rank-label mono text-[13px] text-base-600 w-5 text-right shrink-0 select-none">{{$i}}</span>
 
         <!-- ID -->
-        <span class="mono text-[13px] text-primary-400 w-[72px] shrink-0">{{.DisplayID}}</span>
+        <a href="/tickets/{{.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] text-primary-400 w-[72px] shrink-0 hover:underline">{{.DisplayID}}</a>
 
         <!-- Title -->
         <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
@@ -114,7 +114,7 @@
         <template x-if="!refineMode">
           {{if .Assignees}}
           {{$a := index .Assignees 0}}
-          <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials $a.Name}}</span>
+          <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0" style="background-color:{{avatarColor $a.Name}}">{{initials $a.Name}}</span>
           {{else}}
           <span class="w-6 h-6 rounded-sm border border-dashed border-base-500 shrink-0"></span>
           {{end}}
@@ -146,7 +146,7 @@
         <span class="w-1.5 h-1.5 rounded-full shrink-0 {{if $ready}}bg-primary-500{{else}}bg-warn{{end}}"
               title="{{if $ready}}estimated{{else}}needs estimate{{end}}"></span>
         <div class="min-w-0 flex-1">
-          <div class="mono text-[12px] text-primary-400">{{.DisplayID}}</div>
+          <div class="mono text-[12px] text-primary-400"><a href="/tickets/{{.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="hover:underline">{{.DisplayID}}</a></div>
           <div class="text-[13px] truncate {{if $ready}}text-base-700{{else}}text-base-900{{end}}">{{.Title}}</div>
         </div>
       </div>

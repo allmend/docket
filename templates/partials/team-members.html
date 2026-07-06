@@ -2,18 +2,26 @@
 {{$team := .Team}}
 <div id="team-members" class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
   {{if .Members}}
-  <div class="grid grid-cols-[1fr_80px] gap-3 px-4 h-9 items-center bg-base-250/40 border-b border-base-300">
+  <div class="grid grid-cols-[1fr_140px_80px] gap-3 px-4 h-9 items-center bg-base-250/40 border-b border-base-300">
     <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">member</span>
+    <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">role</span>
     <span></span>
   </div>
   {{range .Members}}
-  <div class="grid grid-cols-[1fr_80px] items-center gap-3 px-4 h-12 border-b border-base-300 hover:bg-base-250/30">
+  <div data-member-row class="grid grid-cols-[1fr_140px_80px] items-center gap-3 px-4 h-14 border-b border-base-300 last:border-b-0 hover:bg-base-250/30">
     <div class="flex items-center gap-3 min-w-0">
-      <span class="w-7 h-7 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[12px] font-semibold shrink-0">{{initials .Name}}</span>
+      <span class="w-8 h-8 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
       <div class="min-w-0">
         <div class="text-[14px] text-base-950 truncate">{{.Name}}</div>
-        <div class="mono text-[12px] text-base-600 truncate">{{.Username}}</div>
+        <div class="mono text-[13px] text-base-600 truncate">{{if .Email}}{{.Email}}{{else}}{{.Username}}{{end}}</div>
       </div>
+    </div>
+    <div>
+      {{if eq .Role "admin"}}
+      <span class="inline-flex items-center h-7 px-2.5 rounded-md border bg-info/15 border-info/30 text-info text-[13px]">Admin</span>
+      {{else}}
+      <span class="inline-flex items-center h-7 px-2.5 rounded-md border bg-base-250 border-base-350 text-base-800 text-[13px]">Member</span>
+      {{end}}
     </div>
     <div class="text-right">
       <button hx-delete="/workspaces/{{$team.Slug}}/members/{{.ID}}"

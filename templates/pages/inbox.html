@@ -54,7 +54,8 @@
          class="flex gap-3 px-4 py-3 border-b border-base-300 hover:bg-base-250/40 cursor-pointer
            {{if not .IsRead}}bg-info/5 border-l-2 border-info pl-[14px] -ml-[2px]{{end}}">
         <!-- Actor avatar -->
-        <span class="w-7 h-7 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[12px] font-semibold shrink-0">
+        <span class="w-7 h-7 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[12px] font-semibold shrink-0"
+              style="background-color:{{if .ActorName}}{{avatarColor .ActorName}}{{else}}#8957e5{{end}}">
           {{if .ActorName}}{{initials .ActorName}}{{else}}?{{end}}
         </span>
         <!-- Content -->

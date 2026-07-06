@@ -2,6 +2,9 @@
 .env
 docket
 tmp/
+.tmp/
+TODO
+TODOnext
 static/dist/*.js
 static/dist/*.css
 node_modules/

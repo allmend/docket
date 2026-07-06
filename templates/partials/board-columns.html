@@ -57,10 +57,29 @@
                 <template x-for="name in boardAssignees()" :key="name">
                   <button @click="toggleAssignee(name)"
                           :class="filterAssignees.includes(name) ? 'bg-base-300 text-base-950' : 'text-base-600 hover:text-base-900'"
-                          class="px-1.5 py-0.5 rounded text-[13px]" x-text="name"></button>
+                          class="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[13px]">
+                    <span class="w-2 h-2 rounded-sm shrink-0" :style="'background-color:'+window.avatarColor(name)"></span>
+                    <span x-text="name"></span>
+                  </button>
                 </template>
               </div>
             </div>
+            {{if $.BoardTags}}
+            <div>
+              <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Tracks</div>
+              <div class="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
+                {{range $.BoardTags}}
+                <button data-track="{{.Name}}"
+                        @click="toggleTrack($el.dataset.track)"
+                        :class="filterTracks.includes($el.dataset.track) ? 'bg-base-300 text-base-950' : 'text-base-600 hover:text-base-900'"
+                        class="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[13px]">
+                  <span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span>
+                  {{.Name}}
+                </button>
+                {{end}}
+              </div>
+            </div>
+            {{end}}
             <button @click="clearFilters()" x-show="activeFilterCount()>0"
                     class="w-full text-center text-[13px] text-danger hover:text-danger/80">Clear filters</button>
           </div>
@@ -293,10 +312,11 @@
      data-priority="{{.Priority}}"
      data-points="{{if .StoryPoints}}{{deref .StoryPoints}}{{else}}0{{end}}"
      data-assignees="{{range .Assignees}}{{.Name}}|{{end}}"
+     data-tracks="{{range .Tags}}{{.Name}}|{{end}}"
      data-created-unix="{{.CreatedAt.Unix}}">
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-1.5">
-      <span class="mono text-[12px] text-primary-400">{{.DisplayID}}</span>
+      <a href="/tickets/{{.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[12px] text-primary-400 hover:underline">{{.DisplayID}}</a>
     </div>
     <div class="flex items-center gap-1">
       <span class="w-1 h-2.5 rounded-sm {{priorityColor .Priority.String}}"></span>
@@ -315,7 +335,7 @@
       {{else}}<span class="mono text-[12px] text-warn">— pt</span>{{end}}
       {{$as := .Assignees}}
       <div class="flex -space-x-1">
-        {{if $as}}{{range $as}}<span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials .Name}}</span>{{end}}
+        {{if $as}}{{range $as}}<span class="w-4 h-4 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>{{end}}
         {{else}}<span class="w-4 h-4 rounded-sm border border-dashed border-base-500"></span>{{end}}
       </div>
     </div>

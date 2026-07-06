@@ -26,7 +26,7 @@
   <div>
     <!-- Assignee header -->
     <div class="flex items-center gap-3 mb-3">
-      <span class="w-8 h-8 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0">{{initials $user.Name}}</span>
+      <span class="w-8 h-8 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0" style="background-color:{{avatarColor $user.Name}}">{{initials $user.Name}}</span>
       <div>
         <div class="text-[15px] font-medium text-base-950">{{$user.Name}}</div>
         <div class="mono text-[13px] text-base-600">{{len .Tickets}} tickets</div>
@@ -42,7 +42,7 @@
            hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span class="mono text-[13px] text-primary-400">{{.Ticket.DisplayID}}</span>
+            <a href="/tickets/{{.Ticket.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] text-primary-400 hover:underline">{{.Ticket.DisplayID}}</a>
             {{if .Ticket.Priority.String}}
             <span class="inline-flex items-center gap-1">
               <span class="w-1 h-2.5 rounded-sm {{priorityColor .Ticket.Priority.String}}"></span>
@@ -109,7 +109,7 @@
            hx-target="#modal-body" hx-swap="innerHTML"
            hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
         <div class="flex items-center justify-between">
-          <span class="mono text-[13px] text-primary-400">{{.Ticket.DisplayID}}</span>
+          <a href="/tickets/{{.Ticket.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] text-primary-400 hover:underline">{{.Ticket.DisplayID}}</a>
           <span class="inline-flex items-center px-1.5 h-5 rounded-sm mono text-[12px] uppercase tracking-wider shrink-0
             {{if contains $col "progress"}}bg-info/15 border border-info/30 text-info
             {{else if contains $col "review"}}bg-warn/15 border border-warn/30 text-warn

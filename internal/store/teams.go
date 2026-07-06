@@ -8,10 +8,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const teamCols = `id, org_id, name, key, slug, description, ticket_counter, created_by, created_at, updated_at`
+const teamCols = `id, org_id, name, key, slug, description, ticket_counter, sprint_capacity, created_by, created_at, updated_at`
 
 func scanTeam(row interface{ Scan(...any) error }, t *model.Team) error {
-	return row.Scan(&t.ID, &t.OrgID, &t.Name, &t.Key, &t.Slug, &t.Description, &t.TicketCounter, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
+	return row.Scan(&t.ID, &t.OrgID, &t.Name, &t.Key, &t.Slug, &t.Description, &t.TicketCounter, &t.SprintCapacity, &t.CreatedBy, &t.CreatedAt, &t.UpdatedAt)
 }
 
 func (s *Store) ListTeams(ctx context.Context, orgID uuid.UUID) ([]model.Team, error) {
@@ -91,6 +91,17 @@ func (s *Store) UpdateTeam(ctx context.Context, orgID, teamID uuid.UUID, name, s
 		 WHERE org_id = $1 AND id = $2
 		 RETURNING `+teamCols,
 		orgID, teamID, name, slug, description,
+	), &t)
+	return &t, err
+}
+
+func (s *Store) UpdateTeamCapacity(ctx context.Context, orgID, teamID uuid.UUID, capacity int) (*model.Team, error) {
+	var t model.Team
+	err := scanTeam(s.primary.QueryRow(ctx,
+		`UPDATE teams SET sprint_capacity = $3, updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING `+teamCols,
+		orgID, teamID, capacity,
 	), &t)
 	return &t, err
 }

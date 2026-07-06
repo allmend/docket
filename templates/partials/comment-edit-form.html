@@ -6,7 +6,7 @@
         class="space-y-2">
     {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Edit comment… (@username, #TICKET-ID)" "Rows" "3")}}
     <div class="flex items-center gap-2 justify-end">
-      <button type="button"
+      <button type="button" data-esc-cancel
               hx-get="/comments/{{.ID}}/view"
               hx-target="#comment-{{.ID}}"
               hx-swap="outerHTML"

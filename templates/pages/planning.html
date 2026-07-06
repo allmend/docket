@@ -17,17 +17,28 @@
   <div class="shrink-0 border-b border-base-300 bg-base-200">
     <div class="px-6 py-5 flex items-start gap-8 flex-wrap"
          x-data="{
-           dur: '{{if and .StartDate .EndDate}}{{if le (daysBetween .StartDate .EndDate) 9}}1w{{else if ge (daysBetween .StartDate .EndDate) 18}}3w{{else}}2w{{end}}{{else}}2w{{end}}',
-           get weeks() { return this.dur === '1w' ? 1 : this.dur === '3w' ? 3 : 2 },
-           get startISO() { return new Date().toISOString().split('T')[0] },
-           get endISO() {
-             const d = new Date();
-             d.setDate(d.getDate() + this.weeks * 7);
-             return d.toISOString().split('T')[0];
+           open: false,
+           start: '{{if .StartDate}}{{.StartDate.Format "2006-01-02"}}{{end}}',
+           end: '{{if .EndDate}}{{.EndDate.Format "2006-01-02"}}{{end}}',
+           weeks: 0,
+           init() {
+             if (!this.start) this.start = this.toISO(new Date());
+             if (this.end) this.syncWeeks(); else this.setWeeks(2);
            },
-           fmtDate(iso) {
-             return new Date(iso).toLocaleDateString('en-GB', {day:'numeric', month:'short'});
-           }
+           parse(iso) { const [y,m,d] = iso.split('-').map(Number); return new Date(y, m-1, d); },
+           toISO(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); },
+           fmtDate(iso) { return iso ? this.parse(iso).toLocaleDateString('en-GB', {day:'numeric', month:'short'}) : ''; },
+           setWeeks(w) {
+             this.weeks = w;
+             const e = this.parse(this.start);
+             e.setDate(e.getDate() + w * 7 - 1);
+             this.end = this.toISO(e);
+           },
+           syncWeeks() {
+             const days = Math.round((this.parse(this.end) - this.parse(this.start)) / 86400000);
+             this.weeks = days === 6 ? 1 : days === 13 ? 2 : days === 20 ? 3 : 0;
+           },
+           startChanged() { if (this.weeks > 0) this.setWeeks(this.weeks); else this.syncWeeks(); }
          }">
 
       <!-- Name + goal -->
@@ -38,8 +49,8 @@
         </div>
         <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}" class="space-y-1">
           <input type="hidden" name="_method" value="PUT">
-          <input type="hidden" name="start_date" :value="startISO">
-          <input type="hidden" name="end_date" :value="endISO">
+          <input type="hidden" name="start_date" :value="start">
+          <input type="hidden" name="end_date" :value="end">
           <input name="name" placeholder="Sprint name…"
                  class="block w-full max-w-[460px] bg-transparent border border-base-300 rounded px-3 py-0.5 text-[22px] font-semibold tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
           <input name="goal" placeholder="Sprint goal — what will we ship?"
@@ -48,50 +59,59 @@
         </form>
       </div>
 
-      <!-- Duration picker -->
-      <div class="shrink-0">
+      <!-- Duration picker: trigger button + popover (start date · length presets · end date) -->
+      <div class="shrink-0 relative">
         <div class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 mb-1.5">Duration</div>
-        <div class="inline-flex items-center bg-base-250 border border-base-350 rounded-md p-0.5">
-          <button type="button" @click="dur='1w'" :class="dur==='1w' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
-                  class="h-7 px-2.5 rounded-sm mono text-[13px]">1w</button>
-          <button type="button" @click="dur='2w'" :class="dur==='2w' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
-                  class="h-7 px-2.5 rounded-sm mono text-[13px]">2w</button>
-          <button type="button" @click="dur='3w'" :class="dur==='3w' ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
-                  class="h-7 px-2.5 rounded-sm mono text-[13px]">3w</button>
+        <button type="button" @click="open=!open"
+                class="h-7 px-2.5 flex items-center gap-2 bg-base-250 border border-base-350 rounded-md text-base-950 hover:bg-base-300 mono text-[13px]">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" class="text-base-600 shrink-0" aria-hidden="true"><rect x="2.5" y="3" width="11" height="10.5" rx="1"/><path d="M2.5 6h11M5.5 2v2.5M10.5 2v2.5" stroke-linecap="round"/></svg>
+          <span x-text="fmtDate(start) + ' → ' + fmtDate(end)"></span>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" class="text-base-600 shrink-0" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <div x-show="open" x-cloak @click.outside="open=false"
+             class="absolute right-0 top-full mt-1 w-64 bg-base-200 border border-base-350 rounded-md shadow-pop p-3 z-20">
+          <div class="mono text-[12px] uppercase tracking-[0.16em] text-base-600 mb-1.5">start date</div>
+          <input type="date" x-model="start" @change="startChanged()"
+                 class="w-full h-8 px-2 bg-base-150 border border-base-300 rounded text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 mb-3" />
+
+          <div class="mono text-[12px] uppercase tracking-[0.16em] text-base-600 mb-1.5">length</div>
+          <div class="inline-flex items-center bg-base-250 border border-base-350 rounded-md p-0.5 mb-3 w-full">
+            <button type="button" @click="setWeeks(1)" :class="weeks===1 ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+                    class="flex-1 h-7 px-2.5 rounded-sm mono text-[13px]">1w</button>
+            <button type="button" @click="setWeeks(2)" :class="weeks===2 ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+                    class="flex-1 h-7 px-2.5 rounded-sm mono text-[13px]">2w</button>
+            <button type="button" @click="setWeeks(3)" :class="weeks===3 ? 'bg-base-100 text-base-950 shadow-sunk' : 'text-base-600 hover:text-base-900'"
+                    class="flex-1 h-7 px-2.5 rounded-sm mono text-[13px]">3w</button>
+          </div>
+
+          <div class="mono text-[12px] uppercase tracking-[0.16em] text-base-600 mb-1.5">end date</div>
+          <input type="date" x-model="end" @change="syncWeeks()"
+                 class="w-full h-8 px-2 bg-base-150 border border-base-300 rounded text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
         </div>
-        {{if and .StartDate .EndDate}}
-        <div class="mono text-[13px] text-base-600 mt-1.5">{{.StartDate.Format "2 Jan"}} → {{.EndDate.Format "2 Jan"}}</div>
-        {{else}}
-        <div class="mono text-[13px] text-base-600 mt-1.5" x-text="fmtDate(startISO) + ' → ' + fmtDate(endISO)"></div>
-        {{end}}
       </div>
 
-      {{/* Committed points — DISABLED pending per-team capacity.
-           The "/ N pt" denominator was the sum of all backlog points, which is
-           meaningless as a target (it just grows the bigger the backlog gets).
-           TODO: replace with a team-settable sprint capacity (default ~20 pt/sprint,
-           editable per team/sprint). Denominator = capacity; current backlog-sum is
-           wrong. See CLAUDE.md "Potential next steps → Sprint capacity in points".
-           board.js updateCommittedBar() no-ops when these data-* elements are absent.
-
-      {{$total := addf $sp.CommittedPoints $backlogPts}}
-      <div class="shrink-0 w-[200px]">
+      {{/* Committed points — denominator is the team-settable sprint capacity
+           (Workspace settings → Sprint defaults). Live-updated on drag by
+           board.js updateCommittedBar(). */}}
+      {{if $team}}
+      <div class="shrink-0 w-[200px]" data-committed-capacity="{{$team.SprintCapacity}}">
         <div class="flex items-center justify-between mb-1.5">
           <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">committed</span>
-          <span class="mono text-[13px] text-base-900"><span class="text-primary-400" data-committed-points>{{printf "%.0f" $sp.CommittedPoints}}</span><span data-committed-suffix>{{if gt $backlogPts 0}} / {{printf "%.0f" $total}} pt{{else}} pt{{end}}</span></span>
+          <span class="mono text-[13px] text-base-900"><span class="text-primary-400" data-committed-points>{{printf "%.0f" $sp.CommittedPoints}}</span> / {{$team.SprintCapacity}} pt</span>
         </div>
         <div class="h-1.5 bg-base-300 rounded-sm overflow-hidden">
-          <div class="h-full bg-primary-500" data-committed-bar style="width:{{printf "%.1f" (pctf $sp.CommittedPoints $total)}}%"></div>
+          <div class="h-full {{if gt $sp.CommittedPoints (addf $team.SprintCapacity 0)}}bg-warn{{else}}bg-primary-500{{end}}" data-committed-bar style="width:{{printf "%.1f" (pctf $sp.CommittedPoints $team.SprintCapacity)}}%"></div>
         </div>
-        <div class="mono text-[13px] text-base-600 mt-1.5" data-committed-meta>{{$sp.CommittedTickets}} tickets{{if gt $backlogPts 0}} · {{$backlogPts}} pt in backlog{{end}}</div>
+        <div class="mono text-[13px] text-base-600 mt-1.5" data-committed-meta>{{$sp.CommittedTickets}} tickets · team capacity {{$team.SprintCapacity}} pt</div>
       </div>
-      */}}
+      {{end}}
 
       <!-- Actions -->
       <div class="shrink-0 flex flex-col gap-2 self-center pt-7">
         <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}/start">
-          <input type="hidden" name="start_date" :value="startISO">
-          <input type="hidden" name="end_date" :value="endISO">
+          <input type="hidden" name="start_date" :value="start">
+          <input type="hidden" name="end_date" :value="end">
           <button type="submit"
                   class="h-8 px-4 w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">
             Start sprint

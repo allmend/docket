@@ -11,7 +11,7 @@
     {{$u := .CurrentUser}}
     <div class="bg-base-200 border border-base-300 rounded-md p-6 space-y-4">
       <div class="flex items-center gap-4">
-        <span class="w-14 h-14 rounded-md bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[22px] font-semibold shrink-0">{{initials $u.Name}}</span>
+        <span class="w-14 h-14 rounded-md text-[#0d1117] inline-flex items-center justify-center mono text-[22px] font-semibold shrink-0" style="background-color:{{avatarColor $u.Name}}">{{initials $u.Name}}</span>
         <div>
           <div class="text-[18px] font-semibold text-base-950">{{$u.Name}}</div>
           <div class="mono text-[14px] text-base-600">@{{$u.Username}}</div>

@@ -4,7 +4,39 @@ import (
 	"testing"
 
 	"github.com/allmend/docket/internal/model"
+	"github.com/google/uuid"
 )
+
+func TestRebalanceDropSlot(t *testing.T) {
+	id := func(n byte) uuid.UUID { return uuid.UUID{n} }
+	col := []model.Ticket{ // pre-renumber column, position order
+		{ID: id(1), Position: 1000},
+		{ID: id(2), Position: 1000.0004},
+		{ID: id(3), Position: 1000.0008},
+	}
+	dragged := id(9)
+
+	// Dropping in front of the middle ticket: it renumbers to 2000, slot is 1500.
+	if got := rebalanceDropSlot(col, dragged, 1000.0004); got != 1500 {
+		t.Errorf("slot before middle = %v, want 1500", got)
+	}
+	// Dropping in front of the first ticket: it renumbers to 1000, slot is 500.
+	if got := rebalanceDropSlot(col, dragged, 1000); got != 500 {
+		t.Errorf("slot before first = %v, want 500", got)
+	}
+	// The dragged ticket's own stale position must not match as the neighbour.
+	inCol := []model.Ticket{col[0], {ID: dragged, Position: 1000.0004}, col[1], col[2]}
+	if got := rebalanceDropSlot(inCol, dragged, 1000.0004); got != 2500 {
+		t.Errorf("slot skipping self = %v, want 2500", got)
+	}
+	// Unknown neighbour (stale client data) falls back to the end of the column.
+	if got := rebalanceDropSlot(col, dragged, 42); got != 4000 {
+		t.Errorf("stale-neighbour fallback = %v, want 4000", got)
+	}
+	if got := rebalanceDropSlot(nil, dragged, 42); got != 1000 {
+		t.Errorf("empty-column fallback = %v, want 1000", got)
+	}
+}
 
 func TestNextPosition(t *testing.T) {
 	tests := []struct {

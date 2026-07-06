@@ -1,0 +1,29 @@
+{{define "ticket-title-section"}}
+{{/* Inline title edit — client-side only: click swaps the h3 for an input.
+     Enter saves (PUT /title returns this partial), Escape or click-outside
+     reverts. Description editing is separate (ticket-body-edit-form.html). */}}
+<div id="ticket-title-section" {{if not .ClosedAt}}x-data="{editing:false}"{{end}}>
+  {{if not .ClosedAt}}
+  <h3 x-show="!editing"
+      @click="editing=true; $nextTick(()=>{ $refs.ti.focus(); $refs.ti.select() })"
+      class="text-[22px] leading-8 font-semibold tracking-tightish text-base-950 cursor-pointer hover:text-primary-400 transition-colors">{{.Title}}</h3>
+  <form x-show="editing" x-cloak
+        hx-put="/tickets/{{.ID}}/title"
+        hx-target="#ticket-title-section"
+        hx-swap="outerHTML"
+        hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
+        @click.outside="$refs.ti.value = $refs.ti.defaultValue; editing=false">
+    <input x-ref="ti" type="text" name="title" value="{{.Title}}" required
+           @keydown.escape.prevent.stop="$refs.ti.value = $refs.ti.defaultValue; editing=false"
+           class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-0.5 text-[22px] leading-8 font-semibold tracking-tightish text-base-950 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk"/>
+  </form>
+  {{else}}
+  <h3 class="text-[22px] leading-8 font-semibold tracking-tightish text-base-900">{{.Title}}</h3>
+  {{end}}
+  <div class="mono text-[13px] text-base-600 mt-1 flex items-center gap-2">
+    <span>{{timeAgo .CreatedAt}}</span>
+    <span>·</span>
+    <span>updated {{timeAgo .UpdatedAt}}</span>
+  </div>
+</div>
+{{end}}

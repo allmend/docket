@@ -2,8 +2,8 @@
 <section id="ticket-body-section" class="space-y-2">
   <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Description</div>
   <div class="prose prose-sm prose-invert max-w-none text-[15px] leading-[22px] text-base-800 [&_a]:text-primary-400 [&_a]:hover:underline cursor-pointer hover:bg-base-200/40 rounded px-2 py-1.5 -mx-2 transition-colors min-h-[3em]"
-       hx-get="/tickets/{{.ID}}/edit"
-       hx-target="#ticket-body"
+       hx-get="/tickets/{{.ID}}/body/edit"
+       hx-target="#ticket-body-section"
        hx-swap="outerHTML">
     {{if .Body}}{{.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">Click to add a description…</span>{{end}}
   </div>

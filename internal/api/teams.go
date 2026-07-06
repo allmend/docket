@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
@@ -156,7 +157,7 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 
 	// If the name changed the slug changed; redirect so the browser URL stays valid.
 	if updated.Slug != team.Slug {
-		w.Header().Set("HX-Redirect", "/workspaces/"+updated.Slug+"/settings")
+		w.Header().Set("HX-Redirect", "/workspaces/"+updated.Slug+"/settings?tab=general")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -231,6 +232,32 @@ func (h *Handler) RemoveTeamMember(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UpdateTeamCapacity sets the team's sprint capacity (story points per sprint).
+func (h *Handler) UpdateTeamCapacity(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+
+	team, ok := h.teamBySlug(w, r, orgID)
+	if !ok {
+		return
+	}
+
+	if !parseForm(w, r) {
+		return
+	}
+	capacity, err := strconv.Atoi(r.FormValue("sprint_capacity"))
+	if err != nil || capacity < 1 || capacity > 999 {
+		http.Error(w, "capacity must be between 1 and 999", http.StatusBadRequest)
+		return
+	}
+	if _, err := h.teams.UpdateTeamCapacity(r.Context(), orgID, team.ID, capacity); err != nil {
+		http.Error(w, "failed to update capacity", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("HX-Trigger", "teamUpdated")
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (h *Handler) TeamSettings(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 
@@ -239,15 +266,106 @@ func (h *Handler) TeamSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{"Team": team}
-	if board, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID); err == nil {
-		data["Board"] = board
+	tab := r.URL.Query().Get("tab")
+	data := map[string]any{"Team": team, "Tab": tab}
+	var board *model.Board
+	if b, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID); err == nil {
+		board = b
+		data["Board"] = b
 	}
 	if members, err := h.teams.ListTeamMembers(r.Context(), orgID, team.ID); err == nil {
 		data["Members"] = members
 	}
+	if tab == "tracks" && board != nil {
+		tracks, _ := h.boards.ListTrackStats(r.Context(), orgID, board.ID)
+		data["Tracks"] = tracks
+	}
 
 	h.render(w, "settings.html", h.pageData(r, data))
+}
+
+// renderTracksPanel re-renders the settings Tracks panel after a mutation.
+func (h *Handler) renderTracksPanel(w http.ResponseWriter, r *http.Request, orgID uuid.UUID, team *model.Team, boardID uuid.UUID) {
+	tracks, _ := h.boards.ListTrackStats(r.Context(), orgID, boardID)
+	members, _ := h.teams.ListTeamMembers(r.Context(), orgID, team.ID)
+	h.render(w, "settings-tracks-partial.html", map[string]any{
+		"Team":    team,
+		"Tracks":  tracks,
+		"Members": members,
+	})
+}
+
+// SaveTrack creates or updates a track (board tag) from workspace settings.
+// A non-empty tag_id form value selects update.
+func (h *Handler) SaveTrack(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+
+	team, ok := h.teamBySlug(w, r, orgID)
+	if !ok {
+		return
+	}
+	board, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID)
+	if err != nil {
+		http.Error(w, "workspace has no board", http.StatusNotFound)
+		return
+	}
+
+	if !parseForm(w, r) {
+		return
+	}
+	name := r.FormValue("name")
+	color := r.FormValue("color")
+	if name == "" || !hexColorRe.MatchString(color) {
+		http.Error(w, "name and a #RRGGBB color are required", http.StatusBadRequest)
+		return
+	}
+	description := r.FormValue("description")
+	var leadUserID *uuid.UUID
+	if v := r.FormValue("lead_user_id"); v != "" {
+		if id, err := uuid.Parse(v); err == nil {
+			leadUserID = &id
+		}
+	}
+
+	if tid := r.FormValue("tag_id"); tid != "" {
+		tagID, err := uuid.Parse(tid)
+		if err != nil {
+			http.Error(w, "invalid tag ID", http.StatusBadRequest)
+			return
+		}
+		if _, err := h.boards.UpdateTag(r.Context(), orgID, tagID, name, color, description, leadUserID); err != nil {
+			http.Error(w, "failed to update track", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		if _, err := h.boards.CreateTag(r.Context(), orgID, board.ID, name, color, description, leadUserID); err != nil {
+			http.Error(w, "failed to create track", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	h.renderTracksPanel(w, r, orgID, team, board.ID)
+}
+
+// DeleteTrack removes a track from workspace settings.
+func (h *Handler) DeleteTrack(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+
+	team, ok := h.teamBySlug(w, r, orgID)
+	if !ok {
+		return
+	}
+	board, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID)
+	if err != nil {
+		http.Error(w, "workspace has no board", http.StatusNotFound)
+		return
+	}
+	tagID, ok := pathUUID(w, r, "tagID")
+	if !ok {
+		return
+	}
+	_ = h.boards.DeleteTag(r.Context(), orgID, tagID)
+	h.renderTracksPanel(w, r, orgID, team, board.ID)
 }
 
 func (h *Handler) DeleteTeam(w http.ResponseWriter, r *http.Request) {

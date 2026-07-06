@@ -21,7 +21,8 @@
 
   <!-- Card -->
   <div class="bg-base-200 border border-base-300 rounded-md divide-y divide-base-300"
-       {{if not $closed}}x-data="{addOpen:false}"{{end}}>
+       {{if not $closed}}x-data="{addOpen: window._acChain==='{{.ID}}'}"
+       x-init="if(addOpen){ window._acChain=null; $nextTick(()=>$refs.acInput && $refs.acInput.focus()) }"{{end}}>
 
     {{range $i, $item := $items}}
     <div class="flex items-start gap-2.5 px-3 py-2 hover:bg-base-250/40 group">
@@ -73,11 +74,12 @@
         <span class="w-4 h-4 rounded-sm border border-dashed border-base-400 shrink-0"></span>
         <input type="text" name="text" x-ref="acInput"
                placeholder="Acceptance criterion…"
-               @keydown.escape="addOpen=false"
+               @keydown.enter.prevent="if($el.value.trim()===''){ addOpen=false } else { window._acChain='{{.ID}}'; $el.form.requestSubmit() }"
+               @keydown.escape.stop.prevent="$el.value=''; addOpen=false"
                class="flex-1 bg-transparent border-0 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none" />
         <button type="submit"
                 class="h-6 px-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] mono text-[12px] font-medium rounded shrink-0">Add</button>
-        <button type="button" @click="addOpen=false"
+        <button type="button" data-esc-cancel @click="addOpen=false"
                 class="h-6 px-2 text-base-600 hover:text-base-900 mono text-[12px] rounded shrink-0">Cancel</button>
       </form>
     </div>

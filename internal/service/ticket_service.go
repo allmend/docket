@@ -126,15 +126,25 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 // MoveTicket repositions a ticket using fractional indexing.
 // prevPos and nextPos are the positions of the adjacent cards (0 means boundary).
 func (s *TicketService) MoveTicket(ctx context.Context,
-	orgID, ticketID, targetColumnID uuid.UUID,
+	orgID, ticketID, targetColumnID, actorID uuid.UUID,
 	prevPos, nextPos float64,
 ) (float64, error) {
 	newPos, needsRebalance := nextPosition(prevPos, nextPos)
 	if needsRebalance {
-		if err := s.rebalanceColumn(ctx, orgID, targetColumnID); err != nil {
+		// Renumber the column and compute the drop slot from the renumbered
+		// neighbours. The client's prevPos/nextPos are meaningless after the
+		// renumber, so recomputing via nextPosition would demand a rebalance
+		// again, forever — the slot must come from the fresh positions.
+		tickets, err := s.store.ListTicketsByColumn(ctx, orgID, targetColumnID)
+		if err != nil {
 			return 0, fmt.Errorf("rebalance: %w", err)
 		}
-		return s.MoveTicket(ctx, orgID, ticketID, targetColumnID, prevPos, nextPos)
+		newPos = rebalanceDropSlot(tickets, ticketID, nextPos)
+		for i, t := range tickets {
+			if err := s.store.MoveTicket(ctx, orgID, t.ID, targetColumnID, float64((i+1)*1000)); err != nil {
+				return 0, fmt.Errorf("rebalance: %w", err)
+			}
+		}
 	}
 
 	// Capture from-column info before the move for the transition counter.
@@ -153,6 +163,7 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		colDone := isDone(newCol.Name)
 		if colDone && ticket.ClosedAt == nil {
 			_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
+			s.unblockOnClose(ctx, orgID, ticketID, actorID)
 		} else if !colDone && ticket.ClosedAt != nil {
 			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 		}
@@ -190,6 +201,7 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 	wasDone := oldCol != nil && isDone(oldCol.Name)
 	if colDone && old.ClosedAt == nil {
 		_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
+		s.unblockOnClose(ctx, orgID, ticketID, actorID)
 	} else if !colDone && wasDone {
 		_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 	}
@@ -262,7 +274,27 @@ func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorI
 		actorName = actor.Name
 	}
 	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "closed", "", reason)
+	s.unblockOnClose(ctx, orgID, ticketID, actorID)
 	return t, nil
+}
+
+// unblockOnClose clears outbound "blocks" links when a ticket closes, so the
+// tickets it was blocking become unblocked. Each cleared link is recorded as
+// history on both ends before deletion.
+func (s *TicketService) unblockOnClose(ctx context.Context, orgID, ticketID, actorID uuid.UUID) {
+	links, err := s.store.ListBlockingLinksFromTicket(ctx, orgID, ticketID)
+	if err != nil || len(links) == 0 {
+		return
+	}
+	actorName := ""
+	if actor, _ := s.store.GetUserByID(ctx, orgID, actorID); actor != nil {
+		actorName = actor.Name
+	}
+	for _, l := range links {
+		_ = s.store.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, "")
+		_ = s.store.AppendHistory(ctx, l.FromTicketID, actorID, actorName, "link_cleared", "blocks "+l.ToDisplayID, "")
+	}
+	_ = s.store.DeleteBlockingLinksFromTicket(ctx, orgID, ticketID)
 }
 
 func (s *TicketService) ReopenTicket(ctx context.Context, orgID, ticketID, actorID uuid.UUID) (*model.Ticket, error) {
@@ -457,15 +489,3 @@ func (s *TicketService) ListRecentTeamActivity(ctx context.Context, orgID, teamI
 	return s.store.ListRecentTeamActivity(ctx, orgID, teamID, 12)
 }
 
-func (s *TicketService) rebalanceColumn(ctx context.Context, orgID, columnID uuid.UUID) error {
-	tickets, err := s.store.ListTicketsByColumn(ctx, orgID, columnID)
-	if err != nil {
-		return err
-	}
-	for i, t := range tickets {
-		if err := s.store.MoveTicket(ctx, orgID, t.ID, columnID, float64((i+1)*1000)); err != nil {
-			return err
-		}
-	}
-	return nil
-}

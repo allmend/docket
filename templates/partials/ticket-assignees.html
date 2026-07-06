@@ -6,7 +6,7 @@
   <div class="flex flex-wrap items-center gap-1.5">
     {{range .Assignees}}
     <span class="inline-flex items-center gap-1.5 h-7 pl-1 pr-1 rounded bg-base-250 border border-base-350 hover:border-base-400 text-[14px] text-base-900">
-      <span class="w-5 h-5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold shrink-0">{{initials .Name}}</span>
+      <span class="w-5 h-5 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[10px] font-semibold shrink-0" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>
       <span class="max-w-[120px] truncate">{{.Name}}</span>
       {{if not $closed}}
       <button hx-delete="/tickets/{{$t.ID}}/assignees/{{.ID}}"
@@ -21,18 +21,30 @@
     </span>
     {{end}}
     {{if not $closed}}
-    <div x-data="{open:false}" class="relative">
-      <button @click="open=!open; if(open) $nextTick(()=>{ htmx.ajax('GET','/tickets/{{$t.ID}}/assignees/search?q=',{target:'#assignee-results-{{$t.ID}}',swap:'innerHTML'}) })"
+    {{/* Fixed-position popup: the sidebar's overflow-y-auto would clip an absolute
+         child, so anchor to the trigger's viewport rect instead. close-popups keeps
+         a single popup open at a time and lets Escape close it before the drawer. */}}
+    <div x-data="{open:false, pos:{top:0,left:0}}" class="flex" @close-popups.window="open=false">
+      {{/* Handler must start with `let` — Alpine only statement-wraps expressions
+           beginning with if/let/const; a leading `var` is a SyntaxError. */}}
+      <button @click="let was=open; window.dispatchEvent(new CustomEvent('close-popups'));
+                      if(!was){ let r=$el.getBoundingClientRect();
+                        pos={top:r.bottom+4, left:Math.max(8, Math.min(r.left, window.innerWidth-232))};
+                        open=true;
+                        $nextTick(()=>{ htmx.ajax('GET','/tickets/{{$t.ID}}/assignees/search?q=',{target:$refs.results,swap:'innerHTML'}) }) }"
               class="inline-flex items-center gap-1 h-7 px-2 rounded border border-dashed border-base-400 text-base-600 hover:text-base-900 hover:border-base-500 text-[13px]">
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M8 3v10M3 8h10" stroke-linecap="round"/></svg>
         add
       </button>
-      <div x-show="open" @click.outside="open=false"
-           class="absolute top-full mt-1 left-0 w-56 bg-base-250 border border-base-350 rounded shadow-pop z-10 p-2">
+      {{/* :style must use the object form — Alpine's string form replaces the whole
+           style attribute and wipes the display:none that x-show maintains. */}}
+      <div x-show="open" x-cloak @click.outside="open=false" data-popup
+           :style="{top: pos.top+'px', left: pos.left+'px'}"
+           class="fixed w-56 bg-base-250 border border-base-350 rounded shadow-pop z-[60] p-2">
         <input placeholder="Search…"
-               @input.debounce.200="htmx.ajax('GET','/tickets/{{$t.ID}}/assignees/search?q='+$el.value,{target:'#assignee-results-{{$t.ID}}',swap:'innerHTML'})"
+               @input.debounce.200="htmx.ajax('GET','/tickets/{{$t.ID}}/assignees/search?q='+encodeURIComponent($el.value),{target:$refs.results,swap:'innerHTML'})"
                class="w-full bg-base-150 border border-base-300 rounded px-2 py-1 text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 mb-1"/>
-        <div id="assignee-results-{{$t.ID}}"></div>
+        <div x-ref="results"></div>
       </div>
     </div>
     {{end}}

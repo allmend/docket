@@ -1,7 +1,0 @@
-{{define "ticket-title"}}
-<h3 id="ticket-title"
-    hx-get="/tickets/{{.ID}}/edit"
-    hx-target="#ticket-body"
-    hx-swap="outerHTML"
-    class="text-[22px] leading-8 font-semibold tracking-tightish text-base-950 cursor-pointer hover:text-primary-400 transition-colors">{{.Title}}</h3>
-{{end}}

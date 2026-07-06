@@ -36,7 +36,7 @@
     <span class="mono text-[13px] text-base-600">opened {{timeAgo $t.CreatedAt}}{{if $t.CreatedByName}} by{{end}}</span>
     {{if $t.CreatedByName}}
     <span class="inline-flex items-center gap-1.5 mono text-[13px] text-base-800 shrink-0">
-      <span class="w-3.5 h-3.5 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center text-[9px] font-semibold">{{initials $t.CreatedByName}}</span>
+      <span class="w-3.5 h-3.5 rounded-sm text-[#0d1117] inline-flex items-center justify-center text-[9px] font-semibold" style="background-color:{{avatarColor $t.CreatedByName}}">{{initials $t.CreatedByName}}</span>
       {{$t.CreatedByName}}
     </span>
     {{end}}
@@ -107,6 +107,7 @@
             {{else if eq .Field "comment"}}commented
             {{else if eq .Field "link_added"}}linked <span class="mono text-base-900">{{.NewValue}}</span>
             {{else if eq .Field "link_removed"}}removed link to <span class="mono text-base-900">{{.OldValue}}</span>
+            {{else if eq .Field "link_cleared"}}cleared link <span class="mono text-base-900">{{.OldValue}}</span> — blocker resolved
             {{else}}{{.Field}}: {{.NewValue}}
             {{end}}
             <span class="ml-auto mono text-[12px] text-base-600 shrink-0">{{timeAgo .CreatedAt}}</span>

@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-07-06
+
+### Added
+- Workspace settings rebuilt to the design handoff: General (rename + description), Members (role chips, email, filter), Tracks, Sprint defaults, and Danger zone tabs.
+- Track management: create, edit, and delete tracks from workspace settings — each with a color from the five-hue palette, a description, and an optional lead. The table shows open ticket counts and open points per track.
+- Team-settable sprint capacity (workspace settings → Sprint defaults). The Sprint Planning bar shows committed points against it, live-updating during drag and turning amber when over capacity.
+- Sprint duration picker on the planning bar: start date, 1w/2w/3w presets, and a free end date in one popover, replacing the fixed preset buttons.
+- Per-user avatar colors derived from the name — same color everywhere a user appears, including the board filter's assignee chips.
+- The Sprint Board filter now includes Tracks.
+- Ticket IDs are links everywhere (board cards, backlog, daily scrum, drawer): open tickets in new tabs with cmd-click; clicking elsewhere on a card still opens the drawer.
+- Closing a ticket automatically unblocks the tickets it was blocking, with the cleared links recorded in both tickets' activity. All link changes are now logged on both ends.
+- @/# autocomplete appears at the caret instead of under the field, in both editor modes.
+
+### Changed
+- Title and description edit separately: click the title for an inline rename, click the description for the rich editor — which now opens at the rendered content's height.
+- Escape steps back one level at a time in the ticket drawer (popup → input → inline edit → drawer) instead of closing it outright.
+- Popups behave native: opening one closes others, they stack above all content, and they never leave the viewport.
+- The New Ticket modal is larger, and no longer shows sprint details — new tickets always start in the backlog.
+- Linked work matches the criteria pattern: an "+ Add link" row at the bottom of the list, shown even when the list is empty.
+- The backlog's "In sprint" section starts collapsed.
+- The sidebar sprint overview (day / burned / remaining) updates live as tickets move.
+- Editor toolbar icons replaced with Heroicons.
+- Blocked badges read "Blocked by ENG-16" instead of "Blocked · ENG-16".
+
+### Fixed
+- The assignee and tracks "add" popups opened behind or outside the drawer — or not at all. Three separate root causes fixed (overflow clipping, an Alpine style-binding conflict, and a handler syntax error Alpine swallowed silently).
+- @/# autocomplete no longer leaves a phantom empty box behind, reopens after picking a suggestion, or re-triggers on Enter from the previous line.
+- Acceptance criteria: Enter saves and chains straight into the next criterion; Escape cancels the input without closing the drawer.
+- Dropping a ticket into a drag-drop gap that had become too small could lock up the server in an endless rebalance loop. The column now renumbers once and the ticket lands in the intended slot.
+
+### Removed
+- The short-lived `++underline++` markdown extension — Docket renders pure CommonMark/GFM only. `_text_` remains italic, per the spec.
+
 ## [0.10.0] - 2026-07-03
 
 ### Added

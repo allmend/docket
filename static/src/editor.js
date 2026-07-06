@@ -13,21 +13,43 @@ function fenceDot(lang) {
   }
 }
 
+// Code block header (colored dot + language label). The head itself is
+// contenteditable=false so the cursor skips over it; the .lang span opts back
+// in so the language can be edited in place. Always rendered in the editor —
+// even without a language — so one can be added to any block.
+function codeHeadHTML(lang) {
+  return (
+    '<span class="pre-head" contenteditable="false"><span class="fdot" style="background:' +
+    fenceDot(lang) +
+    '"></span><span class="lang" contenteditable="true" spellcheck="false">' +
+    escHTML(lang || "") +
+    "</span></span>"
+  );
+}
+
+// The text of a code element, with <br> elements (inserted by contenteditable
+// when the user presses Enter inside a <pre>) counted as newlines.
+function codeText(code) {
+  let text = "";
+  code.childNodes.forEach((child) => {
+    if (child.nodeName === "BR") text += "\n";
+    else text += child.textContent;
+  });
+  return text;
+}
+
 marked.use({
   breaks: true,
   gfm: true,
   renderer: {
     // Codex-style code block shell — same markup the server renderer emits,
-    // so the visual pane and the rendered ticket look identical. The header
-    // is contenteditable=false: an atom the cursor skips over.
+    // so the visual pane and the rendered ticket look identical. No trailing
+    // newline inside <code>: it would sit between the caret and the end of
+    // the block and make end-of-block line breaks ambiguous.
     code({ text, lang }) {
       const l = (lang || "").trim().split(/\s+/)[0];
-      const head = l
-        ? '<span class="pre-head" contenteditable="false"><span class="fdot" style="background:' +
-          fenceDot(l) + '"></span>' + escHTML(l) + "</span>"
-        : "";
       const cls = l ? ' class="language-' + escHTML(l) + '"' : "";
-      return '<pre class="codeblock">' + head + "<code" + cls + ">" + escHTML(text) + "\n</code></pre>";
+      return '<pre class="codeblock">' + codeHeadHTML(l) + "<code" + cls + ">" + escHTML(text) + "</code></pre>";
     },
   },
 });
@@ -76,13 +98,8 @@ td.addRule("fenced-code-block", {
     const code = node.querySelector("code");
     // marked sets class="language-javascript" — preserve the lang identifier.
     const lang = (code.className || "").replace(/\blanguage-/, "").trim();
-    let text = "";
-    code.childNodes.forEach((child) => {
-      if (child.nodeType === 3) text += child.textContent;
-      else if (child.nodeName === "BR") text += "\n";
-      else text += child.textContent;
-    });
-    return "\n\n```" + lang + "\n" + text.replace(/\n$/, "") + "\n```\n\n";
+    // Trailing newlines come from the end-of-block sentinel <br>, not content.
+    return "\n\n```" + lang + "\n" + codeText(code).replace(/\n+$/, "") + "\n```\n\n";
   },
 });
 
@@ -112,6 +129,17 @@ function richEditor(fieldName) {
     init() {
       this.$nextTick(() => {
         if (this.$refs.codearea) this.src = this.$refs.codearea.value;
+
+        // When the description edit form replaces the rendered body, open the
+        // editor at the rendered content's height plus a few lines of room to
+        // type (captured by base.html just before the swap) so long
+        // descriptions don't need manual resizing.
+        if (window._docketEditHeight && this.$el.closest("#ticket-body-section, #ticket-body")) {
+          const h = Math.min(Math.max(window._docketEditHeight + 64, 176), Math.round(window.innerHeight * 0.6));
+          window._docketEditHeight = null;
+          if (this.$refs.codearea) this.$refs.codearea.style.height = h + "px";
+          if (this.$refs.visual) this.$refs.visual.style.height = h + "px";
+        }
 
         if (localStorage.getItem(this._STORAGE_KEY) === "visual") {
           this.switchToVisual();
@@ -144,9 +172,15 @@ function richEditor(fieldName) {
         }
       });
 
-      // Track last selection within visual pane for toolbar state + mention insertion.
+      // Track the selection for toolbar state + mention insertion. In code
+      // mode the toolbar mirrors the markdown markers around the caret.
       const onSel = () => {
-        if (this.mode !== "visual" || !this.$refs.visual) return;
+        if (this.mode === "code") {
+          const ta = this.$refs.codearea;
+          if (ta && document.activeElement === ta) this._updateCodeToolbar();
+          return;
+        }
+        if (!this.$refs.visual) return;
         const sel = window.getSelection();
         if (!sel.rangeCount) return;
         const container = sel.getRangeAt(0).commonAncestorContainer;
@@ -195,14 +229,12 @@ function richEditor(fieldName) {
       }
       this.mode = "code";
       localStorage.setItem(this._STORAGE_KEY, "code");
-      // No selection tracking in code mode — clear the visual-mode button states.
-      this.isBold = this.isItalic = this.isStrike = this.isCode = false;
-      this.blockType = "p";
       this.$nextTick(() => {
         if (!this.$refs.codearea) return;
         if (h > 0) this.$refs.codearea.style.height = h + "px";
         this.$refs.codearea.value = this.src;
         this.$refs.codearea.focus();
+        this._updateCodeToolbar();
       });
     },
 
@@ -218,6 +250,66 @@ function richEditor(fieldName) {
         ["P", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "BLOCKQUOTE", "PRE"].includes(n.tagName)
       );
       this.blockType = block ? block.tagName.toLowerCase() : "p";
+    },
+
+    // Code-mode counterpart of _updateToolbar: reflect the markdown markers
+    // around the caret (or selection) in the toolbar button states.
+    _updateCodeToolbar() {
+      const ta = this.$refs.codearea;
+      if (!ta) return;
+      const val = ta.value;
+      const start = ta.selectionStart;
+      const lineStart = val.lastIndexOf("\n", start - 1) + 1;
+      let lineEnd = val.indexOf("\n", start);
+      if (lineEnd === -1) lineEnd = val.length;
+      const line = val.slice(lineStart, lineEnd);
+
+      // Inside a fence when an odd number of ``` lines opened above.
+      const fencesAbove = (val.slice(0, lineStart).match(/^\s*```/gm) || []).length;
+      if (fencesAbove % 2 === 1 || /^\s*```/.test(line)) {
+        this.isBold = this.isItalic = this.isStrike = this.isCode = false;
+        this.blockType = "pre";
+        return;
+      }
+
+      if (/^###\s/.test(line)) this.blockType = "h3";
+      else if (/^##\s/.test(line)) this.blockType = "h2";
+      else if (/^#\s/.test(line)) this.blockType = "h1";
+      else if (/^\s*>\s/.test(line)) this.blockType = "blockquote";
+      else this.blockType = "p";
+
+      const s = start - lineStart;
+      const e = Math.min(ta.selectionEnd, lineEnd) - lineStart;
+      this.isBold = this._mdSpanAt(line, "**", s, e);
+      this.isItalic = this._mdSpanAt(line, "*", s, e);
+      this.isStrike = this._mdSpanAt(line, "~~", s, e);
+      this.isCode = this._mdSpanAt(line, "`", s, e);
+    },
+
+    // True when [s, e) sits inside a marker-delimited span on the line
+    // (markers included, so the caret next to a delimiter also lights up).
+    _mdSpanAt(line, marker, s, e) {
+      const len = marker.length;
+      // A single * span must not open or close on half of a ** pair.
+      const star = marker === "*";
+      let open = -1;
+      for (let i = 0; i <= line.length - len; ) {
+        const hit =
+          line.startsWith(marker, i) &&
+          !(star && (line[i - 1] === "*" || line[i + 1] === "*"));
+        if (!hit) {
+          i++;
+          continue;
+        }
+        if (open === -1) {
+          open = i;
+        } else {
+          if (s >= open && e <= i + len) return true;
+          open = -1;
+        }
+        i += len;
+      }
+      return false;
     },
 
     _refreshToolbar() {
@@ -310,7 +402,10 @@ function richEditor(fieldName) {
       const pre = this._ancestor(node, visual, (n) => n.tagName === "PRE");
       if (pre) {
         const p = document.createElement("p");
-        p.textContent = pre.textContent;
+        // Read from the code element only — pre.textContent would drag the
+        // header's language label into the paragraph.
+        const codeEl = pre.querySelector("code");
+        p.textContent = codeEl ? codeText(codeEl) : pre.textContent;
         pre.parentNode.replaceChild(p, pre);
         const r = document.createRange();
         r.selectNodeContents(p);
@@ -327,6 +422,7 @@ function richEditor(fieldName) {
 
       const newPre = document.createElement("pre");
       newPre.className = "codeblock";
+      newPre.innerHTML = codeHeadHTML("");
       const code = document.createElement("code");
       code.textContent = node.textContent;
       newPre.appendChild(code);
@@ -363,21 +459,46 @@ function richEditor(fieldName) {
     // inside a code block: browsers split the <pre> into two blocks, so we
     // insert a <br> instead to keep it one fenced block.
     onVisualKeydown(e) {
-      if (e.key !== "Enter" || e.shiftKey) return;
+      if (e.key !== "Enter") return;
       const visual = this.$refs.visual;
       const sel = window.getSelection();
       if (!sel || !sel.rangeCount) return;
-      const pre = this._ancestor(
-        sel.getRangeAt(0).commonAncestorContainer,
-        visual,
-        (n) => n.tagName === "PRE"
-      );
+      const container = sel.getRangeAt(0).commonAncestorContainer;
+
+      // Enter on the header's language label jumps into the code text.
+      const lang = this._ancestor(container, visual, (n) => n.classList && n.classList.contains("lang"));
+      if (lang) {
+        e.preventDefault();
+        const code = lang.closest("pre") && lang.closest("pre").querySelector("code");
+        if (code) {
+          const r = document.createRange();
+          r.selectNodeContents(code);
+          r.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
+        return;
+      }
+
+      if (e.shiftKey) return;
+      const pre = this._ancestor(container, visual, (n) => n.tagName === "PRE");
       if (!pre) return;
       e.preventDefault();
       const range = sel.getRangeAt(0);
       range.deleteContents();
       const br = document.createElement("br");
       range.insertNode(br);
+      // A <br> at the very end of a block is invisible — the browser only
+      // renders the new line once another node follows it (which is why
+      // Shift+Enter, whose native handling adds its own trailing <br>,
+      // appeared to work while plain Enter did nothing). Add a sentinel.
+      const tail = document.createRange();
+      tail.selectNodeContents(pre);
+      tail.setStartAfter(br);
+      const rest = tail.cloneContents();
+      if (!rest.querySelector("br") && !/[^\n]/.test(rest.textContent)) {
+        br.after(document.createElement("br"));
+      }
       const r = document.createRange();
       r.setStartAfter(br);
       r.collapse(true);
@@ -419,6 +540,7 @@ function richEditor(fieldName) {
       }
       this.src = ta.value;
       ta.focus();
+      this._updateCodeToolbar();
     },
 
     // Set the heading level of the current line (# / ## / ###, "p" strips).
@@ -439,6 +561,7 @@ function richEditor(fieldName) {
       ta.setSelectionRange(pos, pos);
       this.src = ta.value;
       ta.focus();
+      this._updateCodeToolbar();
     },
 
     // Toggle a list prefix (- or 1. 2. 3.) on every selected line.
@@ -461,6 +584,7 @@ function richEditor(fieldName) {
       ta.setRangeText(out, blockStart, blockEnd, "select");
       this.src = ta.value;
       ta.focus();
+      this._updateCodeToolbar();
     },
 
     // Toggle a "> " quote prefix on every selected line.
@@ -480,6 +604,7 @@ function richEditor(fieldName) {
       ta.setRangeText(out, blockStart, blockEnd, "select");
       this.src = ta.value;
       ta.focus();
+      this._updateCodeToolbar();
     },
 
     // Wrap the selection in [text](url); the label stays selected for editing.
@@ -498,6 +623,7 @@ function richEditor(fieldName) {
       ta.setSelectionRange(start + 1, start + 1 + sel.length);
       this.src = ta.value;
       ta.focus();
+      this._updateCodeToolbar();
     },
 
     // Wrap the selected lines in ``` fences, or strip surrounding fence lines.
@@ -517,6 +643,7 @@ function richEditor(fieldName) {
       }
       this.src = ta.value;
       ta.focus();
+      this._updateCodeToolbar();
     },
 
     // Mention handling in visual mode
@@ -527,8 +654,25 @@ function richEditor(fieldName) {
       if (!sel || !sel.rangeCount || !this.$refs.visual) return;
 
       const range = sel.getRangeAt(0);
+
+      // Typing in a code block header's language label syncs the dot color
+      // and language class instead of running mention detection.
+      const lang = this._ancestor(range.startContainer, this.$refs.visual, (n) =>
+        n.classList && n.classList.contains("lang")
+      );
+      if (lang) {
+        this._syncLang(lang);
+        return;
+      }
+      // Limit trigger detection to the caret's own block: Range.toString()
+      // does not insert newlines at block boundaries, so after Enter the text
+      // "before" the caret would still end with the previous paragraph's
+      // "@user" / "#BE-42" and wrongly reopen the dropdown.
+      const block = this._ancestor(range.startContainer, this.$refs.visual, (n) =>
+        ["P", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "BLOCKQUOTE", "PRE", "DIV"].includes(n.tagName)
+      ) || this.$refs.visual;
       const preRange = document.createRange();
-      preRange.selectNodeContents(this.$refs.visual);
+      preRange.selectNodeContents(block);
       preRange.setEnd(range.startContainer, range.startOffset);
       const textBefore = preRange.toString();
 
@@ -537,13 +681,14 @@ function richEditor(fieldName) {
 
       if (mUser) {
         this.ticketOpen = false;
+        this._positionMention(this.$refs.visual);
         this._mentionFetch(mUser[1]);
       } else if (mTicket) {
         this.mentionOpen = false;
+        this._positionMention(this.$refs.visual);
         this._ticketFetch(mTicket[1]);
       } else {
-        this.mentionOpen = false;
-        this.ticketOpen = false;
+        this.closeMention();
       }
     },
 
@@ -560,7 +705,7 @@ function richEditor(fieldName) {
         ta.value = nb + after;
         ta.setSelectionRange(nb.length, nb.length);
         ta.focus();
-        this.mentionOpen = false;
+        this.closeMention();
       }
     },
 
@@ -576,7 +721,7 @@ function richEditor(fieldName) {
         ta.value = nb + after;
         ta.setSelectionRange(nb.length, nb.length);
         ta.focus();
-        this.ticketOpen = false;
+        this.closeMention();
       }
     },
 
@@ -616,11 +761,23 @@ function richEditor(fieldName) {
       sel.addRange(cursor);
 
       this.$refs.visual.focus();
-      this.mentionOpen = false;
-      this.ticketOpen = false;
+      this.closeMention();
     },
 
     // Helpers
+
+    // Keep the header dot color and the code element's language-* class in
+    // sync while the language label is edited; turndown reads the class to
+    // build the fence info string on conversion back to markdown.
+    _syncLang(langEl) {
+      const pre = langEl.closest("pre");
+      if (!pre) return;
+      const lang = (langEl.textContent || "").trim().replace(/[^\w+#.-]/g, "");
+      const dot = pre.querySelector(".fdot");
+      if (dot) dot.style.background = fenceDot(lang);
+      const code = pre.querySelector("code");
+      if (code) code.className = lang ? "language-" + lang : "";
+    },
 
     // Ensure the visual pane always ends with an empty paragraph so the user
     // can click below any heading or code block and type normally.

@@ -325,6 +325,24 @@ func (h *Handler) TicketEditForm(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "ticket-edit-form.html", ticket)
 }
 
+// TicketBodyEditForm returns the description-only edit form fragment.
+func (h *Handler) TicketBodyEditForm(w http.ResponseWriter, r *http.Request) {
+	ticket, _, ok := h.ticketFromPath(w, r)
+	if !ok {
+		return
+	}
+	h.render(w, "ticket-body-edit-form.html", ticket)
+}
+
+// TicketBodySectionView renders the read-only description fragment (cancel path).
+func (h *Handler) TicketBodySectionView(w http.ResponseWriter, r *http.Request) {
+	ticket, _, ok := h.ticketFromPath(w, r)
+	if !ok {
+		return
+	}
+	h.render(w, "ticket-body-section.html", ticket)
+}
+
 func (h *Handler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	ticketID, ok := pathUUID(w, r, "ticketID")
@@ -453,7 +471,7 @@ func (h *Handler) MoveTicket(w http.ResponseWriter, r *http.Request) {
 	prevPos, _ := strconv.ParseFloat(r.FormValue("prev_pos"), 64)
 	nextPos, _ := strconv.ParseFloat(r.FormValue("next_pos"), 64)
 
-	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos)
+	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos)
 	if err != nil {
 		http.Error(w, "failed to move ticket", http.StatusInternalServerError)
 		return
@@ -723,7 +741,7 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "assign to sprint failed", http.StatusInternalServerError)
 		return
 	}
-	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, prevPos, nextPos)
+	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos)
 	if err != nil {
 		http.Error(w, "move failed", http.StatusInternalServerError)
 		return
@@ -758,7 +776,7 @@ func (h *Handler) UpdateTicketTitle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
-	h.render(w, "ticket-title.html", ticket)
+	h.render(w, "ticket-title-section.html", ticket)
 }
 
 func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {

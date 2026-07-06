@@ -82,7 +82,7 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "color must be a #RRGGBB hex value", http.StatusBadRequest)
 		return
 	}
-	if _, err := h.boards.CreateTag(r.Context(), orgID, boardID, name, color); err != nil {
+	if _, err := h.boards.CreateTag(r.Context(), orgID, boardID, name, color, "", nil); err != nil {
 		http.Error(w, "failed to create tag", http.StatusInternalServerError)
 		return
 	}

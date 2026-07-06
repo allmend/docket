@@ -1,19 +1,18 @@
-{{define "ticket-edit-form"}}
-<div id="ticket-body" class="space-y-4">
-  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Edit ticket</div>
-  <form hx-put="/tickets/{{.ID}}"
-        hx-target="#ticket-body"
+{{define "ticket-body-edit-form"}}
+{{/* Description-only edit form — swaps #ticket-body-section in place.
+     Title editing is separate (ticket-title-section.html). */}}
+<section id="ticket-body-section" class="space-y-2">
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Description</div>
+  <form hx-put="/tickets/{{.ID}}/body"
+        hx-target="#ticket-body-section"
         hx-swap="outerHTML"
         hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
         class="space-y-3">
-    <input type="hidden" name="priority" value="{{.Priority}}">
-    <input type="text" name="title" value="{{.Title}}" required autofocus
-           class="block w-full bg-base-150 border border-base-300 rounded px-2.5 py-1.5 text-[20px] font-semibold text-base-950 placeholder:text-base-600 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 shadow-sunk" />
     {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Write a description… (@username, #TICKET-ID)" "Rows" "8")}}
     <div class="flex items-center gap-2 justify-end">
       <button type="button" data-esc-cancel
-              hx-get="/tickets/{{.ID}}/view"
-              hx-target="#ticket-body"
+              hx-get="/tickets/{{.ID}}/body/view"
+              hx-target="#ticket-body-section"
               hx-swap="outerHTML"
               class="px-3 py-1.5 text-[14px] text-base-800 hover:text-base-950 hover:bg-base-250 rounded">
         Cancel
@@ -24,5 +23,5 @@
       </button>
     </div>
   </form>
-</div>
+</section>
 {{end}}

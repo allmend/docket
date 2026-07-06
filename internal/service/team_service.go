@@ -72,6 +72,12 @@ func (s *TeamService) UpdateTeam(ctx context.Context, orgID, teamID uuid.UUID, n
 	return s.store.UpdateTeam(ctx, orgID, teamID, name, Slugify(name), description)
 }
 
+// UpdateTeamCapacity sets the team's sprint capacity in story points (the
+// denominator of the planning committed bar).
+func (s *TeamService) UpdateTeamCapacity(ctx context.Context, orgID, teamID uuid.UUID, capacity int) (*model.Team, error) {
+	return s.store.UpdateTeamCapacity(ctx, orgID, teamID, capacity)
+}
+
 func (s *TeamService) DeleteTeam(ctx context.Context, orgID, teamID uuid.UUID) error {
 	return s.store.DeleteTeam(ctx, orgID, teamID)
 }

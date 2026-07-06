@@ -134,7 +134,7 @@
             </div>
             <span class="inline-flex items-center h-5 px-1.5 rounded-sm bg-danger/15 border border-danger/30 mono text-[13px] uppercase tracking-wider text-danger shrink-0">blocked</span>
             {{if .AssigneeName}}
-            <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0">{{initials .AssigneeName}}</span>
+            <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0" style="background-color:{{avatarColor .AssigneeName}}">{{initials .AssigneeName}}</span>
             {{end}}
           </div>
           {{end}}
@@ -201,7 +201,7 @@
         <div class="p-4 space-y-3.5">
           {{range .Activity}}
           <div class="flex gap-2.5">
-            <span class="w-6 h-6 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0 mt-0.5">{{initials .ActorName}}</span>
+            <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0 mt-0.5" style="background-color:{{avatarColor .ActorName}}">{{initials .ActorName}}</span>
             <div class="text-[14px] text-base-800 leading-snug min-w-0">
               <span class="text-base-950">{{.ActorName}}</span>
               {{if eq .Field "comment_added"}} commented on

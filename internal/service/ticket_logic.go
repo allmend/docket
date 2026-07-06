@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/allmend/docket/internal/model"
+	"github.com/google/uuid"
 )
 
 // nextPosition computes the fractional-index position for a card dropped
@@ -23,6 +24,22 @@ func nextPosition(prevPos, nextPos float64) (pos float64, needsRebalance bool) {
 		pos = (prevPos + nextPos) / 2
 	}
 	return pos, nextPos != 0 && (pos-prevPos) < 0.001
+}
+
+// rebalanceDropSlot returns the position that keeps a dropped ticket directly
+// in front of its former next-neighbour once the column has been renumbered to
+// multiples of 1000. tickets is the column in position order *before* the
+// renumber; the neighbour is identified by its pre-renumber position nextPos
+// (skipping the dragged ticket itself, whose stale position may collide in the
+// degenerate gaps that trigger a rebalance). When the neighbour can't be found
+// — stale client data — the ticket goes to the end of the column.
+func rebalanceDropSlot(tickets []model.Ticket, ticketID uuid.UUID, nextPos float64) float64 {
+	for i, t := range tickets {
+		if t.ID != ticketID && t.Position == nextPos {
+			return float64((i+1)*1000) - 500
+		}
+	}
+	return float64((len(tickets) + 1) * 1000)
 }
 
 // checkboxRe matches GFM task-list markers: [ ] or [x] (case-insensitive).

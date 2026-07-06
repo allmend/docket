@@ -42,6 +42,33 @@ function neighbourPositions(listEl, ticketEl, visibleOnly = false) {
   };
 }
 
+// avatarColor mirrors the Go func in internal/api/templatefuncs.go — keep the
+// two in sync. Hue mixes hashes of the full name, the initials, and the number
+// of name parts; the hsl() output matches the server's hex within rounding.
+function fnv1a(s) {
+  let h = 0x811c9dc5;
+  for (const b of new TextEncoder().encode(s)) {
+    h ^= b;
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+
+function avatarColor(name) {
+  const words = (name || "").split(/\s+/).filter(Boolean);
+  if (!words.length) return "#8957e5";
+  const r0 = Array.from(words[0]);
+  const rl = Array.from(words[words.length - 1]);
+  const ini = (words.length === 1 ? r0.slice(0, 2).join("") : r0[0] + rl[0]).toUpperCase();
+  const full = fnv1a(words.join(" ").toLowerCase());
+  const M = 4294967296; // Go does uint32 arithmetic — wrap before the mod
+  const hue = ((full + ((fnv1a(ini.toLowerCase()) * 131) % M) + words.length * 977) % M) % 360;
+  const sat = 52 + ((full >>> 9) % 18);
+  const lig = 60 + ((full >>> 17) % 12);
+  return `hsl(${hue} ${sat}% ${lig}%)`;
+}
+window.avatarColor = avatarColor;
+
 function board(boardID, sprintID) {
   return {
     boardID,
@@ -50,6 +77,7 @@ function board(boardID, sprintID) {
 
     filterPriorities: [],
     filterAssignees: [],
+    filterTracks: [],
     filterMaxAgeDays: 0,
 
     init() {
@@ -85,7 +113,7 @@ function board(boardID, sprintID) {
     },
 
     activeFilterCount() {
-      return this.filterPriorities.length + this.filterAssignees.length + (this.filterMaxAgeDays > 0 ? 1 : 0);
+      return this.filterPriorities.length + this.filterAssignees.length + this.filterTracks.length + (this.filterMaxAgeDays > 0 ? 1 : 0);
     },
 
     togglePriority(p) {
@@ -102,9 +130,17 @@ function board(boardID, sprintID) {
       this.applyFilters();
     },
 
+    toggleTrack(name) {
+      const idx = this.filterTracks.indexOf(name);
+      if (idx === -1) this.filterTracks.push(name);
+      else this.filterTracks.splice(idx, 1);
+      this.applyFilters();
+    },
+
     clearFilters() {
       this.filterPriorities = [];
       this.filterAssignees = [];
+      this.filterTracks = [];
       this.filterMaxAgeDays = 0;
       this.applyFilters();
     },
@@ -116,6 +152,8 @@ function board(boardID, sprintID) {
       else url.searchParams.delete("priority");
       if (this.filterAssignees.length) url.searchParams.set("assignees", this.filterAssignees.join("|"));
       else url.searchParams.delete("assignees");
+      if (this.filterTracks.length) url.searchParams.set("tracks", this.filterTracks.join("|"));
+      else url.searchParams.delete("tracks");
       if (this.filterMaxAgeDays > 0) url.searchParams.set("age", this.filterMaxAgeDays);
       else url.searchParams.delete("age");
       history.replaceState(null, "", url.toString());
@@ -127,6 +165,8 @@ function board(boardID, sprintID) {
       if (priority) this.filterPriorities = priority.split(",").filter(Boolean);
       const assignees = p.get("assignees");
       if (assignees) this.filterAssignees = assignees.split("|").filter(Boolean);
+      const tracks = p.get("tracks");
+      if (tracks) this.filterTracks = tracks.split("|").filter(Boolean);
       const age = p.get("age");
       if (age) this.filterMaxAgeDays = parseInt(age) || 0;
     },
@@ -135,6 +175,7 @@ function board(boardID, sprintID) {
       const now = Date.now() / 1000;
       const hasPriority = this.filterPriorities.length > 0;
       const hasAssignee = this.filterAssignees.length > 0;
+      const hasTrack = this.filterTracks.length > 0;
       const hasAge = this.filterMaxAgeDays > 0;
 
       document.querySelectorAll(".ticket-list, .backlog-ticket-list").forEach((list) => {
@@ -145,6 +186,10 @@ function board(boardID, sprintID) {
           if (show && hasAssignee) {
             const cardNames = (card.dataset.assignees || "").split("|").filter(Boolean);
             if (!this.filterAssignees.some((n) => cardNames.includes(n))) show = false;
+          }
+          if (show && hasTrack) {
+            const cardTracks = (card.dataset.tracks || "").split("|").filter(Boolean);
+            if (!this.filterTracks.some((n) => cardTracks.includes(n))) show = false;
           }
           if (show && hasAge) {
             const ageDays = (now - parseInt(card.dataset.createdUnix || 0)) / 86400;
@@ -302,27 +347,28 @@ function board(boardID, sprintID) {
 
     // Recompute the "committed" stat in the planning context bar from the cards
     // currently in the DOM. No-op on pages without the bar (active board, kanban).
+    // Recompute the planning bar's committed points against the team's fixed
+    // sprint capacity (data-committed-capacity, set in workspace settings).
     updateCommittedBar() {
       const ptsEl = document.querySelector("[data-committed-points]");
       if (!ptsEl) return;
       let committed = 0;
       let tickets = 0;
-      let backlogPts = 0;
       document.querySelectorAll(".ticket-list [data-ticket-id]").forEach((c) => {
         committed += parseInt(c.dataset.points || "0", 10);
         tickets++;
       });
-      document.querySelectorAll(".backlog-ticket-list [data-ticket-id]").forEach((c) => {
-        backlogPts += parseInt(c.dataset.points || "0", 10);
-      });
-      const total = committed + backlogPts;
       ptsEl.textContent = committed;
-      const suffix = document.querySelector("[data-committed-suffix]");
-      if (suffix) suffix.textContent = backlogPts > 0 ? ` / ${total} pt` : " pt";
+      const cap = parseInt(document.querySelector("[data-committed-capacity]")?.dataset.committedCapacity || "0", 10);
       const bar = document.querySelector("[data-committed-bar]");
-      if (bar) bar.style.width = (total > 0 ? (committed / total) * 100 : 0).toFixed(1) + "%";
+      if (bar) {
+        bar.style.width = (cap > 0 ? Math.min((committed / cap) * 100, 100) : 0).toFixed(1) + "%";
+        // Over capacity reads as a warning, not progress.
+        bar.classList.toggle("bg-warn", committed > cap);
+        bar.classList.toggle("bg-primary-500", committed <= cap);
+      }
       const meta = document.querySelector("[data-committed-meta]");
-      if (meta) meta.textContent = `${tickets} tickets` + (backlogPts > 0 ? ` · ${backlogPts} pt in backlog` : "");
+      if (meta) meta.textContent = `${tickets} tickets · team capacity ${cap} pt`;
     },
 
     // Moving into or out of a Done column changes server-rendered card state

@@ -17,24 +17,41 @@
 {{/* Compute default workspace for new-ticket modal */}}
 {{$ntTeamID   := ""}}
 {{$ntTeamName := ""}}
-{{$ntSprint   := ""}}
 {{if .NavTeam}}
   {{$ntTeamID   = printf "%s" .NavTeam.ID}}
   {{$ntTeamName = .NavTeam.Name}}
-  {{if .NavActiveSprint}}{{$ntSprint = .NavActiveSprint.Name}}{{end}}
 {{else if .NavTeams}}
   {{$first := index .NavTeams 0}}
   {{$ntTeamID   = printf "%s" $first.Team.ID}}
   {{$ntTeamName = $first.Team.Name}}
-  {{if $first.ActiveSprint}}{{$ntSprint = $first.ActiveSprint.Name}}{{end}}
 {{end}}
 
 <body class="bg-base-100 text-base-900 font-sans antialiased selection:bg-primary-500/30 selection:text-base-950 h-screen flex flex-col overflow-hidden"
-      x-data="{ ticketModal: false, newTicketModal: false }"
+      x-data="{ ticketModal: false, newTicketModal: false,
+        escKey() {
+          // An open popover (assignee/tracks add, [data-popup]) closes first,
+          // regardless of where focus is — getClientRects because offsetParent
+          // is null for position:fixed elements even when visible.
+          var pops = document.querySelectorAll('[data-popup]');
+          for (var i = 0; i < pops.length; i++) {
+            if (pops[i].getClientRects().length > 0) {
+              window.dispatchEvent(new CustomEvent('close-popups'));
+              return;
+            }
+          }
+          if (!this.ticketModal) { this.newTicketModal = false; return; }
+          // Escape steps back one level inside the drawer instead of closing it outright:
+          // focused input → blur; open inline edit → cancel it; otherwise close the drawer.
+          var a = document.activeElement;
+          if (a && (['INPUT','TEXTAREA','SELECT'].includes(a.tagName) || a.isContentEditable)) { a.blur(); return; }
+          var cs = document.querySelectorAll('#modal-body [data-esc-cancel]');
+          for (var i = 0; i < cs.length; i++) { if (cs[i].offsetParent !== null) { cs[i].click(); return; } }
+          this.ticketModal = false;
+        } }"
       @open-ticket-modal.window="ticketModal = true"
       @close-ticket-modal.window="ticketModal = false"
       @close-new-ticket-modal.window="newTicketModal = false"
-      @keydown.escape="ticketModal = false; newTicketModal = false"
+      @keydown.escape="escKey()"
       @keydown.n.window="if (!newTicketModal && !ticketModal && !['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable) newTicketModal = true">
 
   <!-- UI chrome — blurs as a unit when the ticket drawer opens -->
@@ -88,7 +105,8 @@
         <kbd class="shrink-0 mono text-[13px] text-base-600 bg-base-250 border border-base-350 rounded-sm px-1.5 py-0.5 leading-none">⌘K</kbd>
       </div>
       <a href="/me"
-         class="w-7 h-7 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0">
+         class="w-7 h-7 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0"
+         style="background-color:{{if .CurrentUser}}{{avatarColor .CurrentUser.Name}}{{else}}#8957e5{{end}}">
         {{if .CurrentUser}}{{initials .CurrentUser.Name}}{{else}}?{{end}}
       </a>
     </div>
@@ -204,9 +222,16 @@
         {{end}}
         {{end}}
 
-        <!-- Sprint stats — shown when an active sprint exists -->
+        <!-- Sprint stats — shown when an active sprint exists. Refreshes on any
+             board mutation (Pattern A: re-fetch the current page, keep only this
+             widget) so burned/remaining track drags to and from Done live. -->
         {{if .NavActiveSprint}}
         {{$sp := .NavActiveSprint}}
+        <div id="nav-sprint-stats"
+             hx-get="{{.CurrentPath}}"
+             hx-select="#nav-sprint-stats"
+             hx-trigger="boardUpdated from:body"
+             hx-swap="outerHTML">
         <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 px-2 mb-1.5 mt-6">{{$sp.Name}}</div>
         <div class="px-2 py-1 text-[14px] text-base-700 leading-relaxed">
           {{if and $sp.StartDate $sp.EndDate}}
@@ -217,6 +242,7 @@
           <div class="mt-2 h-1 bg-base-300 rounded-sm overflow-hidden">
             <div class="h-full bg-primary-500 rounded-sm" style="width:{{$sp.PointsPct}}%"></div>
           </div>
+        </div>
         </div>
         {{end}}
 
@@ -257,16 +283,14 @@
 
   <!-- New ticket modal -->
   <div x-show="newTicketModal" x-cloak
-       class="fixed inset-0 z-[60] flex items-start justify-center pt-[12vh]">
+       class="fixed inset-0 z-[60] flex items-start justify-center pt-[7vh]">
     <div class="absolute inset-0 bg-base-100/70" @click="newTicketModal = false"></div>
-    <div class="relative w-[560px] bg-base-200 border border-base-300 rounded-lg shadow-pop overflow-hidden"
+    <div class="relative w-[780px] max-w-[92vw] bg-base-200 border border-base-300 rounded-lg shadow-pop overflow-hidden"
          data-default-team-id="{{$ntTeamID}}"
          data-default-team-name="{{$ntTeamName}}"
-         data-default-sprint-name="{{$ntSprint}}"
          x-data="{
            teamID:       $el.dataset.defaultTeamId,
            teamName:     $el.dataset.defaultTeamName || 'Select workspace',
-           sprintName:   $el.dataset.defaultSprintName,
            pickerOpen:   false,
            priority:     '',
            priorityOpen: false,
@@ -285,12 +309,6 @@
           <button type="button" @click="pickerOpen = !pickerOpen"
                   class="mono text-[13px] text-base-800 hover:text-base-950 inline-flex items-center gap-1.5 bg-base-250 border border-base-350 hover:border-base-400 rounded-sm pl-2 pr-1.5 h-6 max-w-[200px]">
             <span x-text="teamName" class="truncate"></span>
-            <template x-if="sprintName">
-              <span class="flex items-center gap-0.5 shrink-0">
-                <span class="text-base-500 px-0.5">/</span>
-                <span x-text="sprintName"></span>
-              </span>
-            </template>
             <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" class="text-base-600 shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <div x-show="pickerOpen" @click.outside="pickerOpen = false"
@@ -300,12 +318,10 @@
             <button type="button"
                     data-team-id="{{.Team.ID}}"
                     data-team-name="{{.Team.Name}}"
-                    data-sprint-name="{{if .ActiveSprint}}{{.ActiveSprint.Name}}{{end}}"
-                    @click="teamID=$el.dataset.teamId; teamName=$el.dataset.teamName; sprintName=$el.dataset.sprintName; pickerOpen=false"
+                    @click="teamID=$el.dataset.teamId; teamName=$el.dataset.teamName; pickerOpen=false"
                     class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300 text-left">
               <span class="mono text-[13px] text-primary-400 shrink-0 w-8">{{.Team.Key}}</span>
               <span class="truncate flex-1">{{.Team.Name}}</span>
-              {{if .ActiveSprint}}<span class="mono text-[13px] text-base-600 shrink-0 ml-2">{{.ActiveSprint.Name}}</span>{{end}}
             </button>
             {{end}}
             {{end}}
@@ -328,7 +344,7 @@
         <input x-ref="ntTitle" type="text" name="title" required
                placeholder="Ticket title…"
                class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />
-        {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add description — what & why. (@username, #TICKET-ID)" "Rows" "3")}}
+        {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add description — what & why. (@username, #TICKET-ID)" "Rows" "10")}}
         <div class="grid grid-cols-2 gap-2 pt-1">
           <!-- Priority -->
           <div class="relative">
@@ -365,14 +381,6 @@
                    class="mono w-full bg-transparent border-0 p-0 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none focus:ring-0 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" class="text-base-600 shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </label>
-          <!-- Sprint (read-only display) -->
-          <div class="col-span-2 bg-base-150 border border-base-300 rounded h-8 px-2.5 flex items-center gap-2 shadow-sunk">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0" aria-hidden="true">
-              <rect x="2.5" y="3.5" width="11" height="10" rx="1"/><path d="M2.5 6.5h11M6 1.5v2M10 1.5v2" stroke-linecap="round"/>
-            </svg>
-            <span class="mono text-[13px] text-base-700 truncate flex-1" x-text="sprintName || 'Backlog'"></span>
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" class="text-base-600 shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
         </div>
         <div class="flex items-center gap-3 border-t border-base-300 bg-base-100/40 -mx-5 -mb-5 px-4 h-12">
           <!-- Add another toggle -->
@@ -436,6 +444,15 @@
         ticketOpen: false,
         mentionTickets: [],
         _mentionTa: null,
+        mentionPos: { top: 0, left: 0 },
+        _fetchSeq: 0,
+        // Close both dropdowns and invalidate any in-flight fetch — otherwise a
+        // late response reopens the dropdown after the user already picked.
+        closeMention() {
+          this._fetchSeq++;
+          this.mentionOpen = false;
+          this.ticketOpen = false;
+        },
         mentionInput(e) {
           this._mentionTa = e.target;
           const before = e.target.value.slice(0, e.target.selectionStart);
@@ -443,30 +460,86 @@
           const mTicket = before.match(/#([\w-]+)$/);
           if (mUser && mUser[1].length >= 1) {
             this.ticketOpen = false;
+            this._positionMention(e.target);
             this._mentionFetch(mUser[1]);
           } else if (mTicket && mTicket[1].length >= 1) {
             this.mentionOpen = false;
+            this._positionMention(e.target);
             this._ticketFetch(mTicket[1]);
           } else {
-            this.mentionOpen = false;
-            this.ticketOpen = false;
+            this.closeMention();
           }
         },
+        // Anchor the autocomplete dropdown just below the caret rather than
+        // below the whole field. Coordinates are relative to the dropdown's
+        // offset parent (the .relative wrapper around the editor panes).
+        _positionMention(el) {
+          const caret = el.tagName === 'TEXTAREA' ? this._taCaret(el) : this._ceCaret();
+          const wrapRect = el.parentElement.getBoundingClientRect();
+          const elRect = el.getBoundingClientRect();
+          const c = caret || { left: elRect.left, bottom: elRect.bottom };
+          this.mentionPos = {
+            top: Math.round(c.bottom - wrapRect.top + 4),
+            left: Math.round(Math.max(0, c.left - wrapRect.left)),
+          };
+        },
+        // Caret viewport position in a textarea via the mirror-div technique:
+        // clone the text up to the caret into a hidden div with the same
+        // metrics and measure a zero-width marker span.
+        _taCaret(ta) {
+          const cs = getComputedStyle(ta);
+          const d = document.createElement('div');
+          for (const prop of ['fontFamily','fontSize','fontWeight','lineHeight','letterSpacing','tabSize',
+                              'paddingTop','paddingRight','paddingBottom','paddingLeft']) {
+            d.style[prop] = cs[prop];
+          }
+          d.style.position = 'absolute';
+          d.style.visibility = 'hidden';
+          d.style.whiteSpace = 'pre-wrap';
+          d.style.wordWrap = 'break-word';
+          d.style.width = ta.clientWidth + 'px';
+          d.textContent = ta.value.slice(0, ta.selectionStart);
+          const span = document.createElement('span');
+          span.textContent = '\u200b';
+          d.appendChild(span);
+          document.body.appendChild(d);
+          const top = span.offsetTop, left = span.offsetLeft, h = span.offsetHeight;
+          document.body.removeChild(d);
+          const r = ta.getBoundingClientRect();
+          return {
+            left: r.left + left - ta.scrollLeft,
+            bottom: r.top + top + h - ta.scrollTop,
+          };
+        },
+        // Caret viewport position in a contenteditable via the selection range.
+        _ceCaret() {
+          const sel = window.getSelection();
+          if (!sel || !sel.rangeCount) return null;
+          const range = sel.getRangeAt(0).cloneRange();
+          range.collapse(true);
+          const rect = range.getClientRects()[0] || range.getBoundingClientRect();
+          if (!rect || (rect.top === 0 && rect.left === 0 && rect.bottom === 0)) return null;
+          return { left: rect.left, bottom: rect.bottom };
+        },
         async _mentionFetch(q) {
+          const seq = ++this._fetchSeq;
           try {
             const r = await fetch('/users/search?q=' + encodeURIComponent(q));
             if (r.ok) {
               const data = await r.json();
+              if (seq !== this._fetchSeq) return; // superseded or closed meanwhile
               this.mentionUsers = data || [];
               this.mentionOpen = this.mentionUsers.length > 0;
             }
           } catch (_) { this.mentionOpen = false; }
         },
         async _ticketFetch(q) {
+          const seq = ++this._fetchSeq;
           try {
             const r = await fetch('/tickets/search-mention?q=' + encodeURIComponent(q));
             if (r.ok) {
               const data = await r.json();
+              if (seq !== this._fetchSeq) return; // superseded or closed meanwhile
               this.mentionTickets = data || [];
               this.ticketOpen = this.mentionTickets.length > 0;
             }
@@ -481,7 +554,7 @@
           ta.value = newBefore + after;
           ta.setSelectionRange(newBefore.length, newBefore.length);
           ta.focus();
-          this.mentionOpen = false;
+          this.closeMention();
         },
         ticketPick(displayID) {
           const ta = this._mentionTa;
@@ -492,7 +565,7 @@
           ta.value = newBefore + after;
           ta.setSelectionRange(newBefore.length, newBefore.length);
           ta.focus();
-          this.ticketOpen = false;
+          this.closeMention();
         }
       };
     }
@@ -517,6 +590,16 @@
       if (e.detail.target && e.detail.target.id === 'modal-body') {
         var sk = document.getElementById('drawer-skeleton');
         if (sk) sk.classList.remove('htmx-request');
+      }
+    });
+
+    // Capture the rendered description height right before the edit form swaps
+    // in, so the rich editor can open at the same height (consumed by editor.js).
+    document.body.addEventListener('htmx:beforeSwap', function(e) {
+      var t = e.detail.target;
+      if (t && (t.id === 'ticket-body-section' || t.id === 'ticket-body')) {
+        var p = t.querySelector('.prose');
+        if (p) window._docketEditHeight = p.offsetHeight;
       }
     });
 

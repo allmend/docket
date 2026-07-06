@@ -8,6 +8,7 @@
      data-priority="{{$t.Priority}}"
      data-points="{{if $t.StoryPoints}}{{deref $t.StoryPoints}}{{else}}0{{end}}"
      data-assignees="{{range $t.Assignees}}{{.Name}}|{{end}}"
+     data-tracks="{{range $t.Tags}}{{.Name}}|{{end}}"
      data-created-unix="{{$t.CreatedAt.Unix}}"
      hx-get="/tickets/{{$t.ID}}/quick"
      hx-target="#modal-body"
@@ -16,7 +17,8 @@
 
   {{/* ID + Priority row */}}
   <div class="flex items-center justify-between">
-    <span class="mono text-[12px] {{if $isDone}}text-base-600 line-through{{else}}text-primary-400{{end}}">{{$t.DisplayID}}</span>
+    <a href="/tickets/{{$t.DisplayID}}" draggable="false" onclick="event.stopPropagation()"
+       class="mono text-[12px] {{if $isDone}}text-base-600 line-through{{else}}text-primary-400{{end}} hover:underline">{{$t.DisplayID}}</a>
     {{if $isDone}}
     <span class="mono text-[11px] text-success">✓</span>
     {{else}}
@@ -36,7 +38,7 @@
   {{if and (not $isDone) $t.IsBlocked}}
   <div class="flex items-center gap-1.5 mt-1.5">
     <span class="inline-flex items-center h-4 px-1 rounded-sm bg-danger/15 border border-danger/30 mono text-[12px] uppercase tracking-wider text-danger">
-      Blocked{{if $t.BlockedBy}} · {{$t.BlockedBy}}{{end}}
+      Blocked{{if $t.BlockedBy}} by {{$t.BlockedBy}}{{end}}
     </span>
   </div>
   {{end}}
@@ -59,11 +61,11 @@
       <div class="flex -space-x-1">
         {{if $as}}
           {{if le (len $as) 3}}
-            {{range $as}}<span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials .Name}}</span>{{end}}
+            {{range $as}}<span class="w-4 h-4 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250" style="background-color:{{avatarColor .Name}}">{{initials .Name}}</span>{{end}}
           {{else}}
             {{$a0 := index $as 0}}{{$a1 := index $as 1}}
-            <span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials $a0.Name}}</span>
-            <span class="w-4 h-4 rounded-sm bg-track-violet text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">{{initials $a1.Name}}</span>
+            <span class="w-4 h-4 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250" style="background-color:{{avatarColor $a0.Name}}">{{initials $a0.Name}}</span>
+            <span class="w-4 h-4 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250" style="background-color:{{avatarColor $a1.Name}}">{{initials $a1.Name}}</span>
             <span class="w-4 h-4 rounded-sm bg-base-350 text-base-700 inline-flex items-center justify-center mono text-[9px] font-semibold ring-1 ring-base-250">+{{sub (len $as) 2}}</span>
           {{end}}
         {{else}}

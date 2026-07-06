@@ -42,7 +42,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.links.CreateLink(r.Context(), orgID, fromID, toTicketID, relation, userID, ticketID); err != nil {
+	if _, err := h.links.CreateLink(r.Context(), orgID, fromID, toTicketID, relation, userID); err != nil {
 		http.Error(w, "failed to create link", http.StatusInternalServerError)
 		return
 	}
@@ -67,7 +67,7 @@ func (h *Handler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.links.DeleteLink(r.Context(), orgID, linkID, ticketID, userID); err != nil {
+	if err := h.links.DeleteLink(r.Context(), orgID, linkID, userID); err != nil {
 		http.Error(w, "failed to delete link", http.StatusInternalServerError)
 		return
 	}

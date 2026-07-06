@@ -15,6 +15,18 @@ func TestRenderBasicMarkdown(t *testing.T) {
 	}
 }
 
+// Pure CommonMark only: ++text++ must stay literal (the underline extension
+// was removed by user decision — no invented syntax).
+func TestRenderPlusPlusStaysLiteral(t *testing.T) {
+	out := string(Render("this is ++not underlined++ text"))
+	if strings.Contains(out, "<u>") {
+		t.Errorf("++ must not render an underline: %s", out)
+	}
+	if !strings.Contains(out, "++not underlined++") {
+		t.Errorf("++ markers should stay literal: %s", out)
+	}
+}
+
 func TestRenderEmptyInput(t *testing.T) {
 	if out := Render(""); out != "" {
 		t.Errorf("empty input should render empty, got %q", out)
