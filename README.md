@@ -1,4 +1,9 @@
-# Docket
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/docket-wordmark-dark.svg">
+    <img src="docs/assets/docket-wordmark-light.svg" alt="Docket" width="426">
+  </picture>
+</p>
 
 > ⚠️ **This is alpha software.** Expect bugs, missing features, and breaking changes. Not recommended for production use yet.
 

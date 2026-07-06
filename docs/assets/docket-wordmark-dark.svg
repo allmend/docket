@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="426" height="100" viewBox="0 0 426 100" role="img" aria-label="Docket">
+  <svg viewBox="0 0 16 16" x="0" y="0" width="100" height="100" fill="#10B981">
+    <rect x="2" y="3" width="12" height="2"/>
+    <rect x="2" y="7" width="12" height="2" opacity="0.45"/>
+    <rect x="2" y="11" width="8" height="2" opacity="0.20"/>
+  </svg>
+  <text x="122" y="50" dominant-baseline="central" textLength="298" lengthAdjust="spacingAndGlyphs"
+        font-family="'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif"
+        font-size="92" font-weight="600" letter-spacing="-0.02em" fill="#e6edf3">Docket</text>
+</svg>
