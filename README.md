@@ -16,7 +16,7 @@ Part of the [Allmend](https://github.com/allmend) suite of open-source tools.
 - Kanban and Scrum board modes
 - Sprint lifecycle — planning, active, close with Sprint Goal
 - Product backlog with drag-to-reorder and bulk sprint assignment
-- Sprint capacity planning — per-member focus percentage
+- Sprint capacity — team capacity in story points with a committed-vs-capacity bar on planning, plus per-member focus percentage
 - Roadmap — all sprints with progress bars and ticket lists
 - Daily Scrum view — active sprint tickets grouped by assignee, with search and filter
 - Backlog refinement view — side-by-side ticket list and detail, arrow key navigation, readiness indicator
@@ -25,7 +25,9 @@ Part of the [Allmend](https://github.com/allmend) suite of open-source tools.
 - Story points
 - Ticket detail with inline editing, Markdown support, and syntax highlighting
 - Dual-mode rich text editor (Visual / Code) with `@mention` and `#ticket` autocomplete
-- Assignees, priority, status, tags/labels
+- Assignees, priority, status
+- Tracks — colored labels with a description, an optional lead, and open-work counters, managed from workspace settings
+- Board filtering by priority, assignee, track, and ticket age
 - Comments with `@mention` and `#ticket` linking and autocomplete
 - Scoped API tokens (`metrics:read` / `api:read` / `api:write`) for the JSON API under `/api/v1`
 - Ticket linking (blocks / relates to)
