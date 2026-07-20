@@ -189,6 +189,7 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	comments, _ := h.comments.ListComments(r.Context(), orgID, ticket.ID)
+	h.stampCommentsEditable(r, comments)
 	history, _ := h.comments.ListHistory(r.Context(), ticket.ID)
 	assignees, _ := h.tickets.ListAssignees(r.Context(), ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)
@@ -243,6 +244,7 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	comments, _ := h.comments.ListComments(r.Context(), orgID, ticket.ID)
+	h.stampCommentsEditable(r, comments)
 	history, _ := h.comments.ListHistory(r.Context(), ticket.ID)
 	assignees, _ := h.tickets.ListAssignees(r.Context(), ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)

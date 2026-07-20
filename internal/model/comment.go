@@ -18,6 +18,9 @@ type Comment struct {
 	Edited     bool      `json:"edited"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
+	// Editable is populated at render time — true when the viewer authored the
+	// comment or is an org admin. Not persisted. Gates the edit/delete buttons.
+	Editable bool `json:"-"`
 }
 
 func (c *Comment) BodyHTML() template.HTML {

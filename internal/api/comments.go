@@ -1,13 +1,32 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"regexp"
 
+	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 )
 
 var mentionRe = regexp.MustCompile(`@(\w+)`)
+
+// stampCommentEditable marks whether the request's actor may edit/delete the
+// comment (its author or an org admin), gating the edit/delete UI controls.
+func (h *Handler) stampCommentEditable(r *http.Request, c *model.Comment) {
+	if c == nil {
+		return
+	}
+	c.Editable = c.AuthorID == service.UserIDFromContext(r.Context()) ||
+		service.RoleFromContext(r.Context()) == "admin"
+}
+
+// stampCommentsEditable stamps Editable across a comment list for rendering.
+func (h *Handler) stampCommentsEditable(r *http.Request, comments []model.Comment) {
+	for i := range comments {
+		h.stampCommentEditable(r, &comments[i])
+	}
+}
 
 func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
@@ -31,6 +50,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to create comment", http.StatusInternalServerError)
 		return
 	}
+
+	h.stampCommentEditable(r, comment)
 
 	_ = h.comments.AppendHistory(r.Context(), ticketID, userID, comment.AuthorName, "comment", "", "")
 
@@ -68,11 +89,20 @@ func (h *Handler) CommentEditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Only the author or an admin may open the edit form.
+	h.stampCommentEditable(r, comment)
+	if !comment.Editable {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
 	h.render(w, "comment-edit-form.html", comment)
 }
 
 func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	role := service.RoleFromContext(r.Context())
 	commentID, ok := pathUUID(w, r, "commentID")
 	if !ok {
 		return
@@ -82,23 +112,35 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comment, err := h.comments.UpdateComment(r.Context(), orgID, commentID, r.FormValue("body"))
+	comment, err := h.comments.UpdateComment(r.Context(), orgID, commentID, userID, role, r.FormValue("body"))
+	if errors.Is(err, service.ErrForbidden) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
 	if err != nil {
 		http.Error(w, "failed to update comment", http.StatusInternalServerError)
 		return
 	}
 
+	h.stampCommentEditable(r, comment)
 	h.render(w, "comment.html", comment)
 }
 
 func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
+	userID := service.UserIDFromContext(r.Context())
+	role := service.RoleFromContext(r.Context())
 	commentID, ok := pathUUID(w, r, "commentID")
 	if !ok {
 		return
 	}
 
-	if err := h.comments.DeleteComment(r.Context(), orgID, commentID); err != nil {
+	err := h.comments.DeleteComment(r.Context(), orgID, commentID, userID, role)
+	if errors.Is(err, service.ErrForbidden) {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	if err != nil {
 		http.Error(w, "failed to delete comment", http.StatusInternalServerError)
 		return
 	}
@@ -119,5 +161,6 @@ func (h *Handler) CommentView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.stampCommentEditable(r, comment)
 	h.render(w, "comment.html", comment)
 }

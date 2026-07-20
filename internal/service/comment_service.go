@@ -2,11 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
 )
+
+// ErrForbidden is returned when the actor may not perform the requested action.
+var ErrForbidden = errors.New("forbidden")
 
 type CommentService struct {
 	store *store.Store
@@ -28,12 +32,32 @@ func (s *CommentService) CreateComment(ctx context.Context, orgID, ticketID, aut
 	return s.store.CreateComment(ctx, orgID, ticketID, authorID, body)
 }
 
-func (s *CommentService) UpdateComment(ctx context.Context, orgID, commentID uuid.UUID, body string) (*model.Comment, error) {
+func (s *CommentService) UpdateComment(ctx context.Context, orgID, commentID, actorID uuid.UUID, actorRole, body string) (*model.Comment, error) {
+	if err := s.authorizeCommentMutation(ctx, orgID, commentID, actorID, actorRole); err != nil {
+		return nil, err
+	}
 	return s.store.UpdateComment(ctx, orgID, commentID, body)
 }
 
-func (s *CommentService) DeleteComment(ctx context.Context, orgID, commentID uuid.UUID) error {
+func (s *CommentService) DeleteComment(ctx context.Context, orgID, commentID, actorID uuid.UUID, actorRole string) error {
+	if err := s.authorizeCommentMutation(ctx, orgID, commentID, actorID, actorRole); err != nil {
+		return err
+	}
 	return s.store.DeleteComment(ctx, orgID, commentID)
+}
+
+// authorizeCommentMutation permits editing/deleting a comment only for its
+// author or an org admin. Returns ErrForbidden otherwise (or the store error if
+// the comment can't be loaded).
+func (s *CommentService) authorizeCommentMutation(ctx context.Context, orgID, commentID, actorID uuid.UUID, actorRole string) error {
+	c, err := s.store.GetComment(ctx, orgID, commentID)
+	if err != nil {
+		return err
+	}
+	if c.AuthorID != actorID && actorRole != "admin" {
+		return ErrForbidden
+	}
+	return nil
 }
 
 func (s *CommentService) ListHistory(ctx context.Context, ticketID uuid.UUID) ([]model.HistoryEntry, error) {
