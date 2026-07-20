@@ -25,7 +25,11 @@ func Metrics(next http.Handler) http.Handler {
 		rw := chimw.NewWrapResponseWriter(w, r.ProtoMajor)
 		next.ServeHTTP(rw, r)
 
-		path := r.URL.Path // fallback for unknown routes (404s)
+		// Use a constant sentinel for unmatched routes (404s). Falling back to
+		// the raw URL would let an unauthenticated caller mint an unbounded
+		// number of label series by spraying distinct paths — the exact
+		// cardinality explosion the route pattern is meant to avoid.
+		path := "other"
 		if rctx := chi.RouteContext(r.Context()); rctx != nil {
 			if p := rctx.RoutePattern(); p != "" {
 				path = p
