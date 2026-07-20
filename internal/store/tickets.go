@@ -347,15 +347,15 @@ func (s *Store) MaxTicketPositionInColumn(ctx context.Context, columnID uuid.UUI
 	return pos, err
 }
 
-func (s *Store) BulkListTicketAssignees(ctx context.Context, boardID uuid.UUID) (map[uuid.UUID][]model.User, error) {
+func (s *Store) BulkListTicketAssignees(ctx context.Context, orgID, boardID uuid.UUID) (map[uuid.UUID][]model.User, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT ta.ticket_id, u.id, u.org_id, u.username, u.name, u.email, u.role, u.created_at, u.updated_at
 		 FROM ticket_assignees ta
 		 JOIN tickets t ON t.id = ta.ticket_id
 		 JOIN users u ON u.id = ta.user_id
-		 WHERE t.board_id = $1
+		 WHERE t.board_id = $1 AND t.org_id = $2
 		 ORDER BY u.name`,
-		boardID,
+		boardID, orgID,
 	)
 	if err != nil {
 		return nil, err

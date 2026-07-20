@@ -105,8 +105,8 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		view.BacklogCount, _ = s.store.CountBacklogTickets(ctx, orgID, boardID)
 
 		// Load all ticket assignees, tags, and blocked status for the board once.
-		assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
-		tagsByTicket, _ := s.store.BulkListTicketTags(ctx, boardID)
+		assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
+		tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 		blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 
 		// Active sprint: show ONLY sprint columns — no virtual backlog.
@@ -188,8 +188,8 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 	if err != nil {
 		return nil, fmt.Errorf("list tickets: %w", err)
 	}
-	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
-	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, boardID)
+	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
+	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
@@ -378,7 +378,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		return nil, fmt.Errorf("list columns: %w", err)
 	}
 
-	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
+	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 	blockedByBacklog, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
@@ -642,8 +642,8 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 	if err != nil {
 		return nil, fmt.Errorf("list sprint tickets: %w", err)
 	}
-	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, boardID)
-	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, boardID)
+	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
+	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]

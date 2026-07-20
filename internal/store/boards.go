@@ -182,8 +182,10 @@ func (s *Store) ListTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model
 func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
 	var t model.Tag
 	err := s.primary.QueryRow(ctx,
+		// Resolve lead_user_id through an org-scoped lookup so a cross-org user
+		// ID is stored as NULL rather than referencing another tenant's user.
 		`INSERT INTO tags (org_id, board_id, name, color, description, lead_user_id)
-		 VALUES ($1, $2, $3, $4, $5, $6)
+		 VALUES ($1, $2, $3, $4, $5, (SELECT id FROM users WHERE id = $6 AND org_id = $1))
 		 RETURNING id, org_id, board_id, name, color, description, lead_user_id`,
 		orgID, boardID, name, color, description, leadUserID,
 	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color, &t.Description, &t.LeadUserID)
@@ -193,7 +195,10 @@ func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, c
 func (s *Store) UpdateTag(ctx context.Context, orgID, tagID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
 	var t model.Tag
 	err := s.primary.QueryRow(ctx,
-		`UPDATE tags SET name = $3, color = $4, description = $5, lead_user_id = $6
+		// lead_user_id resolved via an org-scoped lookup — a cross-org user ID
+		// becomes NULL instead of referencing another tenant's user.
+		`UPDATE tags SET name = $3, color = $4, description = $5,
+		        lead_user_id = (SELECT id FROM users WHERE id = $6 AND org_id = $1)
 		 WHERE org_id = $1 AND id = $2
 		 RETURNING id, org_id, board_id, name, color, description, lead_user_id`,
 		orgID, tagID, name, color, description, leadUserID,
@@ -264,15 +269,15 @@ func (s *Store) ListTicketTags(ctx context.Context, orgID, ticketID uuid.UUID) (
 	return tags, rows.Err()
 }
 
-func (s *Store) BulkListTicketTags(ctx context.Context, boardID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
+func (s *Store) BulkListTicketTags(ctx context.Context, orgID, boardID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT tt.ticket_id, tg.id, tg.org_id, tg.board_id, tg.name, tg.color
 		 FROM ticket_tags tt
 		 JOIN tickets t ON t.id = tt.ticket_id
 		 JOIN tags tg ON tg.id = tt.tag_id
-		 WHERE t.board_id = $1
+		 WHERE t.board_id = $1 AND t.org_id = $2
 		 ORDER BY tg.name`,
-		boardID,
+		boardID, orgID,
 	)
 	if err != nil {
 		return nil, err
