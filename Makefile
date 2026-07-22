@@ -1,5 +1,10 @@
 .PHONY: dev build migrate js js-watch css css-watch vet test test-short assets vendor rebuild docker-up docker-down dev-docker dev-docker-down
 
+# Stamped into the binary and shown in the UI. Falls back to the literal in
+# internal/version when git has no tag to describe.
+VERSION  ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+LDFLAGS  := -X github.com/allmend/docket/internal/version.Version=$(VERSION)
+
 vendor:
 	node scripts/vendor.js
 
@@ -13,7 +18,7 @@ dev:
 	go run ./cmd/serve --mode=all
 
 build:
-	go build -o docket ./cmd/serve
+	go build -ldflags="$(LDFLAGS)" -o docket ./cmd/serve
 
 migrate:
 	go run ./cmd/serve --migrate-only

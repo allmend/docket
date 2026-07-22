@@ -6,7 +6,13 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o docket ./cmd/serve
+
+# Release workflow passes the tag (without the leading v); falls back to the
+# literal in internal/version for plain local builds.
+ARG VERSION
+RUN CGO_ENABLED=0 GOOS=linux go build \
+      -ldflags="-s -w ${VERSION:+-X github.com/allmend/docket/internal/version.Version=$VERSION}" \
+      -o docket ./cmd/serve
 
 # ---
 
