@@ -9,4 +9,4 @@ package version
 //
 // The literal below is the fallback for plain `go build` / `go run`, so keep it
 // in step with the newest CHANGELOG.md entry when tagging a release.
-var Version = "0.11.0"
+var Version = "0.12.0"

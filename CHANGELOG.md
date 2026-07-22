@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-07-22
+
+### Added
+- Ticket activity is a single chronological stream: history entries and comments interleaved oldest-first, instead of every field change above every comment.
+- Closed tickets are immutable server-side (409 Conflict) — title, body, acceptance criteria, priority, points, assignees, labels, comments, links and DoD checks. Moving a closed ticket stays allowed, since dragging it out of Done is how you reopen it.
+- Daily Scrum: `j` / `k` move between people, mirroring Backlog Refinement.
+- Relative timestamps ("22m ago") carry the exact ISO 8601 time as a native hover tooltip.
+- Breadcrumbs for the board, backlog and planning pages; Daily Scrum nests under Board, matching its URL.
+- Build-time version stamping via `internal/version` — `make build` derives it from `git describe`, release images from the tag.
+- Template/handler data mismatches now fail the build: `missingkey=error` plus a static test that derives each template's required fields and each handler's supplied keys and diffs them, including the `dict`-based partial calls.
+
+### Changed
+- Sidebar workspace order is now Dashboard, Board, Backlog.
+- The comment composer is taller and separated from the activity stream by a divider.
+
+### Fixed
+- Priority sorted alphabetically, so medium ranked above critical on My Issues and all dashboard lists.
+- `/metrics` reported 0 committed and completed points for in-flight sprints, leaving burndown flat until the sprint closed.
+- The board filter's Tracks section always listed nothing — `BoardTags` was never passed to the template.
+- Sprint review's "create retro" link never rendered, and the sign-in page never showed the organisation name.
+- The sign-in page's show-password toggle did nothing: the auth layout never loaded Alpine. The version shown there read `v0.1.0`.
+- The blocked badge disappeared when a ticket moved into a planning-sprint column.
+- Ticket activity did not refresh after a status change.
+- Selected rows shifted ~2px sideways in Refinement, Daily Scrum and the Inbox.
+- Filtering the backlog rendered every ticket twice in two different styles.
+- Filter inputs drew a stray border from the forms plugin.
+- An overdue sprint read "-17 days left" instead of "17 days overdue".
+
 ## [0.11.0] - 2026-07-06
 
 ### Added
@@ -157,7 +185,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
-[Unreleased]: https://github.com/allmend/docket/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/allmend/docket/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/allmend/docket/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/allmend/docket/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/allmend/docket/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/allmend/docket/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/allmend/docket/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/allmend/docket/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/allmend/docket/compare/v0.5.0...v0.6.0
