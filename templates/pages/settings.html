@@ -151,7 +151,7 @@
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-base-600 shrink-0"><circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/></svg>
                 <input placeholder="Filter members…"
                        @input="filterMembers($el.value)"
-                       class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0"/>
+                       class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0 border-none shadow-none p-0"/>
               </div>
               <div x-data="{q:''}" class="relative">
                 <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 h-8 shadow-sunk w-[200px]">
@@ -159,7 +159,7 @@
                   <input x-model="q"
                          @input.debounce.300="htmx.ajax('GET','/workspaces/{{$team.Slug}}/members/search?q='+encodeURIComponent(q),{target:'#member-add-results',swap:'innerHTML'})"
                          placeholder="Add member…"
-                         class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0"/>
+                         class="bg-transparent text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none flex-1 min-w-0 border-none shadow-none p-0"/>
                 </div>
                 <div id="member-add-results" x-show="q.length>0"
                      class="absolute top-full mt-1 right-0 w-64 bg-base-250 border border-base-350 rounded shadow-pop z-10"></div>

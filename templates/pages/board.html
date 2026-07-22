@@ -2,6 +2,11 @@
 
 {{define "title"}}{{if .ActiveSprint}}{{.ActiveSprint.Name}}{{else if .Board}}{{.Board.Name}}{{else}}Board{{end}} — Docket{{end}}
 
+{{define "breadcrumb"}}
+<svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Board</span>
+{{end}}
+
 {{define "content"}}
 {{$board    := .Board}}
 {{$team     := .Team}}

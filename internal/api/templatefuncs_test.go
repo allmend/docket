@@ -1,7 +1,9 @@
 package api
 
 import (
+	"html/template"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -167,5 +169,46 @@ func TestAvatarColor(t *testing.T) {
 	// Empty name falls back to a fixed color rather than erroring.
 	if !hexRe.MatchString(avatarColor("")) {
 		t.Error("avatarColor(\"\") should return a valid hex fallback")
+	}
+}
+
+// TestTimeAgoHTML checks the rendered form: the relative phrase stays the visible
+// text, and the exact ISO 8601 timestamp rides along as both the tooltip (title)
+// and the machine-readable datetime attribute.
+func TestTimeAgoHTML(t *testing.T) {
+	ts := time.Date(2026, 7, 22, 9, 12, 33, 0, time.UTC)
+	got := string(timeAgoHTML(ts))
+
+	if want := `datetime="2026-07-22T09:12:33Z"`; !strings.Contains(got, want) {
+		t.Errorf("missing %s in %s", want, got)
+	}
+	if want := `title="2026-07-22T09:12:33Z"`; !strings.Contains(got, want) {
+		t.Errorf("missing %s in %s", want, got)
+	}
+	if !strings.HasPrefix(got, "<time ") || !strings.HasSuffix(got, "</time>") {
+		t.Errorf("not a <time> element: %s", got)
+	}
+	// The visible text must still be the relative phrase.
+	if !strings.Contains(got, timeAgo(ts)) {
+		t.Errorf("visible text is not the relative phrase: %s", got)
+	}
+}
+
+func TestTimeAgoHTMLZeroTime(t *testing.T) {
+	if got := timeAgoHTML(time.Time{}); got != "" {
+		t.Errorf("zero time rendered %q, want empty", got)
+	}
+}
+
+// TestTimeAgoFuncIsHTMLVariant pins the wiring: templates must get the tooltip
+// version. Reverting the FuncMap entry to the plain timeAgo would silently drop
+// the tooltip from every relative timestamp in the app.
+func TestTimeAgoFuncIsHTMLVariant(t *testing.T) {
+	fn, ok := templateFuncs()["timeAgo"].(func(time.Time) template.HTML)
+	if !ok {
+		t.Fatal(`templateFuncs()["timeAgo"] is not the template.HTML variant`)
+	}
+	if !strings.Contains(string(fn(time.Now().Add(-3*time.Hour))), "<time ") {
+		t.Error("timeAgo template func no longer emits a <time> element")
 	}
 }

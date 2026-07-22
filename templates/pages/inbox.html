@@ -51,8 +51,13 @@
         {{end}}
       {{end}}
       <a href="{{if .TicketDisplayID}}/tickets/{{.TicketDisplayID}}{{else}}#{{end}}"
-         class="flex gap-3 px-4 py-3 border-b border-base-300 hover:bg-base-250/40 cursor-pointer
-           {{if not .IsRead}}bg-info/5 border-l-2 border-info pl-[14px] -ml-[2px]{{end}}">
+         {{/* Every row carries the 2px left border (transparent when read) so read
+              and unread rows align; unread only changes its colour. Previously the
+              unread state added the border plus -ml-[2px], leaving unread rows 2px
+              left of read ones. */}}
+         class="flex gap-3 pl-[14px] pr-4 py-3 border-b border-b-base-300 border-l-2 border-l-transparent
+                hover:bg-base-250/40 cursor-pointer
+           {{if not .IsRead}}bg-info/5 !border-l-info{{end}}">
         <!-- Actor avatar -->
         <span class="w-7 h-7 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[12px] font-semibold shrink-0"
               style="background-color:{{if .ActorName}}{{avatarColor .ActorName}}{{else}}#8957e5{{end}}">

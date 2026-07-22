@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -150,5 +151,54 @@ func TestSprintCapacityTeamDays(t *testing.T) {
 	}
 	if got := (SprintCapacity{}).TeamDays(10); got != -1 {
 		t.Errorf("TeamDays with no members = %v, want -1", got)
+	}
+}
+
+func TestSprintScheduleLabel(t *testing.T) {
+	// DayNumber is derived from time.Since(StartDate), so anchor the dates
+	// relative to now: a sprint that started `startedAgo` days ago and runs for
+	// `length` days total.
+	sprint := func(startedAgo, length int) Sprint {
+		start := time.Now().AddDate(0, 0, -startedAgo)
+		end := start.AddDate(0, 0, length-1)
+		return Sprint{StartDate: &start, EndDate: &end}
+	}
+
+	tests := []struct {
+		name string
+		s    Sprint
+		want string
+	}{
+		{"mid sprint", sprint(2, 10), "7 days left"},
+		{"one day to go", sprint(8, 10), "1 day left"},
+		{"final day", sprint(9, 10), "last day"},
+		{"one day over", sprint(10, 10), "1 day overdue"},
+		{"well overdue", sprint(26, 10), "17 days overdue"},
+		{"no dates", Sprint{}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.s.ScheduleLabel(); got != tc.want {
+				t.Errorf("ScheduleLabel() = %q, want %q (day %d of %d)",
+					got, tc.want, tc.s.DayNumber(), tc.s.TotalDays())
+			}
+		})
+	}
+}
+
+// TestSprintScheduleLabelNeverNegative pins the reported bug: an overrunning
+// sprint rendered "-17 days left" because the template did TotalDays−DayNumber
+// inline and always said "left".
+func TestSprintScheduleLabelNeverNegative(t *testing.T) {
+	for over := 1; over <= 30; over++ {
+		start := time.Now().AddDate(0, 0, -(10 + over - 1))
+		end := start.AddDate(0, 0, 9)
+		got := Sprint{StartDate: &start, EndDate: &end}.ScheduleLabel()
+		if strings.Contains(got, "-") {
+			t.Fatalf("%d days over: got %q, which contains a negative", over, got)
+		}
+		if !strings.Contains(got, "overdue") {
+			t.Fatalf("%d days over: got %q, want an overdue phrasing", over, got)
+		}
 	}
 }

@@ -157,6 +157,29 @@ func (s Sprint) TotalDays() int {
 	return int(s.EndDate.Sub(*s.StartDate).Hours()/24) + 1
 }
 
+// ScheduleLabel describes where the sprint is against its end date: "5 days left",
+// "last day", or "3 days overdue". Returns "" when the sprint has no dates.
+//
+// It exists because the templates computed TotalDays−DayNumber inline and always
+// suffixed "days left", so an overrunning sprint read "-17 days left".
+func (s Sprint) ScheduleLabel() string {
+	if s.StartDate == nil || s.EndDate == nil {
+		return ""
+	}
+	switch d := s.TotalDays() - s.DayNumber(); {
+	case d > 1:
+		return fmt.Sprintf("%d days left", d)
+	case d == 1:
+		return "1 day left"
+	case d == 0:
+		return "last day"
+	case d == -1:
+		return "1 day overdue"
+	default:
+		return fmt.Sprintf("%d days overdue", -d)
+	}
+}
+
 // RemainingPoints returns committed − completed story points.
 func (s Sprint) RemainingPoints() float64 {
 	r := s.CommittedPoints - s.CompletedPoints

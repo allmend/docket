@@ -40,7 +40,7 @@
           </div>
           <div class="flex items-center gap-3">
             {{if and $sp.StartDate $sp.EndDate}}
-            <span class="mono text-[14px] text-base-700">{{sub $sp.TotalDays $sp.DayNumber}} days left</span>
+            <span class="mono text-[14px] text-base-700">{{$sp.ScheduleLabel}}</span>
             {{end}}
             {{if $board}}
             <a href="/workspaces/{{$team.Slug}}/board" class="mono text-[13px] text-base-600 hover:text-primary-400">Board →</a>

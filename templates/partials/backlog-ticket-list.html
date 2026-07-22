@@ -124,19 +124,33 @@
 
       <!-- Compact refine-mode row -->
       {{$ready := .StoryPoints}}
-      <div class="backlog-ticket-row flex items-center gap-2 border-b border-base-300 cursor-pointer"
+      {{/* Selection changes colour only, never box metrics: the left border and
+           padding are always present, so a selected row cannot shift sideways.
+           The previous version swapped pl-3 → pl-2.5 and added -ml-[2px] on top of
+           border-l-2, which moved content 2px left; and because the :class binding
+           read $el.classList (not reactive) it only kicked in after an HTMX swap
+           re-applied the classes before Alpine re-initialised — so the jump
+           appeared on the first points/priority change and vanished on reload.
+           `is-refine-selected` is a styling-free marker for querying; the colour
+           utilities use ! so they beat the static border-transparent/hover-bg
+           rather than depending on Tailwind's output order. */}}
+      {{/* Border colours are per-side on purpose: plain border-base-300 and
+           border-transparent both set all four sides, so they'd fight and one
+           would win globally — taking the row separator with it. */}}
+      <div class="backlog-ticket-row flex items-center gap-2 cursor-pointer
+                  border-b border-b-base-300 border-l-2 border-l-transparent
+                  pl-2.5 pr-3 py-2 hover:bg-base-250/40"
            data-ticket-id="{{.ID}}"
            data-display-id="{{.DisplayID}}"
            data-rank="{{$i}}"
            data-position="{{.Position}}"
            data-ticket-column-id="{{.ColumnID}}"
            x-show="refineMode" x-cloak
-           :class="$el.classList.contains('border-info') ? 'pl-2.5 pr-3 py-2 bg-base-250 ring-1 ring-info/20 border-l-2 border-info -ml-[2px]' : 'pl-3 pr-3 py-2 hover:bg-base-250/40'"
            @click="
-             document.querySelectorAll('.backlog-ticket-row.border-info').forEach(function(r){
-               r.classList.remove('bg-base-250','ring-1','ring-info/20','border-l-2','border-info','-ml-[2px]');
+             document.querySelectorAll('.backlog-ticket-row.is-refine-selected').forEach(function(r){
+               r.classList.remove('is-refine-selected','!bg-base-250','ring-1','ring-info/20','!border-l-info');
              });
-             $el.classList.add('bg-base-250','ring-1','ring-info/20','border-l-2','border-info','-ml-[2px]');
+             $el.classList.add('is-refine-selected','!bg-base-250','ring-1','ring-info/20','!border-l-info');
              window._docketRefineTicketID = '{{.ID}}';
              history.replaceState(null, '', '#{{.DisplayID}}');
              if(typeof _updateRefineCounter === 'function') _updateRefineCounter({{$i}});

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/allmend/docket/internal/version"
 )
 
 // templateFuncs returns the helper functions available to all templates.
@@ -32,11 +34,16 @@ func templateFuncs() template.FuncMap {
 		"formatDate":  func(t time.Time) string { return t.Format("Monday, 2 Jan 2006") },
 		"hashColor":   hashColor,
 		"avatarColor": avatarColor,
-		"timeAgo":     timeAgo,
-		"dict":        dict,
+		// The HTML variant on purpose — see timeAgoHTML. Every relative timestamp
+		// gets the exact time as a hover tooltip without touching call sites.
+		"timeAgo": timeAgoHTML,
+		"dict":    dict,
 
 		"priorityColor": priorityColor,
 		"priorityLabel": priorityLabel,
+
+		// Build version, so no template has to hardcode (and then forget) it.
+		"version": func() string { return version.Version },
 	}
 }
 
@@ -205,6 +212,27 @@ func hashColor(s string) string {
 		h = (h*31 + int(c)) & 0xffff
 	}
 	return palette[h%len(palette)]
+}
+
+// timeAgoHTML is what templates actually get for {{timeAgo …}}: the relative
+// phrase wrapped in a <time> element carrying the exact timestamp, so hovering
+// any relative timestamp in the UI shows the ISO 8601 value as a native tooltip.
+//
+// Done at the func rather than the ~13 call sites so no existing site can be
+// missed and no future {{timeAgo …}} can forget it. Safe as template.HTML: the
+// only interpolated value is a fixed-format RFC 3339 string, escaped anyway.
+//
+// The timestamp is rendered in the server's zone; RFC 3339 carries the offset,
+// so it is unambiguous even though it isn't the viewer's local time.
+func timeAgoHTML(t time.Time) template.HTML {
+	if t.IsZero() {
+		return ""
+	}
+	stamp := template.HTMLEscapeString(t.Format(time.RFC3339))
+	return template.HTML(fmt.Sprintf(
+		`<time datetime="%s" title="%s">%s</time>`,
+		stamp, stamp, template.HTMLEscapeString(timeAgo(t)),
+	))
 }
 
 func timeAgo(t time.Time) string {

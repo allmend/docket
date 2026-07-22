@@ -162,6 +162,16 @@
           Dashboard
         </a>
 
+        {{$boardPath  := printf "/workspaces/%s/board" $slug}}
+        {{$dailyPath  := printf "/workspaces/%s/board/daily" $slug}}
+        {{$boardActive := or (eq .CurrentPath $boardPath) (eq .CurrentPath $dailyPath)}}
+        <a href="{{$boardPath}}"
+           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
+           {{if $boardActive}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
+          <span class="w-3 h-3 rounded-sm shrink-0 {{if $boardActive}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
+          {{if $b.Mode.IsScrum}}Sprint board{{else}}Board{{end}}
+        </a>
+
         {{if $b.Mode.IsScrum}}
         {{$backlogPath   := printf "/workspaces/%s/backlog" $slug}}
         {{$refinePath    := printf "/workspaces/%s/backlog/refinement" $slug}}
@@ -173,16 +183,6 @@
           Backlog
         </a>
         {{end}}
-
-        {{$boardPath  := printf "/workspaces/%s/board" $slug}}
-        {{$dailyPath  := printf "/workspaces/%s/board/daily" $slug}}
-        {{$boardActive := or (eq .CurrentPath $boardPath) (eq .CurrentPath $dailyPath)}}
-        <a href="{{$boardPath}}"
-           class="flex items-center gap-2 px-2 py-1.5 rounded text-[15px]
-           {{if $boardActive}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-800 hover:bg-base-200{{end}}">
-          <span class="w-3 h-3 rounded-sm shrink-0 {{if $boardActive}}bg-primary-500{{else}}border border-base-500{{end}}"></span>
-          {{if $b.Mode.IsScrum}}Sprint board{{else}}Board{{end}}
-        </a>
 
         {{if $b.Mode.IsScrum}}
         {{/* TODO: re-enable Sprint review + Retros nav once those features are in use.
@@ -406,7 +406,13 @@
   </div>
 
   <!-- Ticket drawer -->
-  <div class="fixed inset-0 z-50" x-show="ticketModal" x-cloak style="display:none">
+  {{/* Emptying #modal-body on close matters beyond hygiene: the drawer is only
+       hidden (x-show), so its markup would otherwise live on indefinitely — and
+       #ticket-activity inside it listens for boardUpdated, which would keep
+       re-fetching a closed drawer on every board mutation. Reopening shows the
+       skeleton instead of the previous ticket, which is also what we want. */}}
+  <div class="fixed inset-0 z-50" x-show="ticketModal" x-cloak style="display:none"
+       x-effect="if (!ticketModal) { const b = document.getElementById('modal-body'); if (b) b.innerHTML = '' }">
 
     <!-- Scrim: dims the content behind, click to close -->
     <div class="absolute inset-0 bg-base-100/70"

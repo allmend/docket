@@ -35,7 +35,7 @@
               <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-success/15 border border-success/30 mono text-[13px] uppercase tracking-wider text-success">active</span>
             </div>
             {{if and $sp.StartDate $sp.EndDate}}
-            <span class="mono text-[14px] text-base-700">{{sub $sp.TotalDays $sp.DayNumber}} days left</span>
+            <span class="mono text-[14px] text-base-700">{{$sp.ScheduleLabel}}</span>
             {{end}}
           </div>
           <div class="grid grid-cols-3 divide-x divide-base-300 border-b border-base-300">
