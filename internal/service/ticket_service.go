@@ -104,6 +104,9 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 	if err != nil {
 		return nil, fmt.Errorf("get ticket: %w", err)
 	}
+	if old.ClosedAt != nil {
+		return nil, ErrTicketClosed
+	}
 
 	updated, err := s.store.UpdateTicket(ctx, orgID, ticketID, title, body, priority, assigneeID)
 	if err != nil {
@@ -222,6 +225,9 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 
 func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, actorID uuid.UUID, priority model.Priority) (*model.Ticket, error) {
 	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
+	if old != nil && old.ClosedAt != nil {
+		return nil, ErrTicketClosed
+	}
 	t, err := s.store.UpdateTicketPriority(ctx, orgID, ticketID, priority)
 	if err != nil {
 		return nil, err
@@ -239,6 +245,9 @@ func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, act
 
 func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actorID uuid.UUID, points *float64) (*model.Ticket, error) {
 	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
+	if old != nil && old.ClosedAt != nil {
+		return nil, ErrTicketClosed
+	}
 	t, err := s.store.UpdateTicketPoints(ctx, orgID, ticketID, points)
 	if err != nil {
 		return nil, err
@@ -316,6 +325,9 @@ func (s *TicketService) ListAssignees(ctx context.Context, ticketID uuid.UUID) (
 }
 
 func (s *TicketService) AddAssignee(ctx context.Context, orgID, ticketID, userID, actorID uuid.UUID) error {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return err
+	}
 	if err := s.store.AddTicketAssignee(ctx, orgID, ticketID, userID); err != nil {
 		return err
 	}
@@ -336,6 +348,9 @@ func (s *TicketService) AddAssignee(ctx context.Context, orgID, ticketID, userID
 }
 
 func (s *TicketService) RemoveAssignee(ctx context.Context, orgID, ticketID, userID, actorID uuid.UUID) error {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return err
+	}
 	removed, _ := s.store.GetUserByID(ctx, orgID, userID)
 	if err := s.store.RemoveTicketAssignee(ctx, orgID, ticketID, userID); err != nil {
 		return err
@@ -373,6 +388,9 @@ func (s *TicketService) Search(ctx context.Context, orgID uuid.UUID, query strin
 
 func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, actorID uuid.UUID, title string) (*model.Ticket, error) {
 	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
+	if old != nil && old.ClosedAt != nil {
+		return nil, ErrTicketClosed
+	}
 	t, err := s.store.UpdateTicketTitle(ctx, orgID, ticketID, title)
 	if err != nil {
 		return nil, err
@@ -389,6 +407,9 @@ func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, 
 }
 
 func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, actorID uuid.UUID, body string) (*model.Ticket, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return nil, err
+	}
 	t, err := s.store.UpdateTicketBody(ctx, orgID, ticketID, body)
 	if err != nil {
 		return nil, err
@@ -403,11 +424,17 @@ func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, a
 }
 
 func (s *TicketService) UpdateTicketAC(ctx context.Context, orgID, ticketID, actorID uuid.UUID, ac string) (*model.Ticket, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return nil, err
+	}
 	return s.store.UpdateTicketAC(ctx, orgID, ticketID, ac)
 }
 
 // ToggleACCheckbox flips the Nth task-list checkbox in the acceptance_criteria field.
 func (s *TicketService) ToggleACCheckbox(ctx context.Context, orgID, ticketID uuid.UUID, index int) (*model.Ticket, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return nil, err
+	}
 	ac, err := s.store.GetTicketAC(ctx, orgID, ticketID)
 	if err != nil {
 		return nil, err
@@ -418,6 +445,9 @@ func (s *TicketService) ToggleACCheckbox(ctx context.Context, orgID, ticketID uu
 
 // AddACItem appends a new unchecked item to the acceptance criteria.
 func (s *TicketService) AddACItem(ctx context.Context, orgID, ticketID uuid.UUID, text string) (*model.Ticket, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return nil, err
+	}
 	ac, err := s.store.GetTicketAC(ctx, orgID, ticketID)
 	if err != nil {
 		return nil, err
@@ -427,6 +457,9 @@ func (s *TicketService) AddACItem(ctx context.Context, orgID, ticketID uuid.UUID
 
 // DeleteACItem removes the Nth checklist item from the acceptance criteria.
 func (s *TicketService) DeleteACItem(ctx context.Context, orgID, ticketID uuid.UUID, index int) (*model.Ticket, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return nil, err
+	}
 	ac, err := s.store.GetTicketAC(ctx, orgID, ticketID)
 	if err != nil {
 		return nil, err

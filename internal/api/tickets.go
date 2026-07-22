@@ -125,12 +125,16 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("HX-Trigger", `{"open-modal":{"id":"ticket-detail"}}`)
 	h.render(w, "ticket-detail.html", map[string]any{
 		"Ticket":    ticket,
-		"Comments":  []model.Comment{},
-		"History":   []model.HistoryEntry{},
+		"Activity":  []model.ActivityItem{},
 		"Assignees": []model.User{},
 		"Columns":   columns,
 		"Tags":      []model.Tag{},
 		"BoardTags": []model.Tag{},
+		// A ticket this new has no links and is never in a started sprint, but
+		// the keys must still be present — the drawer template reads them.
+		"Links":        []model.TicketLink{},
+		"SprintActive": false,
+		"CurrentUser":  h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -172,12 +176,16 @@ func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("HX-Trigger", `{"open-modal":{"id":"ticket-detail"}}`)
 	h.render(w, "ticket-detail.html", map[string]any{
 		"Ticket":    ticket,
-		"Comments":  []model.Comment{},
-		"History":   []model.HistoryEntry{},
+		"Activity":  []model.ActivityItem{},
 		"Assignees": []model.User{},
 		"Columns":   cols,
 		"Tags":      []model.Tag{},
 		"BoardTags": []model.Tag{},
+		// A ticket this new has no links and is never in a started sprint, but
+		// the keys must still be present — the drawer template reads them.
+		"Links":        []model.TicketLink{},
+		"SprintActive": false,
+		"CurrentUser":  h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -207,8 +215,7 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 
 	h.render(w, "ticket-detail.html", map[string]any{
 		"Ticket":       ticket,
-		"Comments":     comments,
-		"History":      history,
+		"Activity":     model.MergeActivity(history, comments),
 		"Assignees":    assignees,
 		"Columns":      columns,
 		"Links":        links,
@@ -264,8 +271,7 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 		"Ticket":       ticket,
 		"Board":        board,
 		"Team":         team,
-		"Comments":     comments,
-		"History":      history,
+		"Activity":     model.MergeActivity(history, comments),
 		"Assignees":    assignees,
 		"Columns":      columns,
 		"Links":        links,
@@ -372,7 +378,7 @@ func (h *Handler) UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		assigneeID,
 	)
 	if err != nil {
-		http.Error(w, "failed to update ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update ticket")
 		return
 	}
 
@@ -495,7 +501,7 @@ func (h *Handler) UpdateTicketPriority(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.UpdatePriority(r.Context(), orgID, ticketID, userID, model.Priority(r.FormValue("priority")))
 	if err != nil {
-		http.Error(w, "failed to update priority", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update priority")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -522,7 +528,7 @@ func (h *Handler) UpdateTicketPoints(w http.ResponseWriter, r *http.Request) {
 		points = &n
 	}
 	if _, err := h.tickets.UpdatePoints(r.Context(), orgID, ticketID, userID, points); err != nil {
-		http.Error(w, "failed to update story points", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update story points")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -570,7 +576,7 @@ func (h *Handler) AddTicketAssignee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.tickets.AddAssignee(r.Context(), orgID, ticketID, userID, actorID); err != nil {
-		http.Error(w, "failed to add assignee", http.StatusInternalServerError)
+		serviceError(w, err, "failed to add assignee")
 		return
 	}
 	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
@@ -595,7 +601,7 @@ func (h *Handler) RemoveTicketAssignee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.tickets.RemoveAssignee(r.Context(), orgID, ticketID, userID, actorID); err != nil {
-		http.Error(w, "failed to remove assignee", http.StatusInternalServerError)
+		serviceError(w, err, "failed to remove assignee")
 		return
 	}
 	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
@@ -774,7 +780,7 @@ func (h *Handler) UpdateTicketTitle(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.UpdateTicketTitle(r.Context(), orgID, ticketID, userID, title)
 	if err != nil {
-		http.Error(w, "failed to update title", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update title")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -793,7 +799,7 @@ func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.UpdateTicketBody(r.Context(), orgID, ticketID, userID, r.FormValue("body"))
 	if err != nil {
-		http.Error(w, "failed to update description", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update description")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -813,7 +819,7 @@ func (h *Handler) ToggleACCheckbox(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.ToggleACCheckbox(r.Context(), orgID, ticketID, index)
 	if err != nil {
-		http.Error(w, "failed to toggle checkbox", http.StatusInternalServerError)
+		serviceError(w, err, "failed to toggle checkbox")
 		return
 	}
 	h.render(w, "ticket-ac-section.html", ticket)
@@ -831,7 +837,7 @@ func (h *Handler) UpdateTicketAC(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.UpdateTicketAC(r.Context(), orgID, ticketID, userID, r.FormValue("ac"))
 	if err != nil {
-		http.Error(w, "failed to update acceptance criteria", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update acceptance criteria")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -854,7 +860,7 @@ func (h *Handler) AddACItem(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.AddACItem(r.Context(), orgID, ticketID, text)
 	if err != nil {
-		http.Error(w, "failed to add item", http.StatusInternalServerError)
+		serviceError(w, err, "failed to add item")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -874,7 +880,7 @@ func (h *Handler) DeleteACItem(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.DeleteACItem(r.Context(), orgID, ticketID, index)
 	if err != nil {
-		http.Error(w, "failed to delete item", http.StatusInternalServerError)
+		serviceError(w, err, "failed to delete item")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")

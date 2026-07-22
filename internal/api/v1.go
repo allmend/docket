@@ -432,6 +432,10 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 
 	actorID := service.UserIDFromContext(r.Context())
 	updated, err := h.tickets.UpdateTicket(r.Context(), orgID, ticket.ID, actorID, body.Title, body.Body, priority, assigneeID)
+	if errors.Is(err, service.ErrTicketClosed) {
+		apiError(w, http.StatusConflict, "ticket is closed")
+		return
+	}
 	if err != nil {
 		apiError(w, http.StatusInternalServerError, "failed to update ticket")
 		return

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"net/http"
 	"regexp"
 
@@ -47,7 +46,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 
 	comment, err := h.comments.CreateComment(r.Context(), orgID, ticketID, userID, body)
 	if err != nil {
-		http.Error(w, "failed to create comment", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create comment")
 		return
 	}
 
@@ -113,12 +112,8 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	comment, err := h.comments.UpdateComment(r.Context(), orgID, commentID, userID, role, r.FormValue("body"))
-	if errors.Is(err, service.ErrForbidden) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
 	if err != nil {
-		http.Error(w, "failed to update comment", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update comment")
 		return
 	}
 
@@ -136,12 +131,8 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err := h.comments.DeleteComment(r.Context(), orgID, commentID, userID, role)
-	if errors.Is(err, service.ErrForbidden) {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
 	if err != nil {
-		http.Error(w, "failed to delete comment", http.StatusInternalServerError)
+		serviceError(w, err, "failed to delete comment")
 		return
 	}
 

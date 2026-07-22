@@ -125,7 +125,10 @@ func (h *Handler) AddTagToTicket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid tag ID", http.StatusBadRequest)
 		return
 	}
-	_ = h.boards.AddTagToTicket(r.Context(), orgID, ticketID, tagID)
+	if err := h.boards.AddTagToTicket(r.Context(), orgID, ticketID, tagID); err != nil {
+		serviceError(w, err, "failed to add label")
+		return
+	}
 	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticketID)
 	var boardTags []model.Tag
@@ -151,7 +154,10 @@ func (h *Handler) RemoveTagFromTicket(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	_ = h.boards.RemoveTagFromTicket(r.Context(), orgID, ticketID, tagID)
+	if err := h.boards.RemoveTagFromTicket(r.Context(), orgID, ticketID, tagID); err != nil {
+		serviceError(w, err, "failed to remove label")
+		return
+	}
 	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticketID)
 	var boardTags []model.Tag

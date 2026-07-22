@@ -96,7 +96,7 @@ func (h *Handler) ToggleDodCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	checked := r.FormValue("checked") == "true"
 	if err := h.boards.ToggleDodCheck(r.Context(), orgID, ticketID, itemID, checked); err != nil {
-		http.Error(w, "failed to toggle check", http.StatusInternalServerError)
+		serviceError(w, err, "failed to toggle check")
 		return
 	}
 	ticket, err := h.tickets.GetTicket(r.Context(), orgID, ticketID)

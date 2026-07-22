@@ -73,35 +73,17 @@
       <!-- Activity -->
       <section class="space-y-3">
         <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Activity</div>
-        <div id="ticket-activity" class="relative pl-5 space-y-3">
+        {{/* Pattern A: re-fetch the drawer and keep only this node. Status/priority/
+             points/assignee/label changes all write history, so the stream has to
+             refresh on boardUpdated the same way the board behind the drawer does. */}}
+        <div id="ticket-activity" class="relative pl-5 space-y-3"
+             hx-get="/tickets/{{$t.ID}}/quick"
+             hx-select="#ticket-activity"
+             hx-swap="outerHTML"
+             hx-trigger="boardUpdated from:body">
           <span class="absolute left-[5.5px] top-1.5 bottom-1.5 w-px bg-base-300"></span>
-          {{range .History}}
-          <div class="relative flex items-center gap-2 text-[13px] text-base-700">
-            <span class="absolute -left-[18px] w-3 h-3 rounded-full bg-base-300 ring-2 ring-base-200"></span>
-            <span class="text-base-900 font-medium">{{.ActorName}}</span>
-            {{if eq .Field "title"}}changed title
-            {{else if eq .Field "description"}}updated description
-            {{else if eq .Field "priority"}}changed priority to <span class="text-base-900">{{.NewValue}}</span>
-            {{else if eq .Field "story_points"}}estimated <span class="mono text-base-900">{{.NewValue}} pt</span>
-            {{else if eq .Field "column"}}moved to
-              {{$cn := lower .NewValue}}
-              <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[12px] uppercase tracking-wider
-                {{if contains $cn "progress"}}bg-info/15 border border-info/30 text-info
-                {{else if contains $cn "review"}}bg-warn/15 border border-warn/30 text-warn
-                {{else if eq $cn "done"}}bg-success/15 border border-success/30 text-success
-                {{else}}bg-base-300 border border-base-350 text-base-700{{end}}">{{.NewValue}}</span>
-            {{else if eq .Field "comment"}}commented
-            {{else if eq .Field "link_added"}}linked <span class="mono text-base-900">{{.NewValue}}</span>
-            {{else if eq .Field "link_removed"}}removed link to <span class="mono text-base-900">{{.OldValue}}</span>
-            {{else if eq .Field "link_cleared"}}cleared link <span class="mono text-base-900">{{.OldValue}}</span> — blocker resolved
-            {{else}}{{.Field}}: {{.NewValue}}
-            {{end}}
-            <span class="ml-auto mono text-[12px] text-base-600 shrink-0">{{timeAgo .CreatedAt}}</span>
-          </div>
-          {{end}}
-          {{range .Comments}}
-          {{template "comment" .}}
-          {{end}}
+          {{template "ticket-activity" (dict "Activity" .Activity "Ring" "ring-base-200")}}
+
         </div>
 
         {{if not $closed}}
@@ -109,8 +91,10 @@
               hx-target="#ticket-activity"
               hx-swap="beforeend"
               hx-on::after-request="if(event.detail.successful) this.reset()"
-              class="flex flex-col gap-2">
-          {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Leave a comment… (@username, #TICKET-ID)" "Rows" "2")}}
+              class="flex flex-col gap-2 pt-4 border-t border-base-300">
+          {{/* Rows 6 ≈ the visual pane's min-h-[9rem], so the box doesn't jump on
+               mode switch. Note space-y-3 on the section beats any mt-* here. */}}
+          {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Leave a comment… (@username, #TICKET-ID)" "Rows" "6")}}
           <div class="flex justify-end">
             <button type="submit"
                     class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[13px] px-2.5 py-1 rounded">

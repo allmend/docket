@@ -29,6 +29,9 @@ func (s *CommentService) ListComments(ctx context.Context, orgID, ticketID uuid.
 }
 
 func (s *CommentService) CreateComment(ctx context.Context, orgID, ticketID, authorID uuid.UUID, body string) (*model.Comment, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return nil, err
+	}
 	return s.store.CreateComment(ctx, orgID, ticketID, authorID, body)
 }
 
@@ -47,8 +50,8 @@ func (s *CommentService) DeleteComment(ctx context.Context, orgID, commentID, ac
 }
 
 // authorizeCommentMutation permits editing/deleting a comment only for its
-// author or an org admin. Returns ErrForbidden otherwise (or the store error if
-// the comment can't be loaded).
+// author or an org admin, and only while the ticket is open. Returns ErrForbidden
+// or ErrTicketClosed otherwise (or the store error if the comment can't be loaded).
 func (s *CommentService) authorizeCommentMutation(ctx context.Context, orgID, commentID, actorID uuid.UUID, actorRole string) error {
 	c, err := s.store.GetComment(ctx, orgID, commentID)
 	if err != nil {
@@ -57,7 +60,7 @@ func (s *CommentService) authorizeCommentMutation(ctx context.Context, orgID, co
 	if c.AuthorID != actorID && actorRole != "admin" {
 		return ErrForbidden
 	}
-	return nil
+	return assertTicketOpen(ctx, s.store, orgID, c.TicketID)
 }
 
 func (s *CommentService) ListHistory(ctx context.Context, ticketID uuid.UUID) ([]model.HistoryEntry, error) {

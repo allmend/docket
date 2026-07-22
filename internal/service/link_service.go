@@ -24,6 +24,9 @@ func (s *LinkService) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) 
 // CreateLink creates a ticket link and records a history entry on both tickets,
 // each labelled from that ticket's perspective.
 func (s *LinkService) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, actorID uuid.UUID) (*model.TicketLink, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, fromTicketID); err != nil {
+		return nil, err
+	}
 	link, err := s.store.CreateLink(ctx, orgID, fromTicketID, toTicketID, relation)
 	if err != nil {
 		return nil, err
@@ -39,7 +42,13 @@ func (s *LinkService) CreateLink(ctx context.Context, orgID, fromTicketID, toTic
 }
 
 // DeleteLink deletes a ticket link and records a history entry on both tickets.
-func (s *LinkService) DeleteLink(ctx context.Context, orgID, linkID, actorID uuid.UUID) error {
+// ticketID is the ticket the actor is viewing — the link is only removable while
+// that ticket is open, so a link to a closed ticket can still be cleared from the
+// open end.
+func (s *LinkService) DeleteLink(ctx context.Context, orgID, ticketID, linkID, actorID uuid.UUID) error {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return err
+	}
 	link, _ := s.store.GetLink(ctx, orgID, linkID)
 
 	if err := s.store.DeleteLink(ctx, orgID, linkID); err != nil {

@@ -65,7 +65,7 @@
                  @input.debounce.250="q.trim() ? htmx.ajax('GET','/tickets/{{.TicketID}}/link-search?q='+encodeURIComponent(q.trim()),{target:'#link-results',swap:'innerHTML'}) : (document.getElementById('link-results').innerHTML='')"
                  @keydown.escape.stop="closeAdd()"
                  placeholder="Search by ticket ID or title…" autocomplete="off" spellcheck="false"
-                 class="bg-transparent flex-1 min-w-0 mono text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none"/>
+                 class="bg-transparent flex-1 min-w-0 mono text-[13px] text-base-900 placeholder:text-base-600 focus:outline-none border-none shadow-none p-0"/>
         </div>
         <div id="link-results" class="absolute left-0 right-0 top-full mt-1 z-50"></div>
       </div>

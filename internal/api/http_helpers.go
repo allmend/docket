@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -11,6 +12,21 @@ import (
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 )
+
+// serviceError writes the HTTP response for a service-layer error: known
+// sentinel errors get a meaningful status, everything else falls back to a
+// generic 500 with the caller's message (never the raw error — pg constraint
+// details must not reach the client).
+func serviceError(w http.ResponseWriter, err error, fallback string) {
+	switch {
+	case errors.Is(err, service.ErrTicketClosed):
+		http.Error(w, "ticket is closed", http.StatusConflict)
+	case errors.Is(err, service.ErrForbidden):
+		http.Error(w, "forbidden", http.StatusForbidden)
+	default:
+		http.Error(w, fallback, http.StatusInternalServerError)
+	}
+}
 
 // pathUUID parses the named chi URL parameter as a UUID. On failure it writes
 // a 400 response and returns false, so callers can simply return.

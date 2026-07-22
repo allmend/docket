@@ -2,6 +2,7 @@ package model
 
 import (
 	"html/template"
+	"sort"
 	"time"
 
 	"github.com/allmend/docket/internal/markdown"
@@ -36,6 +37,45 @@ type HistoryEntry struct {
 	OldValue  string    `json:"old_value"`
 	NewValue  string    `json:"new_value"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// ActivityItem is one entry in a ticket's activity stream: either a history
+// record or a comment, never both. Exactly one of History/Comment is non-nil,
+// which is how the template picks its renderer.
+type ActivityItem struct {
+	CreatedAt time.Time
+	History   *HistoryEntry
+	Comment   *Comment
+}
+
+// MergeActivity interleaves history entries and comments into a single stream
+// ordered oldest-first, so the ticket view reads chronologically instead of
+// showing every field change above every comment.
+//
+// Oldest-first matters beyond readability: the comment composer posts with
+// hx-swap="beforeend", so a new comment must belong at the end of the list.
+//
+// History rows with field "comment" are dropped — the comment itself carries the
+// same actor and timestamp plus the body, so keeping both duplicates the entry.
+// The stored row is untouched; feeds that don't render comment bodies (the
+// dashboard and stand-up activity lists) still use it.
+func MergeActivity(history []HistoryEntry, comments []Comment) []ActivityItem {
+	items := make([]ActivityItem, 0, len(history)+len(comments))
+	for i := range history {
+		if history[i].Field == "comment" {
+			continue
+		}
+		items = append(items, ActivityItem{CreatedAt: history[i].CreatedAt, History: &history[i]})
+	}
+	for i := range comments {
+		items = append(items, ActivityItem{CreatedAt: comments[i].CreatedAt, Comment: &comments[i]})
+	}
+	// Stable so that entries sharing a timestamp keep history-before-comment
+	// order rather than shuffling between renders.
+	sort.SliceStable(items, func(a, b int) bool {
+		return items[a].CreatedAt.Before(items[b].CreatedAt)
+	})
+	return items
 }
 
 // InboxEntry is a history event on a ticket the current user is assigned to.

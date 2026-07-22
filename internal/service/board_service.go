@@ -166,6 +166,10 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 			for i := range planningTickets {
 				planningTickets[i].Assignees = assigneesByTicket[planningTickets[i].ID]
 				planningTickets[i].Tags = tagsByTicket[planningTickets[i].ID]
+				if blocker, ok := blockedBy[planningTickets[i].ID]; ok {
+					planningTickets[i].IsBlocked = true
+					planningTickets[i].BlockedBy = blocker
+				}
 			}
 			byCol := make(map[uuid.UUID][]model.Ticket)
 			for _, t := range planningTickets {
@@ -549,10 +553,16 @@ func (s *BoardService) SetMemberCapacity(ctx context.Context, orgID, sprintID, u
 }
 
 func (s *BoardService) AddTagToTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return err
+	}
 	return s.store.AddTagToTicket(ctx, orgID, ticketID, tagID)
 }
 
 func (s *BoardService) RemoveTagFromTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return err
+	}
 	return s.store.RemoveTagFromTicket(ctx, orgID, ticketID, tagID)
 }
 
@@ -595,6 +605,9 @@ func (s *BoardService) GetTicketDod(ctx context.Context, orgID, boardID, ticketI
 }
 
 func (s *BoardService) ToggleDodCheck(ctx context.Context, orgID, ticketID, itemID uuid.UUID, checked bool) error {
+	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
+		return err
+	}
 	return s.store.ToggleDodCheck(ctx, orgID, ticketID, itemID, checked)
 }
 

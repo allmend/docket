@@ -43,7 +43,7 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.links.CreateLink(r.Context(), orgID, fromID, toTicketID, relation, userID); err != nil {
-		http.Error(w, "failed to create link", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create link")
 		return
 	}
 
@@ -52,6 +52,9 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "ticket-links.html", map[string]any{
 		"TicketID": ticketID,
 		"Links":    links,
+		// Link mutations are rejected on a closed ticket, so this path is
+		// only reachable while it is open.
+		"Closed": nil,
 	})
 }
 
@@ -67,8 +70,8 @@ func (h *Handler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.links.DeleteLink(r.Context(), orgID, linkID, userID); err != nil {
-		http.Error(w, "failed to delete link", http.StatusInternalServerError)
+	if err := h.links.DeleteLink(r.Context(), orgID, ticketID, linkID, userID); err != nil {
+		serviceError(w, err, "failed to delete link")
 		return
 	}
 
@@ -77,5 +80,8 @@ func (h *Handler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "ticket-links.html", map[string]any{
 		"TicketID": ticketID,
 		"Links":    links,
+		// Link mutations are rejected on a closed ticket, so this path is
+		// only reachable while it is open.
+		"Closed": nil,
 	})
 }
