@@ -17,6 +17,12 @@ const ticketCols = `
 	t.sprint_id, t.external_ref, t.closed_at, t.close_reason, t.created_at, t.updated_at,
 	u.name, COALESCE(ub.name, '')`
 
+// priorityOrder ranks tickets critical → high → medium → low → none.
+// priority is a TEXT column, so a plain ORDER BY sorts it alphabetically
+// (medium, low, high, critical) — always sort through this expression.
+// Assumes the tickets table is aliased as `t`.
+const priorityOrder = `COALESCE(array_position(ARRAY['critical','high','medium','low',''], t.priority), 99)`
+
 const ticketJoins = `
 	FROM tickets t
 	LEFT JOIN users u  ON u.id  = t.assignee_id
@@ -125,6 +131,17 @@ func (s *Store) GetTicket(ctx context.Context, orgID, ticketID uuid.UUID) (*mode
 		return nil, err
 	}
 	return &t, nil
+}
+
+// IsTicketClosed reports whether the ticket is closed. Cheaper than GetTicket for
+// callers that only need to gate a mutation on closed state.
+func (s *Store) IsTicketClosed(ctx context.Context, orgID, ticketID uuid.UUID) (bool, error) {
+	var closed bool
+	err := s.replica.QueryRow(ctx,
+		`SELECT closed_at IS NOT NULL FROM tickets WHERE org_id = $1 AND id = $2`,
+		orgID, ticketID,
+	).Scan(&closed)
+	return closed, err
 }
 
 func (s *Store) CreateTicket(ctx context.Context,
@@ -275,7 +292,7 @@ func (s *Store) ListTicketsByAssignee(ctx context.Context, orgID, userID uuid.UU
 		`SELECT `+ticketCols+ticketJoins+`
 		 JOIN ticket_assignees ta ON ta.ticket_id = t.id
 		 WHERE t.org_id = $1 AND ta.user_id = $2
-		 ORDER BY t.priority DESC, t.number`,
+		 ORDER BY `+priorityOrder+`, t.number`,
 		orgID, userID,
 	)
 	if err != nil {

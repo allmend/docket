@@ -29,7 +29,7 @@ func (s *Store) ListBlockedTickets(ctx context.Context, orgID uuid.UUID) ([]mode
 		       SELECT 1 FROM ticket_links tl
 		       WHERE tl.to_ticket_id = t.id AND tl.relation_type = 'blocks'
 		   )
-		 ORDER BY t.priority DESC, t.number
+		 ORDER BY `+priorityOrder+`, t.number
 		 LIMIT 10`,
 		orgID,
 	)
@@ -70,7 +70,7 @@ func (s *Store) ListMyOpenTickets(ctx context.Context, orgID, userID uuid.UUID) 
 		     CASE WHEN sp.status = 'active'   THEN 0
 		          WHEN sp.status = 'planning' THEN 1
 		          ELSE 2 END,
-		     t.priority DESC,
+		     `+priorityOrder+`,
 		     t.number
 		 LIMIT 25`,
 		orgID, userID,
@@ -112,7 +112,7 @@ func (s *Store) ListBlockedTicketsByTeam(ctx context.Context, orgID, teamID uuid
 		       SELECT 1 FROM ticket_links tl
 		       WHERE tl.to_ticket_id = t.id AND tl.relation_type = 'blocks'
 		   )
-		 ORDER BY t.priority DESC, t.number
+		 ORDER BY `+priorityOrder+`, t.number
 		 LIMIT 10`,
 		orgID, teamID,
 	)
@@ -154,7 +154,7 @@ func (s *Store) ListMyOpenTicketsByTeam(ctx context.Context, orgID, userID, team
 		     CASE WHEN sp.status = 'active'   THEN 0
 		          WHEN sp.status = 'planning' THEN 1
 		          ELSE 2 END,
-		     t.priority DESC,
+		     `+priorityOrder+`,
 		     t.number
 		 LIMIT 20`,
 		orgID, userID, teamID,

@@ -145,22 +145,44 @@ func (s *Store) MetricsBlockedCount(ctx context.Context, orgID uuid.UUID) ([]Blo
 	return out, rows.Err()
 }
 
-// MetricsSprintStats returns snapshotted sprint stats for active and completed sprints,
+// MetricsSprintStats returns sprint stats for active and recently completed sprints,
 // scoped to a single org.
+//
+// The committed/completed columns on the sprints row are only written at close time
+// (see SnapshotSprintStats), so they read as 0 for an in-flight sprint — useless for a
+// burndown. Active sprints therefore report live counts computed here; completed sprints
+// keep their snapshot, which must not be recomputed because non-done tickets leave the
+// sprint at close and a live query would undercount what was committed. Same rule as
+// fillSprintLiveStats, which covers the UI paths.
 func (s *Store) MetricsSprintStats(ctx context.Context, orgID uuid.UUID) ([]SprintStatsRow, error) {
 	rows, err := s.replica.Query(ctx, `
 		SELECT
 			o.slug               AS org_slug,
 			COALESCE(te.key, '') AS team_key,
 			sp.name              AS sprint_name,
-			sp.committed_tickets,
-			sp.completed_tickets,
-			sp.committed_points,
-			sp.completed_points
+			CASE WHEN sp.status = 'completed'
+			     THEN sp.committed_tickets ELSE live.committed_tickets END,
+			CASE WHEN sp.status = 'completed'
+			     THEN sp.completed_tickets ELSE live.completed_tickets END,
+			CASE WHEN sp.status = 'completed'
+			     THEN sp.committed_points ELSE live.committed_points END,
+			CASE WHEN sp.status = 'completed'
+			     THEN sp.completed_points ELSE live.completed_points END
 		FROM sprints sp
 		JOIN boards b ON b.id = sp.board_id
 		JOIN orgs o ON o.id = sp.org_id
 		LEFT JOIN teams te ON te.id = b.team_id
+		LEFT JOIN LATERAL (
+			SELECT
+				COUNT(*)                                              AS committed_tickets,
+				COUNT(*) FILTER (WHERE LOWER(c.name) = 'done')        AS completed_tickets,
+				COALESCE(SUM(t.story_points), 0)::float8              AS committed_points,
+				COALESCE(SUM(t.story_points)
+				         FILTER (WHERE LOWER(c.name) = 'done'), 0)::float8 AS completed_points
+			FROM tickets t
+			LEFT JOIN columns c ON c.id = t.column_id
+			WHERE t.org_id = sp.org_id AND t.sprint_id = sp.id
+		) live ON TRUE
 		WHERE sp.org_id = $1
 		  AND (
 		    sp.status = 'active'
