@@ -291,3 +291,14 @@ func (s *AuthService) GetCurrentOrg(ctx context.Context) *model.Org {
 	org, _ := s.store.GetOrgByID(ctx, orgID)
 	return org
 }
+
+// SingleOrgName returns the name of the sole org, for display on the login page
+// before anyone is authenticated. Empty when it can't be resolved — the caller
+// treats that as "don't show an org name".
+func (s *AuthService) SingleOrgName(ctx context.Context) string {
+	org, err := s.store.GetFirstOrg(ctx)
+	if err != nil || org == nil {
+		return ""
+	}
+	return org.Name
+}

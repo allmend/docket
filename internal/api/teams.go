@@ -112,7 +112,7 @@ func (h *Handler) TeamView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{"Team": team}
+	data := map[string]any{"Team": team, "Board": nil}
 
 	if board, err := h.teams.GetBoardForTeam(ctx, orgID, team.ID); err == nil {
 		data["Board"] = board
@@ -267,7 +267,13 @@ func (h *Handler) TeamSettings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tab := r.URL.Query().Get("tab")
-	data := map[string]any{"Team": team, "Tab": tab}
+	// Seeded up front, not only on the success paths: settings.html is shared
+	// with the org-level settings view and reads all of these, and the templates
+	// run under missingkey=error, so a conditional assignment is a latent 500.
+	data := map[string]any{
+		"Team": team, "Tab": tab,
+		"Board": nil, "Members": nil, "Tracks": nil, "Tokens": nil,
+	}
 	var board *model.Board
 	if b, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID); err == nil {
 		board = b

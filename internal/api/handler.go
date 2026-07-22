@@ -64,7 +64,13 @@ func parseTemplates(root string) (map[string]*template.Template, error) {
 
 	funcs := templateFuncs()
 
-	shared := template.New("").Funcs(funcs)
+	// missingkey=error: a template referencing data its handler didn't pass is a
+	// hard error, not a silently empty page. Without it, "the partial didn't
+	// follow along" ships unnoticed — TestTemplateDataContract catches the same
+	// class at build time, this is the runtime backstop for the render sites it
+	// can't analyse statically (struct data, non-literal maps).
+	// Note it also rejects nil data, so pass an empty map, never nil.
+	shared := template.New("").Funcs(funcs).Option("missingkey=error")
 	if len(partialPaths) > 0 {
 		var err error
 		shared, err = shared.ParseFiles(partialPaths...)
@@ -107,6 +113,22 @@ func (h *Handler) pageData(r *http.Request, data map[string]any) map[string]any 
 	}
 	ctx := r.Context()
 	orgID := service.OrgIDFromContext(ctx)
+
+	// Seed every nav key the base layout reads, so the contract is total: the
+	// templates run under missingkey=error, and these used to be set only on the
+	// success path (NavTags/NavActiveSprint only when the page passed a Board),
+	// which would turn a failed lookup — or simply an org-level page — into a 500.
+	// Real values overwrite these below. Kept in step with pageDataKeys in
+	// templatecontract_test.go.
+	for _, k := range []string{"NavTeams", "CurrentUser", "NavTeam", "NavBoard", "NavTags", "NavActiveSprint"} {
+		if _, has := data[k]; !has {
+			data[k] = nil
+		}
+	}
+	data["NavUnreadCount"] = 0
+	data["NavMyIssueCount"] = 0
+	data["OrgName"] = ""
+	data["OrgSlug"] = ""
 
 	// Minimal nav for org-level pages (dashboard, teams list, inbox, my-issues).
 	if teams, err := h.teams.ListTeamsWithBoards(ctx, orgID); err == nil {

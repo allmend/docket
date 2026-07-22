@@ -5,13 +5,20 @@ import (
 	"time"
 )
 
+// orgNameForLogin resolves the org name shown on the sign-in page. login.html has
+// always read .OrgName, but no handler supplied it, so the "to your <org>
+// organization" line never rendered — caught by TestTemplateDataContract.
+func (h *Handler) orgNameForLogin(r *http.Request) string {
+	return h.auth.SingleOrgName(r.Context())
+}
+
 func (h *Handler) LoginPage(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "login.html", nil)
+	h.render(w, "login.html", map[string]any{"Error": "", "OrgName": h.orgNameForLogin(r)})
 }
 
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		h.render(w, "login.html", map[string]string{"Error": "Invalid request."})
+		h.render(w, "login.html", map[string]any{"Error": "Invalid request.", "OrgName": h.orgNameForLogin(r)})
 		return
 	}
 
@@ -20,7 +27,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	_, pair, err := h.auth.LoginSingleOrg(r.Context(), username, password)
 	if err != nil {
-		h.render(w, "login.html", map[string]string{"Error": "Invalid username or password."})
+		h.render(w, "login.html", map[string]any{"Error": "Invalid username or password.", "OrgName": h.orgNameForLogin(r)})
 		return
 	}
 

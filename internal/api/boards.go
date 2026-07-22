@@ -97,6 +97,10 @@ func (h *Handler) boardViewData(r *http.Request, view *model.BoardView) map[stri
 		"SprintID":            sprintID,
 		"ActiveSprintSection": view.ActiveSprintSection,
 		"HasPlanningSprint":   hasPlanningSprint,
+		// Read by the board filter's Tracks section (board-columns.html). The
+		// service has always populated it; this never passed it through, so that
+		// filter silently listed nothing.
+		"BoardTags": view.BoardTags,
 	})
 }
 
@@ -357,9 +361,7 @@ func (h *Handler) BoardBacklog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	data := h.boardViewData(r, view)
-	if strings.Contains(r.Header.Get("HX-Current-URL"), "/refinement") {
-		data["InitRefineMode"] = true
-	}
+	data["InitRefineMode"] = strings.Contains(r.Header.Get("HX-Current-URL"), "/refinement")
 	h.render(w, "backlog.html", data)
 }
 

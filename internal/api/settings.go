@@ -22,6 +22,10 @@ func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
 		"Members": members,
 		"Tokens":  tokenList,
 		"Tab":     tab,
+		// settings.html is shared with the workspace-settings branch; this is
+		// the org-level view, which has no team or tracks.
+		"Team":   nil,
+		"Tracks": nil,
 	}))
 }
 
@@ -73,6 +77,8 @@ func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 	tokenList, _ := h.tokens.List(r.Context(), orgID)
 	h.render(w, "settings-tokens-partial.html", map[string]any{
 		"Tokens": tokenList,
+		// Only shown once, immediately after creation.
+		"Plaintext": "",
 	})
 }
 

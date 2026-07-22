@@ -10,7 +10,7 @@ import (
 
 func (h *Handler) SprintReviewPage(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	_, board, ok := h.boardByTeamSlug(w, r, orgID)
+	team, board, ok := h.boardByTeamSlug(w, r, orgID)
 	if !ok {
 		return
 	}
@@ -25,6 +25,7 @@ func (h *Handler) SprintReviewPage(w http.ResponseWriter, r *http.Request) {
 	}
 	h.render(w, "sprint-review.html", h.pageData(r, map[string]any{
 		"ReviewData": data,
+		"Team":       team,
 	}))
 }
 
