@@ -8,17 +8,17 @@ import (
 )
 
 type Team struct {
-	ID            uuid.UUID `json:"id"`
-	OrgID         uuid.UUID `json:"org_id"`
-	Name          string    `json:"name"`
-	Key           string    `json:"key"`  // e.g. "ENG", "BE" — ticket prefix
-	Slug          string    `json:"slug"` // URL-safe identifier, e.g. "backend-engineering"
-	Description   string    `json:"description"`
-	TicketCounter  int      `json:"ticket_counter"`
-	SprintCapacity int      `json:"sprint_capacity"` // story points per sprint, denominator of the planning committed bar
-	CreatedBy     uuid.UUID `json:"created_by"`
-	CreatedAt     time.Time `json:"created_at"`
-	UpdatedAt     time.Time `json:"updated_at"`
+	ID             uuid.UUID `json:"id"`
+	OrgID          uuid.UUID `json:"org_id"`
+	Name           string    `json:"name"`
+	Key            string    `json:"key"`  // e.g. "ENG", "BE" — ticket prefix
+	Slug           string    `json:"slug"` // URL-safe identifier, e.g. "backend-engineering"
+	Description    string    `json:"description"`
+	TicketCounter  int       `json:"ticket_counter"`
+	SprintCapacity int       `json:"sprint_capacity"` // story points per sprint, denominator of the planning committed bar
+	CreatedBy      uuid.UUID `json:"created_by"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // TeamWithBoard is used for navigation — loads the team, its board, active sprint, and tags.

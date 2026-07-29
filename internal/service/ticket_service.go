@@ -556,4 +556,3 @@ func (s *TicketService) ListMyOpenTicketsByTeam(ctx context.Context, orgID, user
 func (s *TicketService) ListRecentTeamActivity(ctx context.Context, orgID, teamID uuid.UUID) ([]model.InboxEntry, error) {
 	return s.store.ListRecentTeamActivity(ctx, orgID, teamID, 12)
 }
-
