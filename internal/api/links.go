@@ -26,9 +26,8 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// An inverse choice ("Blocked by", "Is cloned by", …) is a UI convenience:
-	// store the forward relation with the tickets swapped, so a relationship is
-	// always exactly one row.
+	// An inverse choice such as "Blocked by" is stored as its forward relation
+	// with the tickets swapped, so a relationship is always one row.
 	relation, swap, ok := model.ParseRelationInput(r.FormValue("relation_type"))
 	if !ok {
 		http.Error(w, "invalid relation_type", http.StatusBadRequest)

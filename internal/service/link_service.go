@@ -25,10 +25,10 @@ func (s *LinkService) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) 
 // each labelled from that ticket's perspective.
 //
 // viewTicketID is the ticket the actor is looking at, which is not always the
-// stored source: picking an inverse phrasing ("Blocked by ENG-11") stores the
-// link the other way round. The open-ticket guard applies to the viewed ticket,
-// so a link *to* a closed ticket can still be added from the open end — same
-// rule as DeleteLink.
+// stored source: an inverse phrasing like "Blocked by ENG-11" stores the link the
+// other way round. The immutability guard applies to the viewed ticket, so a link
+// pointing at a closed ticket can still be added from the open end. DeleteLink
+// works the same way.
 func (s *LinkService) CreateLink(ctx context.Context, orgID, viewTicketID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, actorID uuid.UUID) (*model.TicketLink, error) {
 	if err := assertTicketOpen(ctx, s.store, orgID, viewTicketID); err != nil {
 		return nil, err
@@ -79,9 +79,9 @@ func (s *LinkService) actorName(ctx context.Context, orgID, actorID uuid.UUID) s
 	return ""
 }
 
-// linkLabel returns a human-readable label for a link from the perspective of
-// viewTicketID, e.g. "blocks ENG-11" on one ticket and "blocked by ENG-4" on the
-// other. Phrasing comes from the model so history reads the same words as the UI.
+// linkLabel describes a link from viewTicketID's side: "blocks ENG-11" on one
+// ticket, "blocked by ENG-4" on the other. The words come from the model so
+// history and the UI never drift apart.
 func (s *LinkService) linkLabel(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, viewTicketID uuid.UUID) string {
 	otherID := toTicketID
 	if fromTicketID != viewTicketID {

@@ -43,8 +43,8 @@ func templateFuncs() template.FuncMap {
 		"priorityColor": priorityColor,
 		"priorityLabel": priorityLabel,
 
-		// The link picker's vocabulary. A func, not handler data, so every
-		// render path of ticket-links gets the same list without plumbing.
+		// A func rather than handler data so every render path of ticket-links
+		// gets the same list without plumbing it through.
 		"relationOptions": model.RelationOptions,
 
 		// Build version, so no template has to hardcode (and then forget) it.

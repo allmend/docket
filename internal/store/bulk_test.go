@@ -78,8 +78,8 @@ func TestBulkListTicketTags_OrgIsolation(t *testing.T) {
 	}
 }
 
-// TestBulkListTicketTagsByTeam_OrgIsolation verifies the team-scoped bulk tag
-// load (used by the public API's ticket list) filters by org as well as team.
+// TestBulkListTicketTagsByTeam_OrgIsolation checks the team-scoped bulk tag load
+// behind the API ticket list filters by org as well as team.
 func TestBulkListTicketTagsByTeam_OrgIsolation(t *testing.T) {
 	s := requireStore(t)
 	resetDB(t)

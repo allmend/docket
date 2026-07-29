@@ -2,8 +2,8 @@ package model
 
 import "testing"
 
-// TestRelationLabelsAndInverses pins the relationship vocabulary: four stored
-// relations, each reading correctly from both ends.
+// TestRelationLabelsAndInverses pins the vocabulary: four relations, each
+// reading correctly from both ends.
 func TestRelationLabelsAndInverses(t *testing.T) {
 	cases := []struct {
 		relation RelationType
@@ -25,17 +25,16 @@ func TestRelationLabelsAndInverses(t *testing.T) {
 	}
 }
 
-// TestRelationRelatesToIsSymmetric guards the one relation that must read the
-// same from both ends — inverting it must not produce a "relates_to_by".
+// TestRelationRelatesToIsSymmetric guards the one relation that reads the same
+// from both ends. Inverting it must not invent a "relates_to_by".
 func TestRelationRelatesToIsSymmetric(t *testing.T) {
 	if got := RelationRelatesTo.Inverse(); got != RelationRelatesTo {
 		t.Fatalf("relates_to inverted to %q, want itself", got)
 	}
 }
 
-// TestRemovedRelationsStayGone asserts that relations considered and rejected
-// for the vocabulary cannot be stored — the DB CHECK constraint rejects them
-// anyway, but this fails fast and documents the decision.
+// TestRemovedRelationsStayGone covers relations that were considered and turned
+// down. The CHECK constraint would reject them too, but not until runtime.
 func TestRemovedRelationsStayGone(t *testing.T) {
 	for _, r := range []RelationType{"clones", "cloned_by", "causes", "caused_by"} {
 		if r.IsStorable() {
@@ -53,7 +52,7 @@ func TestIsStorable(t *testing.T) {
 			t.Errorf("%s should be storable", r)
 		}
 	}
-	// Virtual inverses are display-only and must never reach the database.
+	// Inverses are display-only and must never reach the database.
 	notStorable := []RelationType{
 		RelationBlockedBy, RelationRequiredBy, RelationDuplicatedBy,
 		"", "clones", "causes", "nonsense",
@@ -78,9 +77,8 @@ func TestIsBlocking(t *testing.T) {
 	}
 }
 
-// TestIsDependencyIsDisjointFromBlocking pins the distinction the two pairs
-// exist to express: a dependency is amber and informational, a block is red and
-// hard. Nothing may be both, or the card styling becomes ambiguous.
+// TestIsDependencyIsDisjointFromBlocking keeps the two pairs apart. A card
+// styled both red and amber has no defined meaning.
 func TestIsDependencyIsDisjointFromBlocking(t *testing.T) {
 	for _, r := range []RelationType{RelationDependsOn, RelationRequiredBy} {
 		if !r.IsDependency() {
@@ -113,7 +111,7 @@ func TestParseRelationInput(t *testing.T) {
 		{"depends_on", RelationDependsOn, false, true},
 		{"depends_on_inverse", RelationDependsOn, true, true},
 		{"duplicates_inverse", RelationDuplicates, true, true},
-		// Rejected: removed, virtual, and junk values.
+		// Turned down, display-only, and junk.
 		{"clones", "clones", false, false},
 		{"blocked_by", RelationBlockedBy, false, false},
 		{"", "", false, false},
@@ -128,9 +126,8 @@ func TestParseRelationInput(t *testing.T) {
 	}
 }
 
-// TestRelationOptionsRoundTrip asserts every phrasing offered in the picker
-// parses back into something storable — a UI option that 400s is the bug this
-// catches.
+// TestRelationOptionsRoundTrip checks every phrasing the picker offers parses
+// back into something storable. Catches a UI option that would 400.
 func TestRelationOptionsRoundTrip(t *testing.T) {
 	opts := RelationOptions()
 	if len(opts) != 7 {

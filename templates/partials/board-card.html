@@ -34,8 +34,8 @@
   {{/* Title */}}
   <p class="text-[14px] leading-[18px] mt-1.5 {{if $isDone}}text-base-700 line-through decoration-base-500{{else}}text-base-900{{end}}">{{$t.Title}}</p>
 
-  {{/* Blocked (hard stop, red) / waiting on a dependency (amber — not free to
-       pick up, but nobody is stuck). Blocked wins if a ticket is somehow both. */}}
+  {{/* Red for a hard block, amber for a dependency: not free to pick up, but
+       nobody is stuck. Red wins if a ticket is somehow both. */}}
   {{if and (not $isDone) (or $t.IsBlocked $t.IsWaiting)}}
   <div class="flex items-center gap-1.5 mt-1.5">
     {{if $t.IsBlocked}}

@@ -28,9 +28,8 @@ func (s *TicketService) GetByRef(ctx context.Context, orgID uuid.UUID, teamKey s
 	return s.store.GetTicketByTeamRef(ctx, orgID, teamKey, number)
 }
 
-// GetByRefWithTags is GetByRef with the ticket's tracks (tags) populated. The
-// public API hands out tickets as standalone JSON documents, so it can't rely on
-// the board view's bulk tag load the way the UI does.
+// GetByRefWithTags is GetByRef with tracks populated. The API hands out tickets
+// as standalone documents and has no board view to bulk-load them from.
 func (s *TicketService) GetByRefWithTags(ctx context.Context, orgID uuid.UUID, teamKey string, number int) (*model.Ticket, error) {
 	ticket, err := s.GetByRef(ctx, orgID, teamKey, number)
 	if err != nil {
@@ -52,9 +51,8 @@ func (s *TicketService) LoadTags(ctx context.Context, orgID uuid.UUID, ticket *m
 	return nil
 }
 
-// ListByTeam returns all tickets belonging to a team, ordered by number, with
-// their tracks (tags) populated — see GetByRefWithTags for why the API needs them
-// inline.
+// ListByTeam returns a team's tickets ordered by number, tracks included.
+// See GetByRefWithTags for why the API needs them inline.
 func (s *TicketService) ListByTeam(ctx context.Context, orgID, teamID uuid.UUID) ([]model.Ticket, error) {
 	tickets, err := s.store.ListTicketsByTeam(ctx, orgID, teamID)
 	if err != nil {

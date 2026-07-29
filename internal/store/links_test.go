@@ -97,9 +97,8 @@ func TestDeleteBlockingLinksFromTicket_OnlyBlocks(t *testing.T) {
 	}
 }
 
-// TestListLinks_RelationVocabulary covers the relation set end to end: every
-// relation survives the CHECK constraint, and ListLinks flips each one to its
-// inverse phrasing when read from the other ticket.
+// TestListLinks_RelationVocabulary runs the whole relation set through the
+// database and back, checking each one flips to its inverse from the far side.
 func TestListLinks_RelationVocabulary(t *testing.T) {
 	s := requireStore(t)
 	resetDB(t)
@@ -167,9 +166,8 @@ func TestListLinks_RelationVocabulary(t *testing.T) {
 	}
 }
 
-// TestCreateLink_RejectsUnknownRelation asserts the CHECK constraint refuses a
-// relation outside the vocabulary — "clones" was considered and deliberately
-// not adopted.
+// TestCreateLink_RejectsUnknownRelation covers the CHECK constraint refusing a
+// relation outside the vocabulary. "clones" was considered and turned down.
 func TestCreateLink_RejectsUnknownRelation(t *testing.T) {
 	s := requireStore(t)
 	resetDB(t)
@@ -185,10 +183,9 @@ func TestCreateLink_RejectsUnknownRelation(t *testing.T) {
 	}
 }
 
-// TestBulkGetWaitingOn covers the amber dependency marker: it appears while the
-// depended-on ticket is open, disappears once that ticket closes (without the
-// link being deleted, unlike blocks), is scoped to the org, and never fires for
-// blocking links.
+// TestBulkGetWaitingOn covers the amber dependency marker: shown while the
+// depended-on ticket is open, gone once it closes, and the link survives either
+// way. Blocking links behave differently and are covered above.
 func TestBulkGetWaitingOn(t *testing.T) {
 	s := requireStore(t)
 	resetDB(t)
@@ -200,7 +197,7 @@ func TestBulkGetWaitingOn(t *testing.T) {
 	dependent := seedTicket(t, orgA.ID, user.ID, "dependent")
 	dependency := seedTicket(t, orgA.ID, user.ID, "dependency")
 
-	// depends_on stores the dependent as the source: "dependent depends on dependency".
+	// depends_on stores the dependent as the source, the opposite way round to blocks.
 	if _, err := s.CreateLink(ctx, orgA.ID, dependent.ID, dependency.ID, model.RelationDependsOn); err != nil {
 		t.Fatalf("create depends_on link: %v", err)
 	}
@@ -225,8 +222,7 @@ func TestBulkGetWaitingOn(t *testing.T) {
 		t.Errorf("cross-org waiting map leaked %d entries, want 0", len(crossOrg))
 	}
 
-	// Closing the dependency clears the marker but must not delete the link —
-	// the dependency remains a true statement about the work.
+	// Closing the dependency clears the marker but leaves the link alone.
 	if _, err := s.CloseTicket(ctx, orgA.ID, dependency.ID, "done"); err != nil {
 		t.Fatalf("close dependency: %v", err)
 	}
@@ -245,3 +241,4 @@ func TestBulkGetWaitingOn(t *testing.T) {
 		t.Fatalf("dependency link count = %d, want 1 (links are never auto-deleted)", len(links))
 	}
 }
+

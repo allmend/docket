@@ -52,9 +52,9 @@ func (s *Store) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) ([]mod
 		if err := scanLink(rows, &l); err != nil {
 			return nil, err
 		}
-		// Rewrite inverse links so the template always reads "this ticket → other ticket".
-		// e.g. if another ticket "blocks" ours, we surface it as "blocked by".
-		// Inverse() is display-only — nothing here is written back.
+		// Flip the row so the template always reads outward from the given ticket:
+		// a ticket that something else blocks shows up as "blocked by".
+		// Display only, never written back.
 		if l.ToTicketID == ticketID {
 			l.FromTicketID, l.ToTicketID = l.ToTicketID, l.FromTicketID
 			l.FromDisplayID, l.ToDisplayID = l.ToDisplayID, l.FromDisplayID
@@ -190,14 +190,12 @@ func (s *Store) ClearBlockingLinksForDoneTickets(ctx context.Context, orgID, spr
 	return err
 }
 
-// BulkGetWaitingOn returns a map of ticketID → dependency display ID for tickets
-// on a board that depend on something still open (an outbound "depends_on" link
-// whose target has not closed).
+// BulkGetWaitingOn maps ticket ID to the display ID of a dependency that is still
+// open, for board cards, without N+1 queries.
 //
-// Unlike blocking links, dependency links are never deleted when the other
-// ticket closes — the dependency remains a true statement about the work. The
-// amber marker is therefore derived from the target's state here, not from the
-// link's existence.
+// Dependency links are never deleted on close the way blocking links are, since
+// "A depended on B" stays true after B ships. The marker therefore comes from the
+// target's closed_at, not from whether the row exists.
 func (s *Store) BulkGetWaitingOn(ctx context.Context, orgID, boardID uuid.UUID) (map[uuid.UUID]string, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT tl.from_ticket_id,
@@ -222,7 +220,7 @@ func (s *Store) BulkGetWaitingOn(ctx context.Context, orgID, boardID uuid.UUID) 
 		if err := rows.Scan(&ticketID, &dependencyDisplayID); err != nil {
 			return nil, err
 		}
-		// Keep the first dependency found if there are several.
+		// Keep the first if a ticket depends on several.
 		if _, exists := result[ticketID]; !exists {
 			result[ticketID] = dependencyDisplayID
 		}

@@ -76,7 +76,7 @@
         <!-- Title -->
         <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
 
-        <!-- Tracks (first tag + overflow count, hidden in refine mode) -->
+        <!-- Tracks: first tag plus a count, the column is too narrow for more -->
         <span class="w-[92px] shrink-0" x-show="!refineMode" x-cloak>
           {{$tags := .Tags}}
           {{if $tags}}

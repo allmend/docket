@@ -296,8 +296,8 @@ func (s *Store) BulkListTicketTags(ctx context.Context, orgID, boardID uuid.UUID
 }
 
 // BulkListTicketTagsByTeam loads tags for every ticket in a team, keyed by ticket
-// ID. The board-scoped variant above can't serve the public API, which lists
-// tickets by team — and a team may own more than one board.
+// ID. The public API lists by team, which the board-scoped variant above cannot
+// serve because a team may own several boards.
 func (s *Store) BulkListTicketTagsByTeam(ctx context.Context, orgID, teamID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT tt.ticket_id, tg.id, tg.org_id, tg.board_id, tg.name, tg.color

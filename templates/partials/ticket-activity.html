@@ -36,9 +36,9 @@
         {{else}}unassigned <span class="text-base-900">{{.OldValue}}</span>{{end}}
       {{else if eq .Field "closed"}}closed this ticket
       {{else if eq .Field "reopened"}}reopened this ticket
-      {{/* The stored value is a full relation phrase ("blocks ENG-4", "required
-           by ENG-4"), so these read as a label + clause — "linked required by"
-           would not parse as English. */}}
+      {{/* The stored value is a whole phrase ("blocks ENG-4", "required by
+           ENG-4"), so these read as label plus clause. "linked required by"
+           is not English. */}}
       {{else if eq .Field "link_added"}}added link — <span class="mono text-base-900">{{.NewValue}}</span>
       {{else if eq .Field "link_removed"}}removed link — <span class="mono text-base-900">{{.OldValue}}</span>
       {{else if eq .Field "link_cleared"}}cleared link — <span class="mono text-base-900">{{.OldValue}}</span> (blocker resolved)

@@ -440,8 +440,7 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, "failed to update ticket")
 		return
 	}
-	// Keep the response shape identical to GET — a client must not see tracks
-	// vanish just because it went through a PUT.
+	// Match the GET shape; tracks must not vanish just because this was a PUT.
 	if err := h.tickets.LoadTags(r.Context(), orgID, updated); err != nil {
 		apiError(w, http.StatusInternalServerError, "failed to load ticket tags")
 		return

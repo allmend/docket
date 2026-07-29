@@ -9,12 +9,9 @@ import (
 
 type RelationType string
 
-// Stored relations — these are the only values the relation_type column accepts.
-//
-// blocks and depends_on are deliberately separate. A block is a hard stop: the
-// blocked ticket cannot proceed. A dependency is sequencing: this needs to happen
-// first, but nobody is necessarily stuck. They differ in styling and in what
-// happens when the other ticket closes — see IsBlocking / IsDependency.
+// Stored relations. The relation_type CHECK constraint accepts these four and
+// nothing else. blocks is a hard stop; depends_on only means the other ticket
+// comes first, which is why the two are separate rather than one link type.
 const (
 	RelationBlocks     RelationType = "blocks"
 	RelationDependsOn  RelationType = "depends_on"
@@ -22,22 +19,21 @@ const (
 	RelationRelatesTo  RelationType = "relates_to"
 )
 
-// Virtual inverse relations — never stored. A link is written once, from one
-// ticket to another; when the *other* ticket displays it, the store rewrites the
-// relation to its inverse so the row still reads "this ticket → that ticket".
+// Display-only inverses. A relationship is one row, written from one ticket to
+// another; the store swaps it to the inverse when the far ticket reads it.
+// Never pass these to CreateLink.
 const (
 	RelationBlockedBy    RelationType = "blocked_by"
 	RelationRequiredBy   RelationType = "required_by"
 	RelationDuplicatedBy RelationType = "duplicated_by"
 )
 
-// inverseSuffix marks a picker option that expresses a relation from the target's
-// side (e.g. "Blocked by"). Such a choice is stored as the forward relation with
-// the two tickets swapped — there is one row per relationship, never two.
+// inverseSuffix marks a picker option phrased from the target's side, e.g.
+// "blocks_inverse" for "Blocked by". See ParseRelationInput.
 const inverseSuffix = "_inverse"
 
-// relationLabels is the single source of truth for relationship phrasing.
-// Every asymmetric relation appears here with both of its directions.
+// relationLabels holds every phrase the UI shows for a relation, both directions
+// of each pair. Nothing else may spell these out.
 var relationLabels = map[RelationType]string{
 	RelationBlocks:       "Blocks",
 	RelationBlockedBy:    "Blocked by",
@@ -48,16 +44,15 @@ var relationLabels = map[RelationType]string{
 	RelationDuplicatedBy: "Duplicated by",
 }
 
-// inverses pairs each asymmetric stored relation with its display-only inverse.
-// relates_to is symmetric and deliberately absent — it reads the same both ways.
+// inverses pairs each asymmetric relation with how it reads from the far side.
+// relates_to is absent because it reads the same both ways.
 var inverses = map[RelationType]RelationType{
 	RelationBlocks:     RelationBlockedBy,
 	RelationDependsOn:  RelationRequiredBy,
 	RelationDuplicates: RelationDuplicatedBy,
 }
 
-// Label returns the human-readable phrase for the relation, read from the
-// perspective of the ticket the link is displayed on.
+// Label returns the phrase to show, read from the ticket the link is displayed on.
 func (r RelationType) Label() string {
 	if label, ok := relationLabels[r]; ok {
 		return label
@@ -65,7 +60,7 @@ func (r RelationType) Label() string {
 	return string(r)
 }
 
-// Inverse returns how the relation reads from the other ticket's side.
+// Inverse returns how the relation reads from the far ticket's side.
 // Symmetric and unknown relations return themselves.
 func (r RelationType) Inverse() RelationType {
 	if inv, ok := inverses[r]; ok {
@@ -74,33 +69,29 @@ func (r RelationType) Inverse() RelationType {
 	return r
 }
 
-// IsStorable reports whether the relation is one of the values the database
-// accepts. Virtual inverses are not storable.
+// IsStorable reports whether the database accepts the relation.
 func (r RelationType) IsStorable() bool {
 	_, ok := inverses[r]
 	return ok || r == RelationRelatesTo
 }
 
-// IsBlocking reports whether the relation is the blocking pair, in either
-// direction. Blocking rows are the hard stop: they drive the red blocked badge,
-// the dashboard's blocked panel and the blocked metric, and are cleared
-// automatically when the blocker closes.
+// IsBlocking reports whether the relation is the blocking pair, either
+// direction. Blocking links are styled red and cleared when the blocker closes.
 func (r RelationType) IsBlocking() bool {
 	return r == RelationBlocks || r == RelationBlockedBy
 }
 
-// IsDependency reports whether the relation is the sequencing pair, in either
-// direction. Dependencies are softer than blocks: they mark a ticket amber
-// rather than red, stay out of the blocked metric, and are never auto-cleared —
-// the badge simply stops showing once the depended-on ticket closes.
+// IsDependency reports whether the relation is the sequencing pair, either
+// direction. Dependencies are styled amber and outlive the ticket they point at:
+// the marker stops showing once it closes, but the link stays.
 func (r RelationType) IsDependency() bool {
 	return r == RelationDependsOn || r == RelationRequiredBy
 }
 
-// ParseRelationInput resolves a value submitted by the link picker into the
-// relation to store and whether the two tickets must be swapped first.
-// An inverse choice ("blocked_by_inverse") is stored as its forward relation
-// with the tickets reversed, so each relationship is exactly one row.
+// ParseRelationInput turns a picker value into the relation to store and whether
+// the two tickets must be swapped first. An inverse choice is stored as its
+// forward relation with the tickets reversed, keeping one row per relationship.
+// ok is false for anything the database would reject.
 func ParseRelationInput(raw string) (relation RelationType, swap bool, ok bool) {
 	swap = strings.HasSuffix(raw, inverseSuffix)
 	relation = RelationType(strings.TrimSuffix(raw, inverseSuffix))
@@ -109,12 +100,12 @@ func ParseRelationInput(raw string) (relation RelationType, swap bool, ok bool) 
 
 // RelationOption is one entry in the link picker.
 type RelationOption struct {
-	Value string // form value: a stored relation, or one with the inverse suffix
+	Value string // a stored relation, optionally with the inverse suffix
 	Label string
 }
 
-// RelationOptions lists every phrasing a user can pick when adding a link, in
-// display order: both directions of each asymmetric pair, then the symmetric one.
+// RelationOptions lists the phrasings the link picker offers, in display order:
+// both directions of each pair, then relates_to.
 func RelationOptions() []RelationOption {
 	ordered := []RelationType{
 		RelationBlocks, RelationDependsOn, RelationDuplicates,

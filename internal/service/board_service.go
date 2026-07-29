@@ -400,7 +400,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		return nil, fmt.Errorf("list columns: %w", err)
 	}
 
-	// Load all ticket assignees, tags, and blocked status for the board once.
+	// One bulk load each, applied to every ticket slice built below.
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedByBacklog, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
