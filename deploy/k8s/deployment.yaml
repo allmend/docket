@@ -48,6 +48,12 @@ spec:
             # the port unexposed by any Service (see networkpolicy.yaml).
             - name: METRICS_ADDR
               value: "0.0.0.0"
+            # Session cookies are marked Secure by default, and browsers discard
+            # those over plain HTTP — login appears to fail with correct
+            # credentials. Terminate TLS at the Gateway, or set this to "false"
+            # if the instance is only reachable over HTTP on a trusted network.
+            # - name: COOKIE_SECURE
+            #   value: "false"
           envFrom:
             - secretRef:
                 name: docket

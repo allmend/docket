@@ -87,6 +87,7 @@ Full list of environment variables:
 | `DATABASE_URL` | *(postgres service)* | PostgreSQL connection string. |
 | `HTTP_PORT` | `8081` | Port the app listens on. |
 | `METRICS_PORT` | `9412` | Prometheus metrics port. |
+| `COOKIE_SECURE` | `true` | Marks session cookies `Secure`. Browsers only store those over HTTPS, so serving Docket on plain HTTP with this left on makes login fail silently — the credentials are accepted and the cookie is thrown away. Set `false` only on a network you trust. |
 | `METRICS_ADDR` | `127.0.0.1` | Interface the metrics port binds to. `/metrics` is unauthenticated, so it stays on loopback unless something needs to scrape it across the network — Kubernetes needs `0.0.0.0`. |
 | `MODE` | `all` | `all`, `api`, or `worker`. Single-instance deployments use `all`. |
 | `SEED_ORG_NAME` | `My Team` | Organisation name, set on first run. |

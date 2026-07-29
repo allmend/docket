@@ -31,7 +31,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	setTokenCookies(w, pair.AccessToken, pair.RefreshToken)
+	h.setTokenCookies(w, pair.AccessToken, pair.RefreshToken)
 	http.Redirect(w, r, "/", http.StatusSeeOther)
 }
 
@@ -43,7 +43,7 @@ func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie("refresh_token"); err == nil {
 		h.auth.RevokeRefreshToken(r.Context(), c.Value)
 	}
-	clearTokenCookies(w)
+	h.clearTokenCookies(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -56,22 +56,22 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	_, pair, err := h.auth.Refresh(r.Context(), c.Value)
 	if err != nil {
-		clearTokenCookies(w)
+		h.clearTokenCookies(w)
 		http.Error(w, "invalid refresh token", http.StatusUnauthorized)
 		return
 	}
 
-	setTokenCookies(w, pair.AccessToken, pair.RefreshToken)
+	h.setTokenCookies(w, pair.AccessToken, pair.RefreshToken)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
+func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     "access_token",
 		Value:    accessToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int((5 * 24 * time.Hour).Seconds()),
 	})
@@ -80,13 +80,13 @@ func setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
 		Value:    refreshToken,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   h.cookieSecure,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   int((5 * 24 * time.Hour).Seconds()),
 	})
 }
 
-func clearTokenCookies(w http.ResponseWriter) {
+func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
 	for _, name := range []string{"access_token", "refresh_token"} {
 		http.SetCookie(w, &http.Cookie{
 			Name:     name,
@@ -94,7 +94,7 @@ func clearTokenCookies(w http.ResponseWriter) {
 			MaxAge:   -1,
 			Path:     "/",
 			HttpOnly: true,
-			Secure:   true,
+			Secure:   h.cookieSecure,
 			SameSite: http.SameSiteLaxMode,
 		})
 	}

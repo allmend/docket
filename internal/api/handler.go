@@ -24,6 +24,10 @@ type Handler struct {
 	metrics       *service.MetricsService
 	tokens        *service.TokenService
 	tmpls         map[string]*template.Template
+	// cookieSecure marks session cookies Secure. Off only for deployments served
+	// over plain HTTP on a trusted network — browsers drop Secure cookies there,
+	// which makes login silently fail.
+	cookieSecure bool
 }
 
 func NewHandler(
@@ -38,12 +42,13 @@ func NewHandler(
 	metrics *service.MetricsService,
 	tokens *service.TokenService,
 	tmplDir string,
+	cookieSecure bool,
 ) (*Handler, error) {
 	tmpls, err := parseTemplates(tmplDir)
 	if err != nil {
 		return nil, err
 	}
-	return &Handler{auth: auth, teams: teams, boards: boards, tickets: tickets, comments: comments, links: links, notifications: notifications, retro: retro, metrics: metrics, tokens: tokens, tmpls: tmpls}, nil
+	return &Handler{auth: auth, teams: teams, boards: boards, tickets: tickets, comments: comments, links: links, notifications: notifications, retro: retro, metrics: metrics, tokens: tokens, tmpls: tmpls, cookieSecure: cookieSecure}, nil
 }
 
 var authPages = map[string]bool{

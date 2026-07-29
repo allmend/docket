@@ -113,7 +113,7 @@ func startAPI(
 	metricsSvc *service.MetricsService,
 	tokenSvc *service.TokenService,
 ) error {
-	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc, "templates")
+	h, err := api.NewHandler(authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc, "templates", cfg.CookieSecure)
 	if err != nil {
 		return fmt.Errorf("init handler: %w", err)
 	}

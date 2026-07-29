@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -17,23 +18,42 @@ type Config struct {
 	MetricsAddr string
 	JWTSecret   string
 	Mode        string
+	// CookieSecure marks the session cookies Secure, which browsers only store
+	// over HTTPS. True unless explicitly disabled: turning it off on a network
+	// that is not trusted exposes sessions to anyone watching the wire.
+	CookieSecure bool
 }
 
 func Load() (*Config, error) {
 	loadDotEnv(".env")
 
 	c := &Config{
-		DatabaseURL: env("DATABASE_URL", "postgres://docket:docket@localhost:5432/docket?sslmode=disable"),
-		HTTPPort:    env("HTTP_PORT", "8081"),
-		MetricsPort: env("METRICS_PORT", "9412"),
-		MetricsAddr: env("METRICS_ADDR", "127.0.0.1"),
-		JWTSecret:   env("JWT_SECRET", ""),
-		Mode:        env("MODE", "all"),
+		DatabaseURL:  env("DATABASE_URL", "postgres://docket:docket@localhost:5432/docket?sslmode=disable"),
+		HTTPPort:     env("HTTP_PORT", "8081"),
+		MetricsPort:  env("METRICS_PORT", "9412"),
+		MetricsAddr:  env("METRICS_ADDR", "127.0.0.1"),
+		JWTSecret:    env("JWT_SECRET", ""),
+		Mode:         env("MODE", "all"),
+		CookieSecure: envBool("COOKIE_SECURE", true),
 	}
 	if c.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
 	}
 	return c, nil
+}
+
+// envBool reads a boolean env var. Anything strconv.ParseBool accepts works
+// ("false", "0", "FALSE"); an unset or unparseable value keeps the fallback.
+func envBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+	return b
 }
 
 func env(key, fallback string) string {
