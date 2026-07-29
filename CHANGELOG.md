@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.2] - 2026-07-30
+
+### Added
+- `COOKIE_SECURE` (default `true`) controls whether session cookies are marked `Secure`. Browsers refuse to store `Secure` cookies over plain HTTP, so an HTTP-only instance previously looked like it rejected valid credentials: the server issued a session and the browser discarded it. Set it to `false` only where the instance is reachable over HTTP on a trusted network.
+
 ## [0.13.1] - 2026-07-30
 
 ### Fixed
@@ -212,6 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
 [Unreleased]: https://github.com/allmend/docket/compare/v0.12.0...HEAD
+[0.13.2]: https://github.com/allmend/docket/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/allmend/docket/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/allmend/docket/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/allmend/docket/compare/v0.11.0...v0.12.0
