@@ -3,6 +3,8 @@ package store
 import (
 	"context"
 	"testing"
+
+	"github.com/allmend/docket/internal/model"
 )
 
 // TestBulkListTicketAssignees_OrgIsolation verifies the board-scoped bulk
@@ -70,6 +72,62 @@ func TestBulkListTicketTags_OrgIsolation(t *testing.T) {
 	crossOrg, err := s.BulkListTicketTags(ctx, orgB.ID, ticket.BoardID)
 	if err != nil {
 		t.Fatalf("bulk tags (cross-org): %v", err)
+	}
+	if got := len(crossOrg[ticket.ID]); got != 0 {
+		t.Fatalf("cross-org tags leaked: got %d, want 0", got)
+	}
+}
+
+// TestBulkListTicketTagsByTeam_OrgIsolation verifies the team-scoped bulk tag
+// load (used by the public API's ticket list) filters by org as well as team.
+func TestBulkListTicketTagsByTeam_OrgIsolation(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	orgA := seedOrg(t, "org-a")
+	orgB := seedOrg(t, "org-b")
+	userA := seedUser(t, orgA.ID, "alice")
+
+	team, err := s.CreateTeam(ctx, orgA.ID, userA.ID, "Work", "WRK", "work", "")
+	if err != nil {
+		t.Fatalf("create team: %v", err)
+	}
+	board, err := s.CreateBoard(ctx, orgA.ID, userA.ID, &team.ID, "Board", "", model.BoardModeScrum)
+	if err != nil {
+		t.Fatalf("create board: %v", err)
+	}
+	col, err := s.CreateColumn(ctx, orgA.ID, board.ID, "To Do", 1000)
+	if err != nil {
+		t.Fatalf("create column: %v", err)
+	}
+	ticket, err := s.CreateTicket(ctx, orgA.ID, board.ID, col.ID, userA.ID, &team.ID, 1, "work", "", model.PriorityMedium, 1000)
+	if err != nil {
+		t.Fatalf("create ticket: %v", err)
+	}
+
+	tag, err := s.CreateTag(ctx, orgA.ID, board.ID, "docket", "#a3e635", "", nil)
+	if err != nil {
+		t.Fatalf("create tag: %v", err)
+	}
+	if err := s.AddTagToTicket(ctx, orgA.ID, ticket.ID, tag.ID); err != nil {
+		t.Fatalf("tag ticket: %v", err)
+	}
+
+	inOrg, err := s.BulkListTicketTagsByTeam(ctx, orgA.ID, team.ID)
+	if err != nil {
+		t.Fatalf("bulk tags by team (in-org): %v", err)
+	}
+	if got := len(inOrg[ticket.ID]); got != 1 {
+		t.Fatalf("in-org tags = %d, want 1", got)
+	}
+	if inOrg[ticket.ID][0].Name != "docket" {
+		t.Fatalf("in-org tag name = %q, want %q", inOrg[ticket.ID][0].Name, "docket")
+	}
+
+	crossOrg, err := s.BulkListTicketTagsByTeam(ctx, orgB.ID, team.ID)
+	if err != nil {
+		t.Fatalf("bulk tags by team (cross-org): %v", err)
 	}
 	if got := len(crossOrg[ticket.ID]); got != 0 {
 		t.Fatalf("cross-org tags leaked: got %d, want 0", got)

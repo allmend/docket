@@ -28,9 +28,46 @@ func (s *TicketService) GetByRef(ctx context.Context, orgID uuid.UUID, teamKey s
 	return s.store.GetTicketByTeamRef(ctx, orgID, teamKey, number)
 }
 
-// ListByTeam returns all tickets belonging to a team, ordered by number.
+// GetByRefWithTags is GetByRef with the ticket's tracks (tags) populated. The
+// public API hands out tickets as standalone JSON documents, so it can't rely on
+// the board view's bulk tag load the way the UI does.
+func (s *TicketService) GetByRefWithTags(ctx context.Context, orgID uuid.UUID, teamKey string, number int) (*model.Ticket, error) {
+	ticket, err := s.GetByRef(ctx, orgID, teamKey, number)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.LoadTags(ctx, orgID, ticket); err != nil {
+		return nil, err
+	}
+	return ticket, nil
+}
+
+// LoadTags populates Tags on a single ticket.
+func (s *TicketService) LoadTags(ctx context.Context, orgID uuid.UUID, ticket *model.Ticket) error {
+	tags, err := s.store.ListTicketTags(ctx, orgID, ticket.ID)
+	if err != nil {
+		return fmt.Errorf("list ticket tags: %w", err)
+	}
+	ticket.Tags = tags
+	return nil
+}
+
+// ListByTeam returns all tickets belonging to a team, ordered by number, with
+// their tracks (tags) populated — see GetByRefWithTags for why the API needs them
+// inline.
 func (s *TicketService) ListByTeam(ctx context.Context, orgID, teamID uuid.UUID) ([]model.Ticket, error) {
-	return s.store.ListTicketsByTeam(ctx, orgID, teamID)
+	tickets, err := s.store.ListTicketsByTeam(ctx, orgID, teamID)
+	if err != nil {
+		return nil, err
+	}
+	tagsByTicket, err := s.store.BulkListTicketTagsByTeam(ctx, orgID, teamID)
+	if err != nil {
+		return nil, fmt.Errorf("bulk list ticket tags: %w", err)
+	}
+	for i := range tickets {
+		tickets[i].Tags = tagsByTicket[tickets[i].ID]
+	}
+	return tickets, nil
 }
 
 // CreateTicketInTeam creates a ticket with an explicit team (used by the public API

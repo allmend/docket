@@ -295,6 +295,35 @@ func (s *Store) BulkListTicketTags(ctx context.Context, orgID, boardID uuid.UUID
 	return result, rows.Err()
 }
 
+// BulkListTicketTagsByTeam loads tags for every ticket in a team, keyed by ticket
+// ID. The board-scoped variant above can't serve the public API, which lists
+// tickets by team — and a team may own more than one board.
+func (s *Store) BulkListTicketTagsByTeam(ctx context.Context, orgID, teamID uuid.UUID) (map[uuid.UUID][]model.Tag, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT tt.ticket_id, tg.id, tg.org_id, tg.board_id, tg.name, tg.color
+		 FROM ticket_tags tt
+		 JOIN tickets t ON t.id = tt.ticket_id
+		 JOIN tags tg ON tg.id = tt.tag_id
+		 WHERE t.org_id = $1 AND t.team_id = $2
+		 ORDER BY tg.name`,
+		orgID, teamID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[uuid.UUID][]model.Tag)
+	for rows.Next() {
+		var ticketID uuid.UUID
+		var tg model.Tag
+		if err := rows.Scan(&ticketID, &tg.ID, &tg.OrgID, &tg.BoardID, &tg.Name, &tg.Color); err != nil {
+			return nil, err
+		}
+		result[ticketID] = append(result[ticketID], tg)
+	}
+	return result, rows.Err()
+}
+
 func (s *Store) AddTagToTicket(ctx context.Context, orgID, ticketID, tagID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
 		`INSERT INTO ticket_tags (ticket_id, tag_id)

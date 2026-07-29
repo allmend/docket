@@ -368,7 +368,7 @@ func (h *Handler) v1GetTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ticket, err := h.tickets.GetByRef(r.Context(), orgID, key, number)
+	ticket, err := h.tickets.GetByRefWithTags(r.Context(), orgID, key, number)
 	if err != nil {
 		if isNotFound(err) {
 			apiError(w, http.StatusNotFound, fmt.Sprintf("%s-%d not found", key, number))
@@ -438,6 +438,12 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		apiError(w, http.StatusInternalServerError, "failed to update ticket")
+		return
+	}
+	// Keep the response shape identical to GET — a client must not see tracks
+	// vanish just because it went through a PUT.
+	if err := h.tickets.LoadTags(r.Context(), orgID, updated); err != nil {
+		apiError(w, http.StatusInternalServerError, "failed to load ticket tags")
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)

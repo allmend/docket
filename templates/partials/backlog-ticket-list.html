@@ -31,7 +31,7 @@
       <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-5 text-right shrink-0">#</span>
       <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[72px] shrink-0">id</span>
       <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 flex-1">ticket</span>
-      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[92px] shrink-0">track</span>
+      <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[92px] shrink-0">tracks</span>
       <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-9 shrink-0">pri</span>
       <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600 w-[68px] text-right shrink-0">est</span>
       <span class="w-6 shrink-0"></span>
@@ -76,13 +76,17 @@
         <!-- Title -->
         <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
 
-        <!-- Track (first tag, hidden in refine mode) -->
+        <!-- Tracks (first tag + overflow count, hidden in refine mode) -->
         <span class="w-[92px] shrink-0" x-show="!refineMode" x-cloak>
-          {{if .Tags}}
-          {{$tag := index .Tags 0}}
-          <span class="inline-flex items-center gap-1.5">
+          {{$tags := .Tags}}
+          {{if $tags}}
+          {{$tag := index $tags 0}}
+          <span class="inline-flex items-center gap-1.5 min-w-0 max-w-full">
             <span class="w-2 h-2 rounded-sm shrink-0" style="background-color: {{$tag.Color}}"></span>
             <span class="text-[13px] text-base-700 truncate">{{$tag.Name}}</span>
+            {{if gt (len $tags) 1}}
+            <span class="mono text-[12px] text-base-600 shrink-0">+{{sub (len $tags) 1}}</span>
+            {{end}}
           </span>
           {{end}}
         </span>

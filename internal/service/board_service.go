@@ -382,10 +382,13 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		return nil, fmt.Errorf("list columns: %w", err)
 	}
 
+	// Load all ticket assignees, tags, and blocked status for the board once.
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
+	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedByBacklog, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
+		tickets[i].Tags = tagsByTicket[tickets[i].ID]
 		if blocker, ok := blockedByBacklog[tickets[i].ID]; ok {
 			tickets[i].IsBlocked = true
 			tickets[i].BlockedBy = blocker
@@ -422,6 +425,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		st, _ := s.store.ListSprintTickets(ctx, orgID, sprints[i].ID)
 		for j := range st {
 			st[j].Assignees = assigneesByTicket[st[j].ID]
+			st[j].Tags = tagsByTicket[st[j].ID]
 		}
 		view.SprintViews = append(view.SprintViews, model.SprintView{
 			Sprint:  sprints[i],
@@ -435,6 +439,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 		sprintTickets, _ := s.store.ListSprintTickets(ctx, orgID, activeSprint.ID)
 		for i := range sprintTickets {
 			sprintTickets[i].Assignees = assigneesByTicket[sprintTickets[i].ID]
+			sprintTickets[i].Tags = tagsByTicket[sprintTickets[i].ID]
 		}
 
 		type colInfo struct {
