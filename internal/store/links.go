@@ -81,11 +81,17 @@ func (s *Store) GetLink(ctx context.Context, orgID, linkID uuid.UUID) (*model.Ti
 	return &l, nil
 }
 
+// CreateLink links two tickets. Both must belong to the caller's org: the target
+// arrives as a raw UUID from the client, so without the guard a link could be
+// written against a ticket in another tenant. Inserts nothing and returns
+// pgx.ErrNoRows if either check fails.
 func (s *Store) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType) (*model.TicketLink, error) {
 	var l model.TicketLink
 	err := s.primary.QueryRow(ctx,
 		`INSERT INTO ticket_links (org_id, from_ticket_id, to_ticket_id, relation_type)
-		 VALUES ($1, $2, $3, $4)
+		 SELECT $1, $2, $3, $4
+		 WHERE EXISTS (SELECT 1 FROM tickets WHERE id = $2 AND org_id = $1)
+		   AND EXISTS (SELECT 1 FROM tickets WHERE id = $3 AND org_id = $1)
 		 RETURNING id, org_id, from_ticket_id, to_ticket_id, relation_type, created_at`,
 		orgID, fromTicketID, toTicketID, relation,
 	).Scan(&l.ID, &l.OrgID, &l.FromTicketID, &l.ToTicketID, &l.Relation, &l.CreatedAt)

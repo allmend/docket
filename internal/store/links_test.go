@@ -242,3 +242,40 @@ func TestBulkGetWaitingOn(t *testing.T) {
 	}
 }
 
+// TestCreateLink_OrgIsolation covers the guard on both ends of a new link. The
+// target ticket arrives as a raw UUID from the client, so a link must not be
+// writable against another tenant's ticket.
+func TestCreateLink_OrgIsolation(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	orgA := seedOrg(t, "org-a")
+	orgB := seedOrg(t, "org-b")
+	userA := seedUser(t, orgA.ID, "alice")
+	userB := seedUser(t, orgB.ID, "mallory")
+	mine := seedTicket(t, orgA.ID, userA.ID, "mine")
+	theirs := seedTicket(t, orgB.ID, userB.ID, "theirs")
+
+	// Pointing at another org's ticket writes nothing.
+	if _, err := s.CreateLink(ctx, orgA.ID, mine.ID, theirs.ID, model.RelationBlocks); err == nil {
+		t.Error("link to a foreign ticket was accepted")
+	}
+	// Claiming another org's ticket as the source writes nothing either.
+	if _, err := s.CreateLink(ctx, orgA.ID, theirs.ID, mine.ID, model.RelationBlocks); err == nil {
+		t.Error("link from a foreign ticket was accepted")
+	}
+	links, err := s.ListLinks(ctx, orgA.ID, mine.ID)
+	if err != nil {
+		t.Fatalf("list links: %v", err)
+	}
+	if len(links) != 0 {
+		t.Fatalf("cross-org links were written: got %d, want 0", len(links))
+	}
+
+	// Two tickets in the same org still link normally.
+	sibling := seedTicket(t, orgA.ID, userA.ID, "sibling")
+	if _, err := s.CreateLink(ctx, orgA.ID, mine.ID, sibling.ID, model.RelationBlocks); err != nil {
+		t.Fatalf("in-org link rejected: %v", err)
+	}
+}
