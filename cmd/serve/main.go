@@ -120,7 +120,7 @@ func startAPI(
 
 	// Metrics server — separate port, not exposed through the app reverse proxy.
 	metricsSrv := &http.Server{
-		Addr:         "127.0.0.1:" + cfg.MetricsPort,
+		Addr:         cfg.MetricsAddr + ":" + cfg.MetricsPort,
 		Handler:      promhttp.Handler(),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,

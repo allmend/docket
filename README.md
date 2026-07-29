@@ -87,6 +87,7 @@ Full list of environment variables:
 | `DATABASE_URL` | *(postgres service)* | PostgreSQL connection string. |
 | `HTTP_PORT` | `8081` | Port the app listens on. |
 | `METRICS_PORT` | `9412` | Prometheus metrics port. |
+| `METRICS_ADDR` | `127.0.0.1` | Interface the metrics port binds to. `/metrics` is unauthenticated, so it stays on loopback unless something needs to scrape it across the network — Kubernetes needs `0.0.0.0`. |
 | `MODE` | `all` | `all`, `api`, or `worker`. Single-instance deployments use `all`. |
 | `SEED_ORG_NAME` | `My Team` | Organisation name, set on first run. |
 | `SEED_ORG_SLUG` | `myteam` | Organisation slug, set on first run. |
@@ -109,10 +110,22 @@ kubectl apply -f deploy/k8s/secret.yaml
 
 kubectl apply -f deploy/k8s/deployment.yaml
 kubectl apply -f deploy/k8s/service.yaml
-kubectl apply -f deploy/k8s/ingress.yaml   # adjust host + ingressClassName first
+kubectl apply -f deploy/k8s/httproute.yaml      # set your hostname + Gateway first
+
+# Optional
+kubectl apply -f deploy/k8s/podmonitor.yaml     # needs Prometheus Operator CRDs
+kubectl apply -f deploy/k8s/networkpolicy.yaml  # needs a CNI that enforces them
 ```
 
-The deployment runs 2 replicas behind a ClusterIP service. The ingress example uses nginx and cert-manager — adjust the annotations for your cluster. A `ServiceMonitor` for Prometheus Operator is included in `service.yaml`.
+Two replicas behind a ClusterIP service, routed with the Gateway API — set
+`parentRefs` to your own Gateway and TLS on its listener. Metrics are scraped per
+pod with a `PodMonitor` rather than through the Service, so every replica is
+covered instead of whichever one the Service happened to pick; on the
+VictoriaMetrics operator the equivalent is a `VMPodScrape` of the same shape.
+
+Scraping requires `METRICS_ADDR=0.0.0.0` (set in the Deployment). The default is
+loopback, because `/metrics` is unauthenticated — keep the port off any Service
+and fence it with the NetworkPolicy.
 
 ---
 

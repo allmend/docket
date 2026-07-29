@@ -1,0 +1,24 @@
+# Gateway API route. Requires a Gateway already running in the cluster and a
+# GatewayClass implementation (Cilium, Envoy Gateway, Istio, Traefik, ...).
+#
+# TLS is configured on the Gateway's listener, not here — an HTTPRoute attaches
+# to a listener that already terminates TLS. Point parentRefs at that listener
+# and cert-manager (or whatever issues the cert) stays a Gateway-level concern.
+#
+# Adjust parentRefs to your Gateway's name/namespace and set your own hostname.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: docket
+  namespace: docket
+spec:
+  parentRefs:
+    - name: gateway
+      namespace: gateway-system
+      # sectionName: https   # pin to a specific listener if the Gateway has several
+  hostnames:
+    - docket.example.com
+  rules:
+    - backendRefs:
+        - name: docket
+          port: 80

@@ -11,6 +11,10 @@ type Config struct {
 	DatabaseURL string
 	HTTPPort    string
 	MetricsPort string
+	// MetricsAddr is the interface the Prometheus endpoint listens on. It defaults
+	// to loopback, since /metrics has no authentication. Orchestrators that scrape
+	// from another pod need 0.0.0.0 and network policy to fence the port off.
+	MetricsAddr string
 	JWTSecret   string
 	Mode        string
 }
@@ -22,6 +26,7 @@ func Load() (*Config, error) {
 		DatabaseURL: env("DATABASE_URL", "postgres://docket:docket@localhost:5432/docket?sslmode=disable"),
 		HTTPPort:    env("HTTP_PORT", "8081"),
 		MetricsPort: env("METRICS_PORT", "9412"),
+		MetricsAddr: env("METRICS_ADDR", "127.0.0.1"),
 		JWTSecret:   env("JWT_SECRET", ""),
 		Mode:        env("MODE", "all"),
 	}

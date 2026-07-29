@@ -43,6 +43,11 @@ spec:
               value: "8081"
             - name: METRICS_PORT
               value: "9412"
+            # Loopback by default, which nothing outside the pod can reach.
+            # Prometheus scrapes across the pod network, so bind wide and keep
+            # the port unexposed by any Service (see networkpolicy.yaml).
+            - name: METRICS_ADDR
+              value: "0.0.0.0"
           envFrom:
             - secretRef:
                 name: docket

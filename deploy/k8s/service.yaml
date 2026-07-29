@@ -13,25 +13,6 @@ spec:
       port: 80
       targetPort: http
       protocol: TCP
-    - name: metrics
-      port: 9412
-      targetPort: metrics
-      protocol: TCP
----
-# Optional: ServiceMonitor for Prometheus Operator.
-# Remove if you are not using the Prometheus Operator.
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: docket
-  namespace: docket
-  labels:
-    app: docket
-spec:
-  selector:
-    matchLabels:
-      app: docket
-  endpoints:
-    - port: metrics
-      interval: 30s
-      path: /metrics
+# The metrics port is deliberately absent: PodMonitor scrapes pods directly, so
+# putting /metrics behind a load-balanced Service would only hide replicas and
+# widen what can reach an unauthenticated endpoint.

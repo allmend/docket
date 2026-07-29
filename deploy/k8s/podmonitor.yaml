@@ -1,0 +1,26 @@
+# Prometheus Operator PodMonitor. Scrapes every pod directly rather than going
+# through the Service: a Service load-balances, so a ServiceMonitor would land on
+# whichever replica answered and silently miss the rest. Per-pod scraping is the
+# only way to get complete metrics from more than one replica.
+#
+# The app must be told to bind its metrics listener to a routable interface —
+# METRICS_ADDR=0.0.0.0 in the Deployment. It defaults to loopback, which nothing
+# outside the pod can reach.
+#
+# Running the VictoriaMetrics operator instead? Use VMPodScrape, which takes the
+# same shape (spec.podMetricsEndpoints, spec.selector).
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: docket
+  namespace: docket
+  labels:
+    app: docket
+spec:
+  selector:
+    matchLabels:
+      app: docket
+  podMetricsEndpoints:
+    - port: metrics        # the container port *name*, not a number
+      path: /metrics
+      interval: 30s

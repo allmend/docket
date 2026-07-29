@@ -1,0 +1,33 @@
+# /metrics has no authentication, so binding it to 0.0.0.0 for scraping means
+# anything on the pod network can read it. This restricts the metrics port to the
+# monitoring namespace and leaves the app port open to the Gateway.
+#
+# Optional but recommended. Requires a CNI that enforces NetworkPolicy (Cilium,
+# Calico); with one that ignores it, this file is decoration. Adjust the two
+# namespace selectors to match where your gateway and Prometheus actually run.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: docket
+  namespace: docket
+spec:
+  podSelector:
+    matchLabels:
+      app: docket
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: gateway-system
+      ports:
+        - port: http
+          protocol: TCP
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: metrics
+          protocol: TCP
