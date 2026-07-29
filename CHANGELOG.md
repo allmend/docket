@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.1] - 2026-07-30
+
+### Fixed
+- The published Docker image could not start. The distroless nonroot base sets its working directory to `/home/nonroot`, which does not exist in the static variant, and the image never overrode it — so resolving `migrations/`, `templates/` and `static/dist` failed immediately. This affected every release up to and including 0.13.0; the local development stack was unaffected, which is why it went unnoticed. Anyone self-hosting from the published image needs this release.
+
 ## [0.13.0] - 2026-07-29
 
 ### Added
@@ -207,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
 [Unreleased]: https://github.com/allmend/docket/compare/v0.12.0...HEAD
+[0.13.1]: https://github.com/allmend/docket/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/allmend/docket/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/allmend/docket/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/allmend/docket/compare/v0.10.0...v0.11.0
