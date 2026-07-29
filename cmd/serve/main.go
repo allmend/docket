@@ -149,8 +149,14 @@ func startAPI(
 
 	// Public routes (no auth)
 	r.Get("/login", h.LoginPage)
-	// Rate-limit login attempts: 10 per 5 minutes per IP.
-	r.With(httprate.LimitByIP(10, 5*time.Minute)).Post("/login", h.Login)
+	// Rate-limit login attempts per account, plus a loose ceiling on the endpoint
+	// as a whole. Deliberately not keyed on IP: behind an ingress or gateway every
+	// request carries the proxy's address, so one attacker would lock out the whole
+	// instance, and the RealIP variants trust X-Forwarded-For from anyone that can
+	// reach the pod, which turns the limit off for whoever forges it. Keying on the
+	// username costs an attacker the ability to lock one known account for five
+	// minutes and costs everyone else nothing.
+	r.With(loginRateLimiters()...).Post("/login", h.Login)
 	r.Post("/logout", h.Logout)
 	r.Post("/auth/refresh", h.RefreshToken)
 
@@ -191,6 +197,25 @@ func startAPI(
 		return err
 	}
 	return nil
+}
+
+// loginRateLimiters returns the middleware guarding POST /login: a per-account
+// limit, plus a ceiling on the endpoint as a whole.
+func loginRateLimiters() []func(http.Handler) http.Handler {
+	return []func(http.Handler) http.Handler{
+		httprate.Limit(10, 5*time.Minute, httprate.WithKeyFuncs(keyByLoginUsername)),
+		httprate.LimitAll(100, 5*time.Minute),
+	}
+}
+
+// keyByLoginUsername buckets login attempts by the account being tried. Calling
+// ParseForm here is safe: it caches into r.PostForm, so the handler's own parse
+// reuses the result rather than reading a consumed body.
+func keyByLoginUsername(r *http.Request) (string, error) {
+	if err := r.ParseForm(); err != nil {
+		return "", err
+	}
+	return strings.ToLower(strings.TrimSpace(r.PostFormValue("username"))), nil
 }
 
 // noDirListing rejects directory paths so the file server never renders an index.
