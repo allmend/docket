@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-07-29
+
+### Added
+- Ticket dependencies are their own relationship, separate from blocking. A block is a hard stop; a dependency means "this needs doing first" without anyone necessarily being stuck. The vocabulary is now Blocks / Blocked by, Depends on / Required by, Duplicates / Duplicated by, and Relates to.
+- Dependencies are marked amber on board cards and in the Daily Scrum, rather than the red reserved for blocks — a waiting ticket is not free to pick up, but it is not an emergency either. The marker clears when the depended-on ticket closes, while the link itself is kept.
+- The link picker offers both directions of every relationship; choosing the inverse phrasing stores the same single row with the tickets swapped.
+- Tickets returned by the public API carry their tracks, so `GET /api/v1/teams/{key}/tickets` can answer which tickets belong to a track.
+
+### Changed
+- Relationship wording lives in one place in the model rather than being re-spelled in the store, the service and the template.
+
+### Fixed
+- The backlog's track column rendered a header with no values under it: backlog tickets never had their tags loaded.
+- A relationship read from the far ticket only inverted for blocks, so a duplicate link read "Duplicates" from both ends — backwards on one of them.
+- Adding a link that points at a closed ticket failed from a perfectly open one, because the immutability guard checked the wrong end of the link.
+- Ticket history described relationships with wording that no longer appeared anywhere in the UI.
+- Workspace cards on the organisation dashboard showed the name twice ("Network network"), since the slug is derived from the name.
+
+### Security
+- Patched `golang.org/x/text` (GO-2026-5970), reachable through the database connection pool, and a high-severity path traversal in postcss.
+
 ## [0.12.0] - 2026-07-22
 
 ### Added
@@ -186,6 +207,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
 [Unreleased]: https://github.com/allmend/docket/compare/v0.12.0...HEAD
+[0.13.0]: https://github.com/allmend/docket/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/allmend/docket/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/allmend/docket/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/allmend/docket/compare/v0.9.0...v0.10.0
