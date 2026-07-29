@@ -127,7 +127,8 @@
           <div class="flex items-center gap-2 mb-1">
             <span class="mono text-[13px] text-primary-400">{{.Ticket.DisplayID}}</span>
             <span class="mono text-[11px] text-danger">{{if eq .Ticket.Priority.String "critical"}}P0{{else if eq .Ticket.Priority.String "high"}}P1{{else if eq .Ticket.Priority.String "medium"}}P2{{end}}</span>
-            {{if .Ticket.BlockedBy}}<span class="mono text-[12px] text-base-600">blocked by {{.Ticket.BlockedBy}}</span>{{end}}
+            {{if .Ticket.BlockedBy}}<span class="mono text-[12px] text-base-600">blocked by {{.Ticket.BlockedBy}}</span>
+            {{else if .Ticket.WaitingOn}}<span class="mono text-[12px] text-warn">depends on {{.Ticket.WaitingOn}}</span>{{end}}
           </div>
           <p class="text-[14px] text-base-800 leading-snug">{{.Ticket.Title}}</p>
           <div class="flex items-center gap-2 mt-2.5">

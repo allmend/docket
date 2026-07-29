@@ -48,6 +48,8 @@ type Ticket struct {
 	Assignees     []User  `json:"assignees,omitempty"` // populated by board view bulk-load
 	IsBlocked     bool    `json:"is_blocked"`          // populated by board view bulk-load
 	BlockedBy     string  `json:"blocked_by"`          // display ID of the blocking ticket
+	IsWaiting     bool    `json:"is_waiting"`          // depends on a ticket that is still open
+	WaitingOn     string  `json:"waiting_on"`          // display ID of that dependency
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

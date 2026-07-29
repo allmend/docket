@@ -54,16 +54,14 @@ func (s *Store) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) ([]mod
 		}
 		// Rewrite inverse links so the template always reads "this ticket → other ticket".
 		// e.g. if another ticket "blocks" ours, we surface it as "blocked by".
+		// Inverse() is display-only — nothing here is written back.
 		if l.ToTicketID == ticketID {
 			l.FromTicketID, l.ToTicketID = l.ToTicketID, l.FromTicketID
 			l.FromDisplayID, l.ToDisplayID = l.ToDisplayID, l.FromDisplayID
 			l.FromTitle, l.ToTitle = l.ToTitle, l.FromTitle
 			l.FromClosedAt, l.ToClosedAt = l.ToClosedAt, l.FromClosedAt
 			l.FromColumnName, l.ToColumnName = l.ToColumnName, l.FromColumnName
-			switch l.Relation {
-			case model.RelationBlocks:
-				l.Relation = "blocked_by" // virtual — not stored, only for display
-			}
+			l.Relation = l.Relation.Inverse()
 		}
 		links = append(links, l)
 	}
@@ -190,6 +188,46 @@ func (s *Store) ClearBlockingLinksForDoneTickets(ctx context.Context, orgID, spr
 		orgID, sprintID,
 	)
 	return err
+}
+
+// BulkGetWaitingOn returns a map of ticketID → dependency display ID for tickets
+// on a board that depend on something still open (an outbound "depends_on" link
+// whose target has not closed).
+//
+// Unlike blocking links, dependency links are never deleted when the other
+// ticket closes — the dependency remains a true statement about the work. The
+// amber marker is therefore derived from the target's state here, not from the
+// link's existence.
+func (s *Store) BulkGetWaitingOn(ctx context.Context, orgID, boardID uuid.UUID) (map[uuid.UUID]string, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT tl.from_ticket_id,
+		        COALESCE(dtm.key || '-' || dt.number::text, dt.id::text)
+		 FROM ticket_links tl
+		 JOIN tickets t  ON t.id  = tl.from_ticket_id AND t.board_id = $2
+		 JOIN tickets dt ON dt.id = tl.to_ticket_id
+		 LEFT JOIN teams dtm ON dtm.id = dt.team_id
+		 WHERE tl.org_id = $1
+		   AND tl.relation_type = 'depends_on'
+		   AND dt.closed_at IS NULL`,
+		orgID, boardID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[uuid.UUID]string)
+	for rows.Next() {
+		var ticketID, dependencyDisplayID = uuid.UUID{}, ""
+		if err := rows.Scan(&ticketID, &dependencyDisplayID); err != nil {
+			return nil, err
+		}
+		// Keep the first dependency found if there are several.
+		if _, exists := result[ticketID]; !exists {
+			result[ticketID] = dependencyDisplayID
+		}
+	}
+	return result, rows.Err()
 }
 
 // BulkGetBlockedBy returns a map of ticketID → blocker display ID for all tickets

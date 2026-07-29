@@ -62,11 +62,17 @@
 
         <p class="text-[14px] leading-[18px] text-base-900 mt-1.5 line-clamp-2">{{.Ticket.Title}}</p>
 
-        {{if .Ticket.IsBlocked}}
+        {{if or .Ticket.IsBlocked .Ticket.IsWaiting}}
         <div class="flex items-center gap-1.5 mt-1.5">
+          {{if .Ticket.IsBlocked}}
           <span class="inline-flex items-center h-4 px-1 rounded-sm bg-danger/15 border border-danger/30 mono text-[12px] uppercase tracking-wider text-danger">
             Blocked {{if .Ticket.BlockedBy}}by {{.Ticket.BlockedBy}}{{end}}
           </span>
+          {{else}}
+          <span class="inline-flex items-center h-4 px-1 rounded-sm bg-warn/15 border border-warn/30 mono text-[12px] uppercase tracking-wider text-warn">
+            Depends on{{if .Ticket.WaitingOn}} {{.Ticket.WaitingOn}}{{end}}
+          </span>
+          {{end}}
         </div>
         {{end}}
 

@@ -26,23 +26,20 @@ func (h *Handler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rawRelation := r.FormValue("relation_type")
-	fromID, relation := ticketID, model.RelationType(rawRelation)
-
-	// "Blocked by" is a UI convenience: store as ENG-11 blocks me (swap from/to).
-	if rawRelation == "blocked_by_inverse" {
-		fromID, toTicketID = toTicketID, ticketID
-		relation = model.RelationBlocks
-	}
-
-	switch relation {
-	case model.RelationBlocks, model.RelationDependsOn, model.RelationDuplicates, model.RelationRelatesTo:
-	default:
+	// An inverse choice ("Blocked by", "Is cloned by", …) is a UI convenience:
+	// store the forward relation with the tickets swapped, so a relationship is
+	// always exactly one row.
+	relation, swap, ok := model.ParseRelationInput(r.FormValue("relation_type"))
+	if !ok {
 		http.Error(w, "invalid relation_type", http.StatusBadRequest)
 		return
 	}
+	fromID := ticketID
+	if swap {
+		fromID, toTicketID = toTicketID, ticketID
+	}
 
-	if _, err := h.links.CreateLink(r.Context(), orgID, fromID, toTicketID, relation, userID); err != nil {
+	if _, err := h.links.CreateLink(r.Context(), orgID, ticketID, fromID, toTicketID, relation, userID); err != nil {
 		serviceError(w, err, "failed to create link")
 		return
 	}

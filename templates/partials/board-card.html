@@ -1,7 +1,7 @@
 {{define "board-card"}}
 {{$t     := .Ticket}}
 {{$isDone := .IsDone}}
-<div class="{{if $isDone}}bg-base-250/60{{else}}bg-base-250{{end}} border {{if $t.IsBlocked}}border-danger/40 hover:border-danger/60{{else}}border-base-300 hover:border-base-400{{end}} rounded p-2.5 cursor-pointer"
+<div class="{{if $isDone}}bg-base-250/60{{else}}bg-base-250{{end}} border {{if $t.IsBlocked}}border-danger/40 hover:border-danger/60{{else if $t.IsWaiting}}border-warn/40 hover:border-warn/60{{else}}border-base-300 hover:border-base-400{{end}} rounded p-2.5 cursor-pointer"
      data-ticket-id="{{$t.ID}}"
      data-position="{{$t.Position}}"
      data-ticket-column-id="{{$t.ColumnID}}"
@@ -34,12 +34,19 @@
   {{/* Title */}}
   <p class="text-[14px] leading-[18px] mt-1.5 {{if $isDone}}text-base-700 line-through decoration-base-500{{else}}text-base-900{{end}}">{{$t.Title}}</p>
 
-  {{/* Blocked badge */}}
-  {{if and (not $isDone) $t.IsBlocked}}
+  {{/* Blocked (hard stop, red) / waiting on a dependency (amber — not free to
+       pick up, but nobody is stuck). Blocked wins if a ticket is somehow both. */}}
+  {{if and (not $isDone) (or $t.IsBlocked $t.IsWaiting)}}
   <div class="flex items-center gap-1.5 mt-1.5">
+    {{if $t.IsBlocked}}
     <span class="inline-flex items-center h-4 px-1 rounded-sm bg-danger/15 border border-danger/30 mono text-[12px] uppercase tracking-wider text-danger">
       Blocked{{if $t.BlockedBy}} by {{$t.BlockedBy}}{{end}}
     </span>
+    {{else}}
+    <span class="inline-flex items-center h-4 px-1 rounded-sm bg-warn/15 border border-warn/30 mono text-[12px] uppercase tracking-wider text-warn">
+      Depends on{{if $t.WaitingOn}} {{$t.WaitingOn}}{{end}}
+    </span>
+    {{end}}
   </div>
   {{end}}
 

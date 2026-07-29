@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/version"
 )
 
@@ -41,6 +42,10 @@ func templateFuncs() template.FuncMap {
 
 		"priorityColor": priorityColor,
 		"priorityLabel": priorityLabel,
+
+		// The link picker's vocabulary. A func, not handler data, so every
+		// render path of ticket-links gets the same list without plumbing.
+		"relationOptions": model.RelationOptions,
 
 		// Build version, so no template has to hardcode (and then forget) it.
 		"version": func() string { return version.Version },

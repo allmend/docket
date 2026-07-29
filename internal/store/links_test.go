@@ -57,7 +57,7 @@ func TestBlockingLinksFromTicket_OrgIsolation(t *testing.T) {
 }
 
 // TestDeleteBlockingLinksFromTicket_OnlyBlocks asserts the close-time cleanup
-// touches only "blocks" links — relates_to/depends_on links must survive.
+// touches only "blocks" links — links of any other relation must survive.
 func TestDeleteBlockingLinksFromTicket_OnlyBlocks(t *testing.T) {
 	s := requireStore(t)
 	resetDB(t)
@@ -94,5 +94,154 @@ func TestDeleteBlockingLinksFromTicket_OnlyBlocks(t *testing.T) {
 		if l.Relation == model.RelationBlocks && l.FromTicketID == closing.ID {
 			t.Fatal("outbound blocks link survived the delete")
 		}
+	}
+}
+
+// TestListLinks_RelationVocabulary covers the relation set end to end: every
+// relation survives the CHECK constraint, and ListLinks flips each one to its
+// inverse phrasing when read from the other ticket.
+func TestListLinks_RelationVocabulary(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	org := seedOrg(t, "org-a")
+	user := seedUser(t, org.ID, "alice")
+	from := seedTicket(t, org.ID, user.ID, "source")
+	to := seedTicket(t, org.ID, user.ID, "target")
+
+	cases := []struct {
+		relation model.RelationType
+		inverse  model.RelationType
+	}{
+		{model.RelationBlocks, model.RelationBlockedBy},
+		{model.RelationDependsOn, model.RelationRequiredBy},
+		{model.RelationDuplicates, model.RelationDuplicatedBy},
+		{model.RelationRelatesTo, model.RelationRelatesTo}, // symmetric
+	}
+
+	for _, c := range cases {
+		if _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, c.relation); err != nil {
+			t.Fatalf("create %s link: %v", c.relation, err)
+		}
+	}
+
+	// Source side: relations read forward, pointing at the target.
+	forward, err := s.ListLinks(ctx, org.ID, from.ID)
+	if err != nil {
+		t.Fatalf("list links (source): %v", err)
+	}
+	if len(forward) != len(cases) {
+		t.Fatalf("source sees %d links, want %d", len(forward), len(cases))
+	}
+	seen := make(map[model.RelationType]bool, len(forward))
+	for _, l := range forward {
+		seen[l.Relation] = true
+		if l.ToTicketID != to.ID {
+			t.Errorf("%s points at %s, want the target ticket %s", l.Relation, l.ToTicketID, to.ID)
+		}
+	}
+	for _, c := range cases {
+		if !seen[c.relation] {
+			t.Errorf("source is missing a %s link", c.relation)
+		}
+	}
+
+	// Target side: each relation is rewritten to its inverse, pointing back.
+	inverse, err := s.ListLinks(ctx, org.ID, to.ID)
+	if err != nil {
+		t.Fatalf("list links (target): %v", err)
+	}
+	seenInverse := make(map[model.RelationType]bool, len(inverse))
+	for _, l := range inverse {
+		seenInverse[l.Relation] = true
+		// The rewrite must swap both ends, not just the relation name.
+		if l.ToTicketID != from.ID {
+			t.Errorf("%s points at %s, want the source ticket %s", l.Relation, l.ToTicketID, from.ID)
+		}
+	}
+	for _, c := range cases {
+		if !seenInverse[c.inverse] {
+			t.Errorf("target is missing a %s link (inverse of %s)", c.inverse, c.relation)
+		}
+	}
+}
+
+// TestCreateLink_RejectsUnknownRelation asserts the CHECK constraint refuses a
+// relation outside the vocabulary — "clones" was considered and deliberately
+// not adopted.
+func TestCreateLink_RejectsUnknownRelation(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	org := seedOrg(t, "org-a")
+	user := seedUser(t, org.ID, "alice")
+	from := seedTicket(t, org.ID, user.ID, "source")
+	to := seedTicket(t, org.ID, user.ID, "target")
+
+	if _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationType("clones")); err == nil {
+		t.Fatal("clones link was accepted; the CHECK constraint should reject it")
+	}
+}
+
+// TestBulkGetWaitingOn covers the amber dependency marker: it appears while the
+// depended-on ticket is open, disappears once that ticket closes (without the
+// link being deleted, unlike blocks), is scoped to the org, and never fires for
+// blocking links.
+func TestBulkGetWaitingOn(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	orgA := seedOrg(t, "org-a")
+	orgB := seedOrg(t, "org-b")
+	user := seedUser(t, orgA.ID, "alice")
+	dependent := seedTicket(t, orgA.ID, user.ID, "dependent")
+	dependency := seedTicket(t, orgA.ID, user.ID, "dependency")
+
+	// depends_on stores the dependent as the source: "dependent depends on dependency".
+	if _, err := s.CreateLink(ctx, orgA.ID, dependent.ID, dependency.ID, model.RelationDependsOn); err != nil {
+		t.Fatalf("create depends_on link: %v", err)
+	}
+
+	waiting, err := s.BulkGetWaitingOn(ctx, orgA.ID, dependent.BoardID)
+	if err != nil {
+		t.Fatalf("bulk waiting on: %v", err)
+	}
+	if _, ok := waiting[dependent.ID]; !ok {
+		t.Fatal("dependent is not marked as waiting while its dependency is open")
+	}
+	if _, ok := waiting[dependency.ID]; ok {
+		t.Error("the dependency itself was marked as waiting; only the dependent waits")
+	}
+
+	// Cross-org callers see nothing.
+	crossOrg, err := s.BulkGetWaitingOn(ctx, orgB.ID, dependent.BoardID)
+	if err != nil {
+		t.Fatalf("bulk waiting on (cross-org): %v", err)
+	}
+	if len(crossOrg) != 0 {
+		t.Errorf("cross-org waiting map leaked %d entries, want 0", len(crossOrg))
+	}
+
+	// Closing the dependency clears the marker but must not delete the link —
+	// the dependency remains a true statement about the work.
+	if _, err := s.CloseTicket(ctx, orgA.ID, dependency.ID, "done"); err != nil {
+		t.Fatalf("close dependency: %v", err)
+	}
+	waiting, err = s.BulkGetWaitingOn(ctx, orgA.ID, dependent.BoardID)
+	if err != nil {
+		t.Fatalf("bulk waiting on (after close): %v", err)
+	}
+	if _, ok := waiting[dependent.ID]; ok {
+		t.Error("dependent still marked as waiting after its dependency closed")
+	}
+	links, err := s.ListLinks(ctx, orgA.ID, dependent.ID)
+	if err != nil {
+		t.Fatalf("list links: %v", err)
+	}
+	if len(links) != 1 {
+		t.Fatalf("dependency link count = %d, want 1 (links are never auto-deleted)", len(links))
 	}
 }

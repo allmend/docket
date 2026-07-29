@@ -108,6 +108,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 		tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 		blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
+		waitingOn, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
 
 		// Active sprint: show ONLY sprint columns — no virtual backlog.
 		// The board becomes a pure sprint view; the backlog is accessible via the Backlog link.
@@ -124,6 +125,10 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 				if blocker, ok := blockedBy[tickets[i].ID]; ok {
 					tickets[i].IsBlocked = true
 					tickets[i].BlockedBy = blocker
+				}
+				if dependency, ok := waitingOn[tickets[i].ID]; ok {
+					tickets[i].IsWaiting = true
+					tickets[i].WaitingOn = dependency
 				}
 			}
 			byCol := make(map[uuid.UUID][]model.Ticket)
@@ -145,6 +150,10 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 			if blocker, ok := blockedBy[backlogTickets[i].ID]; ok {
 				backlogTickets[i].IsBlocked = true
 				backlogTickets[i].BlockedBy = blocker
+			}
+			if dependency, ok := waitingOn[backlogTickets[i].ID]; ok {
+				backlogTickets[i].IsWaiting = true
+				backlogTickets[i].WaitingOn = dependency
 			}
 		}
 		view.Columns = append(view.Columns, model.ColumnView{
@@ -169,6 +178,10 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 				if blocker, ok := blockedBy[planningTickets[i].ID]; ok {
 					planningTickets[i].IsBlocked = true
 					planningTickets[i].BlockedBy = blocker
+				}
+				if dependency, ok := waitingOn[planningTickets[i].ID]; ok {
+					planningTickets[i].IsWaiting = true
+					planningTickets[i].WaitingOn = dependency
 				}
 			}
 			byCol := make(map[uuid.UUID][]model.Ticket)
@@ -195,12 +208,17 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
+	waitingOn, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
 		tickets[i].Tags = tagsByTicket[tickets[i].ID]
 		if blocker, ok := blockedBy[tickets[i].ID]; ok {
 			tickets[i].IsBlocked = true
 			tickets[i].BlockedBy = blocker
+		}
+		if dependency, ok := waitingOn[tickets[i].ID]; ok {
+			tickets[i].IsWaiting = true
+			tickets[i].WaitingOn = dependency
 		}
 	}
 	byCol := make(map[uuid.UUID][]model.Ticket)
@@ -386,12 +404,17 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedByBacklog, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
+	waitingOnBacklog, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
 		tickets[i].Tags = tagsByTicket[tickets[i].ID]
 		if blocker, ok := blockedByBacklog[tickets[i].ID]; ok {
 			tickets[i].IsBlocked = true
 			tickets[i].BlockedBy = blocker
+		}
+		if dependency, ok := waitingOnBacklog[tickets[i].ID]; ok {
+			tickets[i].IsWaiting = true
+			tickets[i].WaitingOn = dependency
 		}
 	}
 
@@ -663,12 +686,17 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
+	waitingOn, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
 	for i := range tickets {
 		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
 		tickets[i].Tags = tagsByTicket[tickets[i].ID]
 		if blocker, ok := blockedBy[tickets[i].ID]; ok {
 			tickets[i].IsBlocked = true
 			tickets[i].BlockedBy = blocker
+		}
+		if dependency, ok := waitingOn[tickets[i].ID]; ok {
+			tickets[i].IsWaiting = true
+			tickets[i].WaitingOn = dependency
 		}
 	}
 

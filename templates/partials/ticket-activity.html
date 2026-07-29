@@ -36,9 +36,12 @@
         {{else}}unassigned <span class="text-base-900">{{.OldValue}}</span>{{end}}
       {{else if eq .Field "closed"}}closed this ticket
       {{else if eq .Field "reopened"}}reopened this ticket
-      {{else if eq .Field "link_added"}}linked <span class="mono text-base-900">{{.NewValue}}</span>
-      {{else if eq .Field "link_removed"}}removed link to <span class="mono text-base-900">{{.OldValue}}</span>
-      {{else if eq .Field "link_cleared"}}cleared link <span class="mono text-base-900">{{.OldValue}}</span> — blocker resolved
+      {{/* The stored value is a full relation phrase ("blocks ENG-4", "required
+           by ENG-4"), so these read as a label + clause — "linked required by"
+           would not parse as English. */}}
+      {{else if eq .Field "link_added"}}added link — <span class="mono text-base-900">{{.NewValue}}</span>
+      {{else if eq .Field "link_removed"}}removed link — <span class="mono text-base-900">{{.OldValue}}</span>
+      {{else if eq .Field "link_cleared"}}cleared link — <span class="mono text-base-900">{{.OldValue}}</span> (blocker resolved)
       {{else}}{{.Field}}: {{.NewValue}}
       {{end}}
       <span class="ml-auto mono text-[12px] text-base-600 shrink-0">{{timeAgo .CreatedAt}}</span>

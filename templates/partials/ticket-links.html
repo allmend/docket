@@ -15,7 +15,7 @@
     {{range .Links}}
     {{$col := lower .ToColumnName}}
     <div class="group/row flex items-center gap-3 px-3 py-2 hover:bg-base-200/40">
-      <span class="mono text-[13px] w-[88px] shrink-0 whitespace-nowrap {{if or (eq (printf "%s" .Relation) "blocks") (eq (printf "%s" .Relation) "blocked_by")}}text-danger{{else}}text-base-600{{end}}">{{.Relation.Label}}</span>
+      <span class="mono text-[13px] w-[124px] shrink-0 whitespace-nowrap {{if .Relation.IsBlocking}}text-danger{{else if .Relation.IsDependency}}text-warn{{else}}text-base-600{{end}}">{{.Relation.Label}}</span>
       <a href="/tickets/{{.ToDisplayID}}" class="mono text-[13px] text-primary-400 hover:text-primary-300 shrink-0">{{.ToDisplayID}}</a>
       <span class="text-[14px] text-base-700 truncate flex-1 min-w-0">{{.ToTitle}}</span>
       <div class="flex items-center gap-2 shrink-0">
@@ -48,13 +48,11 @@
     </div>
     <!-- inline add-row: relationship select + ID/title search -->
     <div x-show="open" x-cloak class="flex items-center gap-3 px-3 py-2 bg-base-200/40">
-      <div class="selwrap shrink-0 w-[150px]">
+      <div class="selwrap shrink-0 w-[170px]">
         <select x-model="rel" class="metasel mono" aria-label="Relationship type">
-          <option value="blocks">Blocks</option>
-          <option value="blocked_by_inverse">Blocked by</option>
-          <option value="depends_on">Depends on</option>
-          <option value="relates_to">Relates to</option>
-          <option value="duplicates">Duplicates</option>
+          {{range relationOptions}}
+          <option value="{{.Value}}">{{.Label}}</option>
+          {{end}}
         </select>
         <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </div>

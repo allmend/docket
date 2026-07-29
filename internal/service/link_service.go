@@ -23,8 +23,14 @@ func (s *LinkService) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) 
 
 // CreateLink creates a ticket link and records a history entry on both tickets,
 // each labelled from that ticket's perspective.
-func (s *LinkService) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, actorID uuid.UUID) (*model.TicketLink, error) {
-	if err := assertTicketOpen(ctx, s.store, orgID, fromTicketID); err != nil {
+//
+// viewTicketID is the ticket the actor is looking at, which is not always the
+// stored source: picking an inverse phrasing ("Blocked by ENG-11") stores the
+// link the other way round. The open-ticket guard applies to the viewed ticket,
+// so a link *to* a closed ticket can still be added from the open end — same
+// rule as DeleteLink.
+func (s *LinkService) CreateLink(ctx context.Context, orgID, viewTicketID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, actorID uuid.UUID) (*model.TicketLink, error) {
+	if err := assertTicketOpen(ctx, s.store, orgID, viewTicketID); err != nil {
 		return nil, err
 	}
 	link, err := s.store.CreateLink(ctx, orgID, fromTicketID, toTicketID, relation)
@@ -73,36 +79,16 @@ func (s *LinkService) actorName(ctx context.Context, orgID, actorID uuid.UUID) s
 	return ""
 }
 
-// linkLabel returns a human-readable label for a link from the perspective of viewTicketID.
+// linkLabel returns a human-readable label for a link from the perspective of
+// viewTicketID, e.g. "blocks ENG-11" on one ticket and "blocked by ENG-4" on the
+// other. Phrasing comes from the model so history reads the same words as the UI.
 func (s *LinkService) linkLabel(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, viewTicketID uuid.UUID) string {
-	var otherID uuid.UUID
-	var verb string
-
-	if fromTicketID == viewTicketID {
-		otherID = toTicketID
-		switch relation {
-		case model.RelationBlocks:
-			verb = "blocks"
-		case model.RelationDependsOn:
-			verb = "depends on"
-		case model.RelationDuplicates:
-			verb = "duplicates"
-		default:
-			verb = strings.ReplaceAll(string(relation), "_", " ")
-		}
-	} else {
+	otherID := toTicketID
+	if fromTicketID != viewTicketID {
 		otherID = fromTicketID
-		switch relation {
-		case model.RelationBlocks:
-			verb = "blocked by"
-		case model.RelationDependsOn:
-			verb = "needed by"
-		case model.RelationDuplicates:
-			verb = "duplicated by"
-		default:
-			verb = strings.ReplaceAll(string(relation), "_", " ")
-		}
+		relation = relation.Inverse()
 	}
+	verb := strings.ToLower(relation.Label())
 
 	other, _ := s.store.GetTicket(ctx, orgID, otherID)
 	if other != nil {
