@@ -18,6 +18,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 
 FROM gcr.io/distroless/static-debian12:nonroot
 
+# The nonroot base sets WorkingDir to /home/nonroot, which does not exist in the
+# static variant. The app resolves migrations/, templates/ and static/dist
+# relative to the working directory, so without this it cannot start at all.
+WORKDIR /
+
 COPY --from=builder /app/docket      /docket
 COPY --from=builder /app/migrations  /migrations
 COPY --from=builder /app/templates   /templates
