@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/google/uuid"
@@ -154,5 +155,47 @@ func TestMetricsSprintStats_CompletedKeepsSnapshot(t *testing.T) {
 	if rows[0].CommittedPoints != 5 || rows[0].CompletedPoints != 5 {
 		t.Errorf("completed sprint lost its snapshot: committed=%v completed=%v, want 5/5",
 			rows[0].CommittedPoints, rows[0].CompletedPoints)
+	}
+}
+
+// TestMetricsSprintStats_Boundaries covers the timestamps a burndown's ideal line
+// is built from: present when the sprint has dates, absent when it does not, and
+// the end covering the whole of its last day rather than stopping at midnight.
+func TestMetricsSprintStats_Boundaries(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	org := seedOrg(t, "org-a")
+	user := seedUser(t, org.ID, "alice")
+	ticket := seedTicket(t, org.ID, user.ID, "work")
+
+	start := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
+	sprint, err := s.CreateSprint(ctx, org.ID, ticket.BoardID, user.ID, "dated", "", &start, &end)
+	if err != nil {
+		t.Fatalf("create sprint: %v", err)
+	}
+	if _, err := s.SetSprintStatus(ctx, org.ID, sprint.ID, model.SprintStatusActive); err != nil {
+		t.Fatalf("activate: %v", err)
+	}
+
+	rows, err := s.MetricsSprintStats(ctx, org.ID)
+	if err != nil {
+		t.Fatalf("sprint stats: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("got %d rows, want 1", len(rows))
+	}
+	r := rows[0]
+	if r.StartUnix == nil || r.EndUnix == nil {
+		t.Fatal("a dated sprint reported no boundaries")
+	}
+	if got, want := *r.StartUnix, float64(start.Unix()); got != want {
+		t.Errorf("start = %v, want %v", got, want)
+	}
+	// The sprint's last day is 14 July, so the box closes at the start of the 15th.
+	if got, want := *r.EndUnix, float64(end.AddDate(0, 0, 1).Unix()); got != want {
+		t.Errorf("end = %v, want %v (end of the last day)", got, want)
 	}
 }

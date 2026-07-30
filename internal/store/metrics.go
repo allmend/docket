@@ -38,6 +38,11 @@ type SprintStatsRow struct {
 	CompletedTickets int64
 	CommittedPoints  float64
 	CompletedPoints  float64
+	// Sprint boundaries as unix seconds, nil when the sprint has no dates set.
+	// Exported so a burndown can draw its ideal line from the real timebox
+	// instead of guessing one from the dashboard's time range.
+	StartUnix *float64
+	EndUnix   *float64
 }
 
 // MetricsTicketCounts returns open ticket counts grouped by org/team/column/priority,
@@ -167,7 +172,11 @@ func (s *Store) MetricsSprintStats(ctx context.Context, orgID uuid.UUID) ([]Spri
 			CASE WHEN sp.status = 'completed'
 			     THEN sp.committed_points ELSE live.committed_points END,
 			CASE WHEN sp.status = 'completed'
-			     THEN sp.completed_points ELSE live.completed_points END
+			     THEN sp.completed_points ELSE live.completed_points END,
+			EXTRACT(EPOCH FROM sp.start_date)::float8,
+			-- end_date is the last day of the sprint, so the timebox runs to the
+			-- end of that day rather than to midnight at its start.
+			EXTRACT(EPOCH FROM (sp.end_date + INTERVAL '1 day'))::float8
 		FROM sprints sp
 		JOIN boards b ON b.id = sp.board_id
 		JOIN orgs o ON o.id = sp.org_id
@@ -201,6 +210,7 @@ func (s *Store) MetricsSprintStats(ctx context.Context, orgID uuid.UUID) ([]Spri
 			&r.OrgSlug, &r.TeamKey, &r.SprintName,
 			&r.CommittedTickets, &r.CompletedTickets,
 			&r.CommittedPoints, &r.CompletedPoints,
+			&r.StartUnix, &r.EndUnix,
 		); err != nil {
 			return nil, err
 		}

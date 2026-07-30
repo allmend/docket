@@ -107,7 +107,18 @@ func (h *Handler) v1Metrics(w http.ResponseWriter, r *http.Request) {
 				labelledGauge{"docket_sprint_completed_tickets", "Tickets completed (Done column) in the sprint.", sl, float64(r.CompletedTickets)},
 				labelledGauge{"docket_sprint_committed_points", "Story points committed at sprint start.", sl, r.CommittedPoints},
 				labelledGauge{"docket_sprint_completed_points", "Story points in Done columns for the sprint.", sl, r.CompletedPoints},
+				labelledGauge{"docket_sprint_remaining_points", "Committed points not yet in a Done column.", sl, r.CommittedPoints - r.CompletedPoints},
 			)
+			// Only emitted when the sprint has dates. A burndown's ideal line is
+			// committed * (end - now) / (end - start), which needs the real
+			// timebox — deriving it from the dashboard's time range would draw a
+			// line that has nothing to do with the sprint.
+			if r.StartUnix != nil && r.EndUnix != nil {
+				series = append(series,
+					labelledGauge{"docket_sprint_start_timestamp_seconds", "Sprint start as a unix timestamp.", sl, *r.StartUnix},
+					labelledGauge{"docket_sprint_end_timestamp_seconds", "Sprint end as a unix timestamp, exclusive.", sl, *r.EndUnix},
+				)
+			}
 		}
 	}
 
