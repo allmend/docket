@@ -180,7 +180,7 @@
             {{if .Members}}<div class="mono text-[14px] text-base-700 mt-0.5">{{len .Members}} people</div>{{end}}
           </div>
         </div>
-        {{template "settings-members-partial" (dict "Members" .Members "CurrentUser" .CurrentUser)}}
+        {{template "settings-members-partial" (dict "Members" .Members "CurrentUser" .CurrentUser "Error" "")}}
         {{else}}
         <div class="flex items-end justify-between mb-4">
           <div>

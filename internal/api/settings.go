@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -108,15 +109,32 @@ func (h *Handler) CreateMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.auth.CreateLocalUser(r.Context(), orgID, username, name, email, password, role); err != nil {
+		// A duplicate is the admin mistyping, not a server fault — re-render the
+		// panel with the reason on it rather than replacing the page with a bare
+		// 500. Anything else is genuinely unexpected and stays a 500 with the
+		// detail in the log, never in the response.
+		if errors.Is(err, service.ErrUserExists) {
+			h.renderMembers(w, r, err.Error())
+			return
+		}
 		slog.Error("create member", "org_id", orgID, "err", err)
 		http.Error(w, "failed to create user", http.StatusInternalServerError)
 		return
 	}
 
+	h.renderMembers(w, r, "")
+}
+
+// renderMembers re-renders the members panel. Every render of this partial goes
+// through here so the data contract stays total — it runs under
+// missingkey=error, where a forgotten key is a 500 rather than a blank.
+func (h *Handler) renderMembers(w http.ResponseWriter, r *http.Request, errMsg string) {
+	orgID := service.OrgIDFromContext(r.Context())
 	members, _ := h.tokens.ListMembers(r.Context(), orgID)
 	h.render(w, "settings-members-partial.html", map[string]any{
 		"Members":     members,
 		"CurrentUser": h.auth.GetCurrentUser(r.Context()),
+		"Error":       errMsg,
 	})
 }
 
@@ -140,9 +158,5 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	members, _ := h.tokens.ListMembers(r.Context(), orgID)
-	h.render(w, "settings-members-partial.html", map[string]any{
-		"Members":     members,
-		"CurrentUser": h.auth.GetCurrentUser(r.Context()),
-	})
+	h.renderMembers(w, r, "")
 }

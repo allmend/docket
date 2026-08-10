@@ -1,9 +1,16 @@
 {{define "settings-members-partial"}}
 <div id="settings-members">
 
+  {{if .Error}}
+  <div class="bg-danger/10 border border-danger/30 rounded-md px-3 py-2 mb-3 text-[13px] text-danger">{{.Error}}</div>
+  {{end}}
+
   <!-- Add member form -->
   <div class="bg-base-200 border border-base-300 rounded-md p-3 flex items-end gap-2 mb-4">
-    <form action="/settings/members" method="POST" class="flex items-end gap-2 w-full">
+    {{/* hx-post, not a native submit: the handler answers with this partial, so a
+         browser POST would render the fragment as the whole document. */}}
+    <form hx-post="/settings/members" hx-target="#settings-members" hx-swap="outerHTML"
+          class="flex items-end gap-2 w-full">
       <div class="flex-1 grid grid-cols-2 gap-2">
         <input type="text" name="username" placeholder="Username" required
                class="bg-base-150 border border-base-300 rounded px-2.5 h-9 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 shadow-sunk"/>
@@ -46,15 +53,18 @@
       </div>
       <!-- Role badge -->
       <div>
-        <form method="POST" action="/settings/members/{{.ID}}/role">
-          <button type="submit" name="role" value="{{if eq .Role "admin"}}member{{else}}admin{{end}}"
-                  class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[13px] cursor-pointer
-                    {{if eq .Role "admin"}}bg-info/15 border-info/30 text-info
-                    {{else}}bg-base-250 border-base-350 text-base-800{{end}}">
-            {{if eq .Role "admin"}}Admin{{else}}Member{{end}}
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" class="opacity-60"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-        </form>
+        {{/* Was a POST form against a route registered PUT — 405, so the role
+             toggle silently did nothing. hx-put sends the real verb, and hx-vals
+             carries the value the submit button used to. */}}
+        <button hx-put="/settings/members/{{.ID}}/role"
+                hx-vals='{"role": "{{if eq .Role "admin"}}member{{else}}admin{{end}}"}'
+                hx-target="#settings-members" hx-swap="outerHTML"
+                class="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border text-[13px] cursor-pointer
+                  {{if eq .Role "admin"}}bg-info/15 border-info/30 text-info
+                  {{else}}bg-base-250 border-base-350 text-base-800{{end}}">
+          {{if eq .Role "admin"}}Admin{{else}}Member{{end}}
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" class="opacity-60"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
       </div>
       <!-- Actions -->
       <div>

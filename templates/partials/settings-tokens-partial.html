@@ -9,8 +9,11 @@
   </div>
   {{end}}
 
-  <!-- Create form -->
-  <form action="/settings/tokens" method="POST" class="bg-base-200 border border-base-300 rounded-md p-3 flex items-end gap-2 mb-4">
+  {{/* hx-post, not a native submit: the handler answers with this partial, so a
+       browser POST would render the fragment as the whole document and lose the
+       layout, CSS and sidebar. */}}
+  <form hx-post="/settings/tokens" hx-target="#settings-tokens" hx-swap="outerHTML"
+        class="bg-base-200 border border-base-300 rounded-md p-3 flex items-end gap-2 mb-4">
     <input type="text" name="name" placeholder="Token name" required
            class="flex-1 bg-base-150 border border-base-300 rounded px-2.5 h-8 text-[14px] text-base-900 placeholder:text-base-600 focus:outline-none focus:border-primary-500 shadow-sunk"/>
     <select name="scope"
@@ -43,14 +46,15 @@
         {{if .LastUsedAt}}{{timeAgo .LastUsedAt}}{{else}}never{{end}}
       </span>
       {{if not .IsRevoked}}
-      <form method="POST" action="/settings/tokens/{{.ID}}"
-            onsubmit="return confirm('Revoke this token? Apps using it will stop working.')">
-        <input type="hidden" name="_method" value="DELETE">
-        <button type="submit"
-                class="w-7 h-7 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M5.5 5V3.5h5V5M6.5 8v4.5M9.5 8v4.5M4 5l.5 8h7L12 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-      </form>
+      {{/* Was a POST form with a _method=DELETE hidden input, but nothing
+           translates that — the route is registered DELETE, so every revoke
+           returned 405 and silently did nothing. hx-delete issues the real verb. */}}
+      <button hx-delete="/settings/tokens/{{.ID}}"
+              hx-target="#settings-tokens" hx-swap="outerHTML"
+              hx-confirm="Revoke this token? Apps using it will stop working."
+              class="w-7 h-7 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h10M5.5 5V3.5h5V5M6.5 8v4.5M9.5 8v4.5M4 5l.5 8h7L12 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
       {{else}}
       <span></span>
       {{end}}

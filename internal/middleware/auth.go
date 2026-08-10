@@ -3,7 +3,6 @@ package middleware
 import (
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
@@ -14,7 +13,10 @@ import (
 // or an API token (dkt_ prefix) from the Authorization: Bearer header.
 // On success it puts org/user/role/scope on context. On failure it redirects to /login
 // for browser requests or returns 401 for API token requests.
-func Authenticate(authSvc *service.AuthService, tokenSvc *service.TokenService) func(http.Handler) http.Handler {
+// cookieSecure must match the flag the login handler uses. A mismatch is
+// invisible until the transparent refresh below fires, at which point the
+// browser silently drops the reply's cookies and the session is gone.
+func Authenticate(authSvc *service.AuthService, tokenSvc *service.TokenService, cookieSecure bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := tokenFromRequest(r)
@@ -43,7 +45,7 @@ func Authenticate(authSvc *service.AuthService, tokenSvc *service.TokenService) 
 				if rc, cerr := r.Cookie("refresh_token"); cerr == nil {
 					_, pair, rerr := authSvc.Refresh(r.Context(), rc.Value)
 					if rerr == nil {
-						setSessionCookies(w, pair.AccessToken, pair.RefreshToken)
+						SetSessionCookies(w, pair.AccessToken, pair.RefreshToken, cookieSecure)
 						claims, err = authSvc.ValidateAccessToken(pair.AccessToken)
 					}
 				}
@@ -106,6 +108,16 @@ func redirectOrUnauthorized(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	// HTMX follows a 303 transparently and swaps whatever comes back into the
+	// element that triggered the request, so a 30s board poll on an expired
+	// session painted the login form inside #board-columns with the sidebar and
+	// nav still around it. HX-Redirect tells htmx to navigate the whole page
+	// instead; it is handled before any swap logic, so the body is never used.
+	if r.Header.Get("HX-Request") == "true" {
+		w.Header().Set("HX-Redirect", "/login")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
@@ -119,24 +131,5 @@ func tokenFromRequest(r *http.Request) string {
 	return ""
 }
 
-func setSessionCookies(w http.ResponseWriter, accessToken, refreshToken string) {
-	ttl := int((5 * 24 * time.Hour).Seconds())
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   ttl,
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   ttl,
-	})
-}
+// Session cookies are written by SetSessionCookies in cookies.go — one copy,
+// carrying the configured Secure flag.

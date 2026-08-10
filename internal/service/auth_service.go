@@ -19,11 +19,22 @@ import (
 var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 	ErrOrgNotFound        = errors.New("org not found")
+	// ErrUserExists is a duplicate username or email within the org. Which one
+	// is deliberately not distinguished: telling an admin is harmless, but this
+	// same path would confirm account existence if it ever serves self-signup.
+	ErrUserExists = errors.New("a user with that username or email already exists")
 )
 
 const (
 	accessTokenTTL  = 15 * time.Minute
 	refreshTokenTTL = 5 * 24 * time.Hour
+
+	// refreshGrace is how long a rotated refresh token keeps working. It only has
+	// to cover requests that were already in flight when the rotation happened,
+	// so it is deliberately short — long enough for a page's worth of concurrent
+	// HTMX requests, far too short to be useful to someone replaying a stolen
+	// token. Logout revokes outright and ignores this entirely.
+	refreshGrace = 30 * time.Second
 )
 
 type AuthService struct {
@@ -78,7 +89,7 @@ func (s *AuthService) loginWithOrg(ctx context.Context, org *model.Org, username
 // Refresh exchanges a valid refresh token for a new token pair.
 func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*model.User, *TokenPair, error) {
 	h := hashToken(rawRefreshToken)
-	row, err := s.store.ValidateRefreshToken(ctx, h)
+	row, err := s.store.ValidateRefreshToken(ctx, h, refreshGrace)
 	if err != nil {
 		return nil, nil, ErrInvalidCredentials
 	}
@@ -88,9 +99,11 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*mod
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	// Rotate: revoke old, issue new.
-	if err := s.store.RevokeRefreshToken(ctx, h); err != nil {
-		return nil, nil, fmt.Errorf("revoke: %w", err)
+	// Rotate: supersede old, issue new. Superseding rather than revoking leaves
+	// the old token usable for refreshGrace, so the sibling requests that raced
+	// this one get a session instead of a redirect to /login.
+	if err := s.store.SupersedeRefreshToken(ctx, h); err != nil {
+		return nil, nil, fmt.Errorf("supersede: %w", err)
 	}
 
 	pair, err := s.issueTokenPair(ctx, user)
@@ -140,6 +153,9 @@ func (s *AuthService) CreateOrgWithAdmin(ctx context.Context, orgName, orgSlug, 
 func (s *AuthService) CreateLocalUser(ctx context.Context, orgID uuid.UUID, username, name, email, password, role string) (*model.User, error) {
 	user, err := s.store.CreateUser(ctx, orgID, username, name, email, role)
 	if err != nil {
+		if errors.Is(err, store.ErrDuplicate) {
+			return nil, ErrUserExists
+		}
 		return nil, fmt.Errorf("create user: %w", err)
 	}
 

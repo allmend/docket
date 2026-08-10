@@ -2,7 +2,8 @@ package api
 
 import (
 	"net/http"
-	"time"
+
+	"github.com/allmend/docket/internal/middleware"
 )
 
 // orgNameForLogin resolves the org name shown on the sign-in page. login.html has
@@ -66,36 +67,9 @@ func (h *Handler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) setTokenCookies(w http.ResponseWriter, accessToken, refreshToken string) {
-	http.SetCookie(w, &http.Cookie{
-		Name:     "access_token",
-		Value:    accessToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int((5 * 24 * time.Hour).Seconds()),
-	})
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   h.cookieSecure,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   int((5 * 24 * time.Hour).Seconds()),
-	})
+	middleware.SetSessionCookies(w, accessToken, refreshToken, h.cookieSecure)
 }
 
 func (h *Handler) clearTokenCookies(w http.ResponseWriter) {
-	for _, name := range []string{"access_token", "refresh_token"} {
-		http.SetCookie(w, &http.Cookie{
-			Name:     name,
-			Value:    "",
-			MaxAge:   -1,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   h.cookieSecure,
-			SameSite: http.SameSiteLaxMode,
-		})
-	}
+	middleware.ClearSessionCookies(w, h.cookieSecure)
 }

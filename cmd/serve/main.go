@@ -162,7 +162,7 @@ func startAPI(
 
 	// Authenticated routes — HTMX UI (HTML responses)
 	r.Group(func(r chi.Router) {
-		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc))
+		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc, cfg.CookieSecure))
 		// The UI surface mutates freely, so read-only and metrics-only API
 		// tokens must not reach it. JWT sessions always carry api:write scope.
 		r.Use(appMiddleware.RequireScope(model.ScopeAPIWrite))
@@ -171,7 +171,7 @@ func startAPI(
 
 	// Public API v1 — JSON responses, human-readable identifiers
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc))
+		r.Use(appMiddleware.Authenticate(authSvc, tokenSvc, cfg.CookieSecure))
 		h.V1Routes(r)
 	})
 

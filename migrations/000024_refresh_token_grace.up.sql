@@ -1,0 +1,13 @@
+-- Rotating a refresh token revoked it outright, which loses a race the app
+-- creates for itself: the board polls every 30s and a page fires several HTMX
+-- requests at once, so when the 15-minute access token expires, all of them
+-- attempt a refresh with the same token. The first rotates it; the rest present
+-- a token that was revoked microseconds ago and get bounced to /login while the
+-- winner is busy establishing a perfectly good session. Two pods make it worse:
+-- there is no shared process state to serialise on.
+--
+-- superseded_at records "rotated, replacement issued" separately from
+-- revoked_at, which stays an immediate hard kill for logout and explicit
+-- revocation. A superseded token keeps working for a short grace window so
+-- in-flight requests survive the rotation.
+ALTER TABLE refresh_tokens ADD COLUMN superseded_at TIMESTAMPTZ;

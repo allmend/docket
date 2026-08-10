@@ -2,10 +2,12 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func (s *Store) GetFirstOrg(ctx context.Context) (*model.Org, error) {
@@ -71,16 +73,37 @@ func (s *Store) GetUserByID(ctx context.Context, orgID, userID uuid.UUID) (*mode
 	return &u, nil
 }
 
+// ErrDuplicate reports a unique-constraint violation, so callers can tell "this
+// already exists" apart from a real failure without knowing any Postgres.
+var ErrDuplicate = errors.New("already exists")
+
+// isUniqueViolation matches Postgres 23505.
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// CreateUser inserts a user. It deliberately does NOT upsert: it used to carry
+// ON CONFLICT (org_id, username) DO UPDATE, which meant adding a member whose
+// username already existed silently overwrote that account's name and email —
+// and since the caller follows up with UpsertPassword, reset their password too.
+// Seeding does not need it either: CreateOrgWithAdmin inserts the org first and
+// orgs.slug is UNIQUE, so a second startup never reaches this.
+//
+// Both (org_id, username) and (org_id, email) are unique, so either collision
+// surfaces as ErrDuplicate.
 func (s *Store) CreateUser(ctx context.Context, orgID uuid.UUID, username, name, email, role string) (*model.User, error) {
 	var u model.User
 	err := s.primary.QueryRow(ctx,
 		`INSERT INTO users (org_id, username, name, email, role)
 		 VALUES ($1, $2, $3, $4, $5)
-		 ON CONFLICT (org_id, username) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email
 		 RETURNING id, org_id, username, name, email, role, created_at, updated_at`,
 		orgID, username, name, email, role,
 	).Scan(&u.ID, &u.OrgID, &u.Username, &u.Name, &u.Email, &u.Role, &u.CreatedAt, &u.UpdatedAt)
 	if err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrDuplicate
+		}
 		return nil, err
 	}
 	return &u, nil
@@ -118,15 +141,23 @@ type RefreshTokenRow struct {
 	OrgID  uuid.UUID
 }
 
-func (s *Store) ValidateRefreshToken(ctx context.Context, tokenHash string) (*RefreshTokenRow, error) {
+// ValidateRefreshToken accepts a token that is unrevoked and unexpired, and
+// additionally one that was superseded by a rotation less than grace ago — see
+// SupersedeRefreshToken for why. Revocation is unaffected by grace and always
+// takes effect immediately.
+func (s *Store) ValidateRefreshToken(ctx context.Context, tokenHash string, grace time.Duration) (*RefreshTokenRow, error) {
 	var r RefreshTokenRow
 	// NOTE: must use primary when a real read replica is added — replication lag
 	// could make a just-revoked token appear valid on the replica.
 	err := s.replica.QueryRow(ctx,
 		`SELECT rt.user_id, u.org_id FROM refresh_tokens rt
 		 JOIN users u ON u.id = rt.user_id
-		 WHERE rt.token_hash = $1 AND rt.revoked_at IS NULL AND rt.expires_at > NOW()`,
-		tokenHash,
+		 WHERE rt.token_hash = $1
+		   AND rt.revoked_at IS NULL
+		   AND rt.expires_at > NOW()
+		   AND (rt.superseded_at IS NULL
+		        OR rt.superseded_at > NOW() - make_interval(secs => $2))`,
+		tokenHash, grace.Seconds(),
 	).Scan(&r.UserID, &r.OrgID)
 	if err != nil {
 		return nil, err
@@ -134,6 +165,24 @@ func (s *Store) ValidateRefreshToken(ctx context.Context, tokenHash string) (*Re
 	return &r, nil
 }
 
+// SupersedeRefreshToken marks a token as rotated. It stays usable for the grace
+// window ValidateRefreshToken applies, so concurrent requests that were already
+// in flight with this token do not get logged out by the rotation.
+//
+// The superseded_at IS NULL guard keeps the *first* rotation's timestamp. Without
+// it every racing request would push the timestamp forward and the window would
+// slide indefinitely, which is the opposite of a grace period.
+func (s *Store) SupersedeRefreshToken(ctx context.Context, tokenHash string) error {
+	_, err := s.primary.Exec(ctx,
+		`UPDATE refresh_tokens SET superseded_at = NOW()
+		 WHERE token_hash = $1 AND superseded_at IS NULL`,
+		tokenHash,
+	)
+	return err
+}
+
+// RevokeRefreshToken kills a token immediately, with no grace — this is logout
+// and explicit revocation, where the whole point is that the token stops working.
 func (s *Store) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
 	_, err := s.primary.Exec(ctx,
 		`UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1`,
