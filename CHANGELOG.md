@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.4] - 2026-08-10
+
+### Fixed
+- Sessions no longer end at random. Refreshing an expired access token rotated the refresh token by revoking it outright, so when several requests hit the 15-minute expiry together — which the board's 30s poll makes routine — the first rotated the token and the rest presented one revoked microseconds earlier and were sent to the login page, while a sibling request was busy establishing a valid session. A rotated token now stays usable for a short grace period. Logout still revokes immediately.
+- `COOKIE_SECURE` was only honoured when signing in. The session cookies written when the middleware silently refreshed a token were always marked `Secure`, so on an HTTP instance the browser discarded them 15 minutes after login and the session was gone for good. Session cookies now have a single writer that carries the configured flag.
+- An expired session no longer paints the login form inside part of the page. Unauthenticated requests were answered with a redirect, which htmx follows before swapping the response into whatever element triggered it — a background poll would render the login page inside the board while the sidebar and navigation stayed put. Requests from htmx now get a client-side redirect and the whole page navigates.
+- Adding a member whose username already existed silently overwrote that account's name and email, and reset its password. It is now rejected, as is a duplicate email — which previously failed with a raw 500. Neither ever created a user, but the first quietly took over an existing one.
+- Creating an API token or adding a member replaced the whole page with an unstyled fragment. Both forms submitted natively to handlers that return a page fragment; they are now htmx requests that update their panel in place.
+- Revoking an API token and changing a member's role did nothing at all. Both submitted `POST` to routes registered as `DELETE` and `PUT`, and there is no method-override middleware, so every attempt was a `405` with no feedback.
+- The Docket logo in the top left is now a link to the organisation's start page.
+
 ## [0.13.3] - 2026-07-30
 
 ### Added
