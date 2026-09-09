@@ -5,7 +5,16 @@
   </picture>
 </p>
 
-> ⚠️ **This is alpha software.** Expect bugs, missing features, and breaking changes. Not recommended for production use yet.
+<p align="center"><sub>Made in Sweden 🇸🇪 with Claude &amp; Love</sub></p>
+
+<p align="center">
+  <a href="https://github.com/allmend/docket/releases"><img src="https://img.shields.io/github/v/release/allmend/docket?sort=semver&label=release&color=10B981" alt="Release"></a>
+  <a href="https://github.com/allmend/docket/actions"><img src="https://img.shields.io/github/actions/workflow/status/allmend/docket/ci.yml?label=build" alt="Build"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3-blue" alt="License"></a>
+  <img src="https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white" alt="Go">
+</p>
+
+> ⚠️ **Alpha.** The full Scrum workflow works. Expect bugs, missing features, and breaking changes. Not production-ready yet — feedback welcome.
 
 Docket is a lightweight, self-hostable Scrum-first ticket and task management tool for engineering teams. An open-source alternative to Linear, Jira, and Shortcut — built close to the Scrum Guide, without the billion settings.
 
@@ -54,11 +63,9 @@ Single binary. No JS framework. Server-side rendered. Fast.
 
 ---
 
-## Deploy
+## Quick start
 
-### Docker Compose
-
-The quickest way to self-host.
+The quickest way to self-host — Docker Compose:
 
 ```bash
 curl -O https://raw.githubusercontent.com/allmend/docket/main/deploy/docker-compose.yml
@@ -79,6 +86,10 @@ docker compose up -d
 
 Open `http://localhost:8081` and log in with `admin` / the password you set in `SEED_PASSWORD`.
 
+---
+
+## Configuration
+
 Full list of environment variables:
 
 | Variable | Default | Description |
@@ -98,6 +109,10 @@ Full list of environment variables:
 | `SEED_PASSWORD` | `changeme` | Admin password, set on first run. |
 
 `SEED_*` values only apply on the very first startup — once the org exists they are ignored.
+
+---
+
+## Deploy
 
 ### Kubernetes
 
@@ -178,6 +193,12 @@ docker build -f docker/Dockerfile -t docket .
 ```
 
 Every `v*` tag triggers GitHub Actions to build the container image, push it to `ghcr.io/allmend/docket` (`x.y.z`, `x.y`, and `latest` tags), and publish a [GitHub Release](https://github.com/allmend/docket/releases) with notes from the [CHANGELOG](CHANGELOG.md). The image is a ~24 MB distroless build containing everything it needs — binary, migrations, templates, and static assets.
+
+---
+
+## Status
+
+Docket is at v0.9.0, alpha quality. The full Scrum workflow — boards, sprints, backlog, capacity, and the JSON API — is implemented and working. See [CHANGELOG.md](CHANGELOG.md) for known limitations before deploying.
 
 ---
 
