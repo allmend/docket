@@ -23,6 +23,8 @@ func serviceError(w http.ResponseWriter, err error, fallback string) {
 		http.Error(w, "ticket is closed", http.StatusConflict)
 	case errors.Is(err, service.ErrForbidden):
 		http.Error(w, "forbidden", http.StatusForbidden)
+	case errors.Is(err, service.ErrInvalidInput):
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	default:
 		http.Error(w, fallback, http.StatusInternalServerError)
 	}

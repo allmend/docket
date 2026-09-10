@@ -91,3 +91,14 @@ func (t Ticket) ACItems() []ACItem {
 }
 
 func (p Priority) String() string { return string(p) }
+
+// Valid reports whether p is one of the known priorities. The column is TEXT
+// with no CHECK constraint, so this is the only guard against arbitrary values
+// (which would sort last under priorityOrder and render with no badge).
+func (p Priority) Valid() bool {
+	switch p {
+	case PriorityNone, PriorityLow, PriorityMedium, PriorityHigh, PriorityCritical:
+		return true
+	}
+	return false
+}

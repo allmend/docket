@@ -74,6 +74,9 @@ func (s *TicketService) CreateTicketInTeam(ctx context.Context,
 	orgID, boardID, columnID, createdBy, teamID uuid.UUID,
 	title, body string, priority model.Priority,
 ) (*model.Ticket, error) {
+	if !priority.Valid() {
+		return nil, fmt.Errorf("%w: unknown priority %q", ErrInvalidInput, priority)
+	}
 	number, err := s.store.NextTicketNumber(ctx, teamID)
 	if err != nil {
 		return nil, fmt.Errorf("next ticket number: %w", err)
@@ -96,6 +99,9 @@ func (s *TicketService) CreateTicket(ctx context.Context,
 	title, body string,
 	priority model.Priority,
 ) (*model.Ticket, error) {
+	if !priority.Valid() {
+		return nil, fmt.Errorf("%w: unknown priority %q", ErrInvalidInput, priority)
+	}
 	// Resolve team from board so we can assign a sequential ticket number.
 	board, err := s.store.GetBoard(ctx, orgID, boardID)
 	if err != nil {
@@ -135,6 +141,9 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 	priority model.Priority,
 	assigneeID *uuid.UUID,
 ) (*model.Ticket, error) {
+	if !priority.Valid() {
+		return nil, fmt.Errorf("%w: unknown priority %q", ErrInvalidInput, priority)
+	}
 	old, err := s.store.GetTicket(ctx, orgID, ticketID)
 	if err != nil {
 		return nil, fmt.Errorf("get ticket: %w", err)
@@ -259,6 +268,9 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 }
 
 func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, actorID uuid.UUID, priority model.Priority) (*model.Ticket, error) {
+	if !priority.Valid() {
+		return nil, fmt.Errorf("%w: unknown priority %q", ErrInvalidInput, priority)
+	}
 	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
 	if old != nil && old.ClosedAt != nil {
 		return nil, ErrTicketClosed

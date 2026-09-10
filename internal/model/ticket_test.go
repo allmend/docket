@@ -46,3 +46,16 @@ func TestTicketACItems(t *testing.T) {
 		t.Errorf("empty AC should produce no items, got %d", len(items))
 	}
 }
+
+func TestPriorityValid(t *testing.T) {
+	for _, p := range []Priority{PriorityNone, PriorityLow, PriorityMedium, PriorityHigh, PriorityCritical} {
+		if !p.Valid() {
+			t.Errorf("%q should be valid", p)
+		}
+	}
+	for _, p := range []Priority{"urgent", "Medium", "MEDIUM", " low"} {
+		if p.Valid() {
+			t.Errorf("%q should be invalid", p)
+		}
+	}
+}

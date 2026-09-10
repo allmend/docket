@@ -279,11 +279,26 @@ func (s *BoardService) GetSprint(ctx context.Context, orgID, sprintID uuid.UUID)
 	return s.store.GetSprint(ctx, orgID, sprintID)
 }
 
+// validateSprintDates rejects a timebox that ends before it starts. Either
+// date may be nil (dates are optional until the sprint is started).
+func validateSprintDates(startDate, endDate *time.Time) error {
+	if startDate != nil && endDate != nil && endDate.Before(*startDate) {
+		return fmt.Errorf("%w: sprint end date is before its start date", ErrInvalidInput)
+	}
+	return nil
+}
+
 func (s *BoardService) CreateSprint(ctx context.Context, orgID, boardID, userID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*model.Sprint, error) {
+	if err := validateSprintDates(startDate, endDate); err != nil {
+		return nil, err
+	}
 	return s.store.CreateSprint(ctx, orgID, boardID, userID, name, goal, startDate, endDate)
 }
 
 func (s *BoardService) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UUID, name, goal string, startDate, endDate *time.Time) (*model.Sprint, error) {
+	if err := validateSprintDates(startDate, endDate); err != nil {
+		return nil, err
+	}
 	return s.store.UpdateSprint(ctx, orgID, sprintID, name, goal, startDate, endDate)
 }
 

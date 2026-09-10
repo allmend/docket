@@ -186,6 +186,9 @@ func (h *Handler) v1ListTeams(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, "failed to list teams")
 		return
 	}
+	if teams == nil {
+		teams = []model.Team{} // JSON [] rather than null for an empty org
+	}
 	writeJSON(w, http.StatusOK, teams)
 }
 
@@ -313,6 +316,9 @@ func (h *Handler) v1ListTickets(w http.ResponseWriter, r *http.Request) {
 		apiError(w, http.StatusInternalServerError, "failed to list tickets")
 		return
 	}
+	if tickets == nil {
+		tickets = []model.Ticket{} // JSON [] rather than null for an empty team
+	}
 	writeJSON(w, http.StatusOK, tickets)
 }
 
@@ -362,8 +368,25 @@ func (h *Handler) v1CreateTicket(w http.ResponseWriter, r *http.Request) {
 	if priority == "" {
 		priority = model.PriorityMedium
 	}
+	if !priority.Valid() {
+		apiError(w, http.StatusBadRequest, "invalid priority: expected one of low, medium, high, critical")
+		return
+	}
+
+	// board_id must be the team's own board, otherwise the ticket would be
+	// numbered under one team and displayed on another's board.
+	board, err := h.boards.GetBoard(r.Context(), orgID, boardID)
+	if err != nil || board.TeamID == nil || *board.TeamID != team.ID {
+		apiError(w, http.StatusBadRequest, "board_id does not belong to this team")
+		return
+	}
 
 	ticket, err := h.tickets.CreateTicketInTeam(r.Context(), orgID, boardID, columnID, userID, team.ID, body.Title, body.Body, priority)
+	if isNotFound(err) {
+		// The insert is guarded on the column belonging to the board and org.
+		apiError(w, http.StatusBadRequest, "column_id does not belong to this board")
+		return
+	}
 	if err != nil {
 		apiError(w, http.StatusInternalServerError, "failed to create ticket")
 		return
@@ -429,6 +452,10 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	priority := model.Priority(body.Priority)
 	if priority == "" {
 		priority = ticket.Priority
+	}
+	if !priority.Valid() {
+		apiError(w, http.StatusBadRequest, "invalid priority: expected one of low, medium, high, critical")
+		return
 	}
 
 	var assigneeID *uuid.UUID

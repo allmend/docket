@@ -16,6 +16,10 @@ import (
 // assignment, reopen, close and delete stay legal on a closed ticket.
 var ErrTicketClosed = errors.New("ticket is closed")
 
+// ErrInvalidInput marks a request the service rejected on validation grounds
+// (unknown priority, sprint ending before it starts). Handlers map it to 400.
+var ErrInvalidInput = errors.New("invalid input")
+
 // ticketCloseChecker is the slice of the store assertTicketOpen needs.
 // *store.Store satisfies it; tests supply a fake.
 type ticketCloseChecker interface {

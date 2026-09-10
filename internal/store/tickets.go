@@ -144,6 +144,10 @@ func (s *Store) IsTicketClosed(ctx context.Context, orgID, ticketID uuid.UUID) (
 	return closed, err
 }
 
+// CreateTicket inserts a ticket. The insert only proceeds when columnID sits on
+// boardID and that board belongs to orgID, so a caller cannot file a ticket into
+// another org's board by guessing IDs; a rejected insert surfaces as
+// pgx.ErrNoRows from the RETURNING scan.
 func (s *Store) CreateTicket(ctx context.Context,
 	orgID, boardID, columnID, createdBy uuid.UUID,
 	teamID *uuid.UUID, number int,
@@ -153,7 +157,10 @@ func (s *Store) CreateTicket(ctx context.Context,
 	err := scanTicket(s.primary.QueryRow(ctx,
 		`INSERT INTO tickets
 		     (org_id, board_id, column_id, created_by, team_id, number, title, body, priority, position)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+		 WHERE EXISTS (
+		     SELECT 1 FROM columns c JOIN boards b ON b.id = c.board_id
+		     WHERE c.id = $3 AND b.id = $2 AND b.org_id = $1)
 		 RETURNING `+ticketColsReturning,
 		orgID, boardID, columnID, createdBy, teamID, number, title, body, priority, position,
 	), &t)

@@ -35,7 +35,7 @@ func (h *Handler) CreateSprint(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err := h.boards.CreateSprint(r.Context(), orgID, boardID, userID, name, r.FormValue("goal"), formDate(r, "start_date"), formDate(r, "end_date"))
 	if err != nil {
-		http.Error(w, "failed to create sprint", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create sprint")
 		return
 	}
 	h.redirectToPlanning(w, r, orgID, boardID)
@@ -52,7 +52,7 @@ func (h *Handler) UpdateSprint(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err := h.boards.UpdateSprint(r.Context(), orgID, sprintID, r.FormValue("name"), r.FormValue("goal"), formDate(r, "start_date"), formDate(r, "end_date"))
 	if err != nil {
-		http.Error(w, "failed to update sprint", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update sprint")
 		return
 	}
 	w.Header().Set("HX-Trigger", "sprintUpdated")

@@ -54,7 +54,7 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 
 	ticket, err := h.tickets.CreateTicketInTeam(r.Context(), orgID, board.ID, cols[0].ID, userID, teamID, title, r.FormValue("body"), priority)
 	if err != nil {
-		http.Error(w, "failed to create ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create ticket")
 		return
 	}
 
@@ -117,7 +117,7 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 
 	ticket, err := h.tickets.CreateTicket(r.Context(), orgID, boardID, columnID, userID, title, r.FormValue("body"), priority)
 	if err != nil {
-		http.Error(w, "failed to create ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create ticket")
 		return
 	}
 
