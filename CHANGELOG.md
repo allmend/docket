@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.5] - 2026-09-10
+
+### Fixed
+- Ticket priority is now validated. The column had no constraint, so the public API accepted any string (`"urgent"`), which sorted last and rendered without a badge. Unknown values are rejected with `400` in both the UI and `/api/v1`.
+- Creating a ticket now checks that the column belongs to the board and the board to the caller's organisation. `POST /api/v1/teams/{key}/tickets` takes both IDs from the request body, so a token from one organisation could file a ticket into another's column. It also rejects a `board_id` that is not the named team's own board, which would have numbered the ticket under one team and shown it on another's board.
+- A sprint can no longer be given an end date before its start date.
+- `GET /api/v1/teams` and `GET /api/v1/teams/{key}/tickets` return `[]` rather than `null` when there is nothing to list.
+
 ## [0.13.4] - 2026-08-10
 
 ### Fixed
