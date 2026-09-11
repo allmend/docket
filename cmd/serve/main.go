@@ -143,6 +143,7 @@ func startAPI(
 	r.Use(appMiddleware.Logger)
 	r.Use(appMiddleware.Metrics)
 	r.Use(appMiddleware.SecurityHeaders)
+	r.Use(appMiddleware.LimitBody(maxRequestBody))
 
 	// Static assets — directory listings disabled, files only.
 	r.Handle("/static/*", http.StripPrefix("/static/", noDirListing(http.FileServer(http.Dir("static/dist")))))
@@ -199,6 +200,11 @@ func startAPI(
 	return nil
 }
 
+// maxRequestBody bounds every request body. Tickets and comments are markdown
+// text; 2 MiB leaves room for very long descriptions without letting a single
+// request tie up memory.
+const maxRequestBody = 2 << 20
+
 // loginRateLimiters returns the middleware guarding POST /login: a per-account
 // limit, plus a ceiling on the endpoint as a whole.
 func loginRateLimiters() []func(http.Handler) http.Handler {
@@ -237,9 +243,22 @@ func runMigrations(dsn string) error {
 	return m.Up()
 }
 
-// autoSeed creates the default org and admin user on a fresh database.
-// Safe to call on every startup — silently skips if the org already exists.
+// autoSeed creates the default org and admin user on a fresh database — and
+// only on a fresh database. It used to attempt the seed on every startup and
+// rely on the insert colliding, which it does only while SEED_USERNAME still
+// names an existing user: change it, or drop the seed env vars after first boot,
+// and the next restart quietly created an "admin" admin with password
+// "changeme".
 func autoSeed(ctx context.Context, authSvc *service.AuthService, cfg *config.Config) {
+	exists, err := authSvc.OrgExists(ctx)
+	if err != nil {
+		slog.Error("auto-seed: checking for an existing org", "err", err)
+		return
+	}
+	if exists {
+		return
+	}
+
 	orgName := getEnvOr("SEED_ORG_NAME", "Allmend")
 	orgSlug := getEnvOr("SEED_ORG_SLUG", "allmend")
 	username := getEnvOr("SEED_USERNAME", "admin")
@@ -250,10 +269,8 @@ func autoSeed(ctx context.Context, authSvc *service.AuthService, cfg *config.Con
 		slog.Warn("SEED_PASSWORD not set — using default 'changeme'. Change the admin password before exposing this instance.")
 	}
 
-	_, err := authSvc.CreateOrgWithAdmin(ctx, orgName, orgSlug, username, name, email, password)
-	if err != nil {
-		// Org already exists or other transient error — not fatal.
-		slog.Debug("auto-seed skipped", "err", err)
+	if _, err := authSvc.CreateOrgWithAdmin(ctx, orgName, orgSlug, username, name, email, password); err != nil {
+		slog.Error("auto-seed failed", "err", err)
 		return
 	}
 	slog.Info("auto-seed: created org and admin user",

@@ -13,6 +13,7 @@ import (
 	"github.com/allmend/docket/internal/store"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -306,6 +307,18 @@ func (s *AuthService) GetCurrentOrg(ctx context.Context) *model.Org {
 	}
 	org, _ := s.store.GetOrgByID(ctx, orgID)
 	return org
+}
+
+// OrgExists reports whether any org has been created. Auto-seeding runs only
+// when this is false: seeding "whenever the configured admin is missing" would
+// quietly mint a default-password admin on a restart after the operator had
+// changed SEED_USERNAME or dropped the seed env vars.
+func (s *AuthService) OrgExists(ctx context.Context) (bool, error) {
+	_, err := s.store.GetFirstOrg(ctx)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
 }
 
 // SingleOrgName returns the name of the sole org, for display on the login page

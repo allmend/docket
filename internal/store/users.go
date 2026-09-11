@@ -13,7 +13,9 @@ import (
 func (s *Store) GetFirstOrg(ctx context.Context) (*model.Org, error) {
 	var o model.Org
 	err := s.replica.QueryRow(ctx,
-		`SELECT id, name, slug, created_at, updated_at FROM orgs LIMIT 1`,
+		// Ordered so login and auto-seed agree on which org is "the" org even
+		// if a second one ever appears; a bare LIMIT 1 is arbitrary.
+		`SELECT id, name, slug, created_at, updated_at FROM orgs ORDER BY created_at, id LIMIT 1`,
 	).Scan(&o.ID, &o.Name, &o.Slug, &o.CreatedAt, &o.UpdatedAt)
 	if err != nil {
 		return nil, err
