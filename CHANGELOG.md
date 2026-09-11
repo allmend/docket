@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-09-11
+
+### Security
+- The rich editor no longer runs markup from the text it opens. Switching to the visual pane turned the ticket or comment markdown into HTML with `marked` and set it as the pane's content, and `marked` passes raw HTML and `javascript:` links straight through — so a description containing an `<img onerror>` tag ran in the browser of whoever opened it for editing. Raw HTML is now shown as text and only `http`, `https`, `mailto` and relative links survive, matching what the server renderer already allowed.
+- Auto-seeding runs only on an empty database. It used to be attempted on every start and relied on the insert colliding with the existing admin, so after changing `SEED_USERNAME` — or dropping the seed variables once the instance was set up — the next restart quietly created an `admin` account with the password `changeme`.
+- Only an org admin or the token's creator can revoke an API token. Any member could revoke any token, including an admin's or an integration's.
+- The last admin of an organisation can no longer be demoted, which left nobody able to manage members or roles.
+- Writes that take an ID from the request now check that it belongs to the caller's organisation, and where it matters to the same board: creating columns, sprints, tracks and Definition of Done items; assigning a ticket to a sprint (which also rejects completed sprints); moving a ticket to a column; adding team members; setting sprint capacity; checking DoD items; adding and stacking retro cards; and deleting links. None exposed another organisation's data to the caller, but several stored rows pointing into it — a team member from another organisation was listed with their name and email.
+- Assignees must be users of the caller's organisation, in the UI and in `PUT /api/v1/tickets/{ref}`.
+- Request bodies are capped at 2 MiB.
+- Error responses no longer echo internal error text, which for some sprint and retro actions included database messages. Viewing an unknown ticket by reference returned `no rows in result set` as a 400; it is now a 404.
+
+### Fixed
+- Deleting a ticket from its page now returns to the workspace board instead of a route that does not exist.
+- Re-assigning the owner of a retro action item reuses its backlog ticket instead of filing a new one each time.
+- Stacking a retro card that already had cards stacked on it no longer makes those cards disappear.
+- Opening a retro via a URL whose workspace did not match no longer creates an empty retro.
+- Editing a ticket's title or description in the UI no longer clears its legacy `assignee_id`.
+- A column that still holds tickets, or a board's last column, can no longer be deleted — both used to fail with a bare 500. Renaming or deleting the Done column now answers 400 rather than 500.
+- Only a sprint still in planning can be deleted, and completed sprints can no longer be edited. Starting a sprint while another is active now explains why instead of failing with a 500.
+- A ticket can no longer be linked to itself.
+- Creating or renaming a workspace to a name or key already in use answers `409` instead of `500`, as does a duplicate track name. A workspace name that is blank, or a key with no letters or digits, is rejected.
+- Story points must be a non-negative number everywhere, including the New Ticket dialog.
+- Closing a sprint is now all-or-nothing. It ran as several separate steps, so a failure partway through could leave the unfinished tickets back in the backlog while the sprint stayed active — and a retry then recorded the sprint's numbers without them. Two people closing the same sprint at once no longer both run the close either.
+- `@username` mentions link to a page that exists. They always pointed at `/users/{username}`, which nothing served; it now shows that member's profile card.
+- The revoke button on API tokens only appears for tokens you are allowed to revoke — your own, or any if you are an admin.
+
 ## [0.13.5] - 2026-09-10
 
 ### Fixed
