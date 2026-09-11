@@ -38,10 +38,35 @@ function codeText(code) {
   return text;
 }
 
+// Only these schemes survive in link and image URLs; scheme-less (relative)
+// URLs pass. Spaces and control characters are dropped before the test because
+// browsers ignore them inside a scheme (a tab in "javascript:" still runs).
+function isSafeURL(href) {
+  const h = Array.from(String(href || ""))
+    .filter((c) => c.charCodeAt(0) > 32)
+    .join("");
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(h)) return true;
+  return /^(https?|mailto):/i.test(h);
+}
+
 marked.use({
   breaks: true,
   gfm: true,
+  // The visual pane is filled with marked's HTML via innerHTML, and the source
+  // is ticket or comment markdown someone else wrote. The server renderer drops
+  // raw HTML and bluemonday sanitises links; marked does neither, so without
+  // these two hooks a description containing an <img onerror> tag or a
+  // javascript: link ran in the browser of whoever opened it for editing.
+  walkTokens(token) {
+    if ((token.type === "link" || token.type === "image") && !isSafeURL(token.href)) {
+      token.href = "#";
+    }
+  },
   renderer: {
+    // Raw HTML shows as literal text, never as markup.
+    html({ text }) {
+      return escHTML(text);
+    },
     // Codex-style code block shell — same markup the server renderer emits,
     // so the visual pane and the rendered ticket look identical. No trailing
     // newline inside <code>: it would sit between the caret and the end of
