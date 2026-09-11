@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type BoardService struct {
@@ -22,6 +24,24 @@ func isDone(name string) bool {
 
 func NewBoardService(st *store.Store) *BoardService {
 	return &BoardService{store: st}
+}
+
+// annotateTickets attaches the bulk-loaded assignees, tracks, and blocked /
+// waiting markers to each ticket, so board cards render without N+1 queries.
+func annotateTickets(tickets []model.Ticket, assignees map[uuid.UUID][]model.User, tags map[uuid.UUID][]model.Tag, blockedBy, waitingOn map[uuid.UUID]string) {
+	for i := range tickets {
+		id := tickets[i].ID
+		tickets[i].Assignees = assignees[id]
+		tickets[i].Tags = tags[id]
+		if blocker, ok := blockedBy[id]; ok {
+			tickets[i].IsBlocked = true
+			tickets[i].BlockedBy = blocker
+		}
+		if dependency, ok := waitingOn[id]; ok {
+			tickets[i].IsWaiting = true
+			tickets[i].WaitingOn = dependency
+		}
+	}
 }
 
 func (s *BoardService) GetBoard(ctx context.Context, orgID, boardID uuid.UUID) (*model.Board, error) {
@@ -119,18 +139,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 			if err != nil {
 				return nil, fmt.Errorf("list sprint tickets: %w", err)
 			}
-			for i := range tickets {
-				tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
-				tickets[i].Tags = tagsByTicket[tickets[i].ID]
-				if blocker, ok := blockedBy[tickets[i].ID]; ok {
-					tickets[i].IsBlocked = true
-					tickets[i].BlockedBy = blocker
-				}
-				if dependency, ok := waitingOn[tickets[i].ID]; ok {
-					tickets[i].IsWaiting = true
-					tickets[i].WaitingOn = dependency
-				}
-			}
+			annotateTickets(tickets, assigneesByTicket, tagsByTicket, blockedBy, waitingOn)
 			byCol := make(map[uuid.UUID][]model.Ticket)
 			for _, t := range tickets {
 				byCol[t.ColumnID] = append(byCol[t.ColumnID], t)
@@ -144,18 +153,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		// No active sprint: show virtual backlog + sprint columns.
 		// For planning sprints, load and bucket their tickets so planning work persists on refresh.
 		backlogTickets, _ := s.store.ListBacklogTickets(ctx, orgID, boardID)
-		for i := range backlogTickets {
-			backlogTickets[i].Assignees = assigneesByTicket[backlogTickets[i].ID]
-			backlogTickets[i].Tags = tagsByTicket[backlogTickets[i].ID]
-			if blocker, ok := blockedBy[backlogTickets[i].ID]; ok {
-				backlogTickets[i].IsBlocked = true
-				backlogTickets[i].BlockedBy = blocker
-			}
-			if dependency, ok := waitingOn[backlogTickets[i].ID]; ok {
-				backlogTickets[i].IsWaiting = true
-				backlogTickets[i].WaitingOn = dependency
-			}
-		}
+		annotateTickets(backlogTickets, assigneesByTicket, tagsByTicket, blockedBy, waitingOn)
 		view.Columns = append(view.Columns, model.ColumnView{
 			Column:    model.Column{Name: "Backlog"},
 			Tickets:   backlogTickets,
@@ -172,18 +170,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 		}
 		if planningSprint != nil {
 			planningTickets, _ := s.store.ListSprintTickets(ctx, orgID, planningSprint.ID)
-			for i := range planningTickets {
-				planningTickets[i].Assignees = assigneesByTicket[planningTickets[i].ID]
-				planningTickets[i].Tags = tagsByTicket[planningTickets[i].ID]
-				if blocker, ok := blockedBy[planningTickets[i].ID]; ok {
-					planningTickets[i].IsBlocked = true
-					planningTickets[i].BlockedBy = blocker
-				}
-				if dependency, ok := waitingOn[planningTickets[i].ID]; ok {
-					planningTickets[i].IsWaiting = true
-					planningTickets[i].WaitingOn = dependency
-				}
-			}
+			annotateTickets(planningTickets, assigneesByTicket, tagsByTicket, blockedBy, waitingOn)
 			byCol := make(map[uuid.UUID][]model.Ticket)
 			for _, t := range planningTickets {
 				byCol[t.ColumnID] = append(byCol[t.ColumnID], t)
@@ -209,18 +196,7 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	waitingOn, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
-	for i := range tickets {
-		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
-		tickets[i].Tags = tagsByTicket[tickets[i].ID]
-		if blocker, ok := blockedBy[tickets[i].ID]; ok {
-			tickets[i].IsBlocked = true
-			tickets[i].BlockedBy = blocker
-		}
-		if dependency, ok := waitingOn[tickets[i].ID]; ok {
-			tickets[i].IsWaiting = true
-			tickets[i].WaitingOn = dependency
-		}
-	}
+	annotateTickets(tickets, assigneesByTicket, tagsByTicket, blockedBy, waitingOn)
 	byCol := make(map[uuid.UUID][]model.Ticket)
 	for _, t := range tickets {
 		byCol[t.ColumnID] = append(byCol[t.ColumnID], t)
@@ -236,7 +212,7 @@ func (s *BoardService) ListColumns(ctx context.Context, orgID, boardID uuid.UUID
 }
 
 func (s *BoardService) AddColumn(ctx context.Context, orgID, boardID uuid.UUID, name string) (*model.Column, error) {
-	maxPos, err := s.store.MaxColumnPosition(ctx, boardID)
+	maxPos, err := s.store.MaxColumnPosition(ctx, orgID, boardID)
 	if err != nil {
 		return nil, fmt.Errorf("max position: %w", err)
 	}
@@ -249,18 +225,35 @@ func (s *BoardService) RenameColumn(ctx context.Context, orgID, columnID uuid.UU
 		return nil, err
 	}
 	if isDone(col.Name) {
-		return nil, fmt.Errorf("the Done column cannot be renamed")
+		return nil, fmt.Errorf("%w: the Done column cannot be renamed", ErrInvalidInput)
 	}
 	return s.store.RenameColumn(ctx, orgID, columnID, name)
 }
 
+// DeleteColumn removes an empty, non-Done column. A board keeps at least one
+// column — the first column is the default drop target for new tickets — and a
+// column still holding tickets can't go, since tickets.column_id references it.
 func (s *BoardService) DeleteColumn(ctx context.Context, orgID, columnID uuid.UUID) error {
 	col, err := s.store.GetColumn(ctx, orgID, columnID)
 	if err != nil {
 		return err
 	}
 	if isDone(col.Name) {
-		return fmt.Errorf("the Done column cannot be deleted")
+		return fmt.Errorf("%w: the Done column cannot be deleted", ErrInvalidInput)
+	}
+	cols, err := s.store.ListColumns(ctx, orgID, col.BoardID)
+	if err != nil {
+		return err
+	}
+	if len(cols) <= 1 {
+		return fmt.Errorf("%w: a board needs at least one column", ErrInvalidInput)
+	}
+	n, err := s.store.CountTicketsInColumn(ctx, orgID, columnID)
+	if err != nil {
+		return err
+	}
+	if n > 0 {
+		return fmt.Errorf("%w: move the column's %d ticket(s) out before deleting it", ErrInvalidInput, n)
 	}
 	return s.store.DeleteColumn(ctx, orgID, columnID)
 }
@@ -299,6 +292,14 @@ func (s *BoardService) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UU
 	if err := validateSprintDates(startDate, endDate); err != nil {
 		return nil, err
 	}
+	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
+	if err != nil {
+		return nil, err
+	}
+	// Completed sprints are read-only: their dates feed the timebox metrics.
+	if sp.Status.IsCompleted() {
+		return nil, fmt.Errorf("%w: a completed sprint cannot be edited", ErrInvalidInput)
+	}
 	return s.store.UpdateSprint(ctx, orgID, sprintID, name, goal, startDate, endDate)
 }
 
@@ -312,7 +313,11 @@ func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUI
 		return nil, err
 	}
 	if sp.Status != model.SprintStatusPlanning {
-		return nil, fmt.Errorf("sprint must be in planning status to start")
+		return nil, fmt.Errorf("%w: sprint must be in planning status to start", ErrInvalidInput)
+	}
+	// The unique partial index would reject this too, but as an opaque 500.
+	if _, err := s.store.GetActiveSprint(ctx, orgID, sp.BoardID); err == nil {
+		return nil, fmt.Errorf("%w: another sprint is already active on this board", ErrInvalidInput)
 	}
 	// Backfill dates from the planning picker only when none were explicitly set.
 	if sp.StartDate == nil && startDate != nil && endDate != nil {
@@ -323,41 +328,72 @@ func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUI
 	return s.store.SetSprintStatus(ctx, orgID, sprintID, model.SprintStatusActive)
 }
 
-// CloseSprint transitions an active sprint to completed and returns unfinished
-// tickets to the backlog.
+// CloseSprint transitions an active sprint to completed, snapshots its stats,
+// returns unfinished tickets to the backlog, and clears blocking links whose
+// blocker finished. All of it runs in one transaction: as separate statements a
+// failure midway left a sprint half-closed — say, tickets back in the backlog
+// but the sprint still active, so a retry snapshotted without them.
 func (s *BoardService) CloseSprint(ctx context.Context, orgID, sprintID, actorID uuid.UUID) (*model.Sprint, error) {
 	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
 	if err != nil {
 		return nil, err
 	}
 	if sp.Status != model.SprintStatusActive {
-		return nil, fmt.Errorf("sprint must be active to close")
+		return nil, fmt.Errorf("%w: sprint must be active to close", ErrInvalidInput)
 	}
-	// Snapshot stats before moving tickets so counts remain accurate.
-	if err := s.store.SnapshotSprintStats(ctx, orgID, sprintID); err != nil {
-		return nil, fmt.Errorf("snapshot sprint stats: %w", err)
-	}
-	// Return non-done tickets to backlog before marking completed.
-	if err := s.store.ReturnSprintTicketsToBacklog(ctx, orgID, sprintID); err != nil {
-		return nil, fmt.Errorf("return tickets to backlog: %w", err)
-	}
-	// Record history on each blocked ticket before clearing resolved blocking links.
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
 	actorName := ""
-	if actor != nil {
+	if actor, _ := s.store.GetUserByID(ctx, orgID, actorID); actor != nil {
 		actorName = actor.Name
 	}
-	clearedLinks, _ := s.store.ListBlockingLinksForDoneTickets(ctx, orgID, sprintID)
-	for _, l := range clearedLinks {
-		_ = s.store.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, "")
+
+	err = s.store.InTx(ctx, func(tx *store.Store) error {
+		// First, so a concurrent close blocks here and then backs out.
+		if err := tx.CompleteSprint(ctx, orgID, sprintID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("%w: sprint must be active to close", ErrInvalidInput)
+			}
+			return fmt.Errorf("complete sprint: %w", err)
+		}
+		// Snapshot before moving tickets so the counts include them.
+		if err := tx.SnapshotSprintStats(ctx, orgID, sprintID); err != nil {
+			return fmt.Errorf("snapshot sprint stats: %w", err)
+		}
+		if err := tx.ReturnSprintTicketsToBacklog(ctx, orgID, sprintID); err != nil {
+			return fmt.Errorf("return tickets to backlog: %w", err)
+		}
+		// Record history on each blocked ticket before clearing resolved links.
+		cleared, err := tx.ListBlockingLinksForDoneTickets(ctx, orgID, sprintID)
+		if err != nil {
+			return fmt.Errorf("list resolved blocking links: %w", err)
+		}
+		for _, l := range cleared {
+			if err := tx.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, ""); err != nil {
+				return fmt.Errorf("record cleared link: %w", err)
+			}
+		}
+		if err := tx.ClearBlockingLinksForDoneTickets(ctx, orgID, sprintID); err != nil {
+			return fmt.Errorf("clear resolved blocking links: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	if err := s.store.ClearBlockingLinksForDoneTickets(ctx, orgID, sprintID); err != nil {
-		return nil, fmt.Errorf("clear resolved blocking links: %w", err)
-	}
-	return s.store.SetSprintStatus(ctx, orgID, sprintID, model.SprintStatusCompleted)
+	return s.store.GetSprint(ctx, orgID, sprintID)
 }
 
+// DeleteSprint discards a sprint that is still being planned; its tickets fall
+// back to the backlog (sprint_id is ON DELETE SET NULL). Active and completed
+// sprints carry the team's record — completed ones are read-only — so they
+// can only be closed, never deleted.
 func (s *BoardService) DeleteSprint(ctx context.Context, orgID, sprintID uuid.UUID) error {
+	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
+	if err != nil {
+		return err
+	}
+	if !sp.Status.IsPlanning() {
+		return fmt.Errorf("%w: only a sprint in planning can be deleted", ErrInvalidInput)
+	}
 	return s.store.DeleteSprint(ctx, orgID, sprintID)
 }
 
@@ -420,18 +456,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedByBacklog, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	waitingOnBacklog, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
-	for i := range tickets {
-		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
-		tickets[i].Tags = tagsByTicket[tickets[i].ID]
-		if blocker, ok := blockedByBacklog[tickets[i].ID]; ok {
-			tickets[i].IsBlocked = true
-			tickets[i].BlockedBy = blocker
-		}
-		if dependency, ok := waitingOnBacklog[tickets[i].ID]; ok {
-			tickets[i].IsWaiting = true
-			tickets[i].WaitingOn = dependency
-		}
-	}
+	annotateTickets(tickets, assigneesByTicket, tagsByTicket, blockedByBacklog, waitingOnBacklog)
 
 	var totalPts int
 	var unestimated int
@@ -557,16 +582,20 @@ func (s *BoardService) GetSprintCapacity(ctx context.Context, orgID, boardID, sp
 	if err != nil {
 		return nil, err
 	}
+	// Resolved before seeding so capacity rows are only ever written for a
+	// sprint that is in this org and on this board.
+	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
+	if err != nil {
+		return nil, err
+	}
+	if sp.BoardID != board.ID {
+		return nil, pgx.ErrNoRows
+	}
 	if board.TeamID != nil {
 		_ = s.store.SeedSprintCapacity(ctx, orgID, sprintID, *board.TeamID)
 	}
 
 	members, err := s.store.GetSprintCapacity(ctx, orgID, sprintID)
-	if err != nil {
-		return nil, err
-	}
-
-	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
 	if err != nil {
 		return nil, err
 	}
@@ -702,18 +731,7 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
 	blockedBy, _ := s.store.BulkGetBlockedBy(ctx, orgID, boardID)
 	waitingOn, _ := s.store.BulkGetWaitingOn(ctx, orgID, boardID)
-	for i := range tickets {
-		tickets[i].Assignees = assigneesByTicket[tickets[i].ID]
-		tickets[i].Tags = tagsByTicket[tickets[i].ID]
-		if blocker, ok := blockedBy[tickets[i].ID]; ok {
-			tickets[i].IsBlocked = true
-			tickets[i].BlockedBy = blocker
-		}
-		if dependency, ok := waitingOn[tickets[i].ID]; ok {
-			tickets[i].IsWaiting = true
-			tickets[i].WaitingOn = dependency
-		}
-	}
+	annotateTickets(tickets, assigneesByTicket, tagsByTicket, blockedBy, waitingOn)
 
 	filtered := filterDailyScrumTickets(tickets, filters)
 

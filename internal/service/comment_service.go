@@ -63,8 +63,8 @@ func (s *CommentService) authorizeCommentMutation(ctx context.Context, orgID, co
 	return assertTicketOpen(ctx, s.store, orgID, c.TicketID)
 }
 
-func (s *CommentService) ListHistory(ctx context.Context, ticketID uuid.UUID) ([]model.HistoryEntry, error) {
-	return s.store.ListHistory(ctx, ticketID)
+func (s *CommentService) ListHistory(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.HistoryEntry, error) {
+	return s.store.ListHistory(ctx, orgID, ticketID)
 }
 
 func (s *CommentService) AppendHistory(ctx context.Context, ticketID, actorID uuid.UUID, actorName, field, oldValue, newValue string) error {

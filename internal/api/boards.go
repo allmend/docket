@@ -37,14 +37,14 @@ func (h *Handler) teamSlugForBoard(r *http.Request, orgID uuid.UUID, board *mode
 }
 
 // workspacePageURL builds the slug-based URL for a workspace page ("board",
-// "planning", "backlog"), falling back to the UUID board route if the board
-// has no team (should not happen in normal use).
+// "planning", "backlog"), falling back to the workspace list if the board has
+// no team (should not happen in normal use) — there is no UUID board page.
 func (h *Handler) workspacePageURL(r *http.Request, orgID, boardID uuid.UUID, page string) string {
 	board, _ := h.boards.GetBoard(r.Context(), orgID, boardID)
 	if slug := h.teamSlugForBoard(r, orgID, board); slug != "" {
 		return "/workspaces/" + slug + "/" + page
 	}
-	return "/boards/" + boardID.String()
+	return "/"
 }
 
 func (h *Handler) redirectToBoard(w http.ResponseWriter, r *http.Request, orgID, boardID uuid.UUID) {

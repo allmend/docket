@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/allmend/docket/internal/middleware"
+	"github.com/allmend/docket/internal/service"
+	"github.com/go-chi/chi/v5"
 )
 
 // orgNameForLogin resolves the org name shown on the sign-in page. login.html has
@@ -37,7 +39,22 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ProfilePage(w http.ResponseWriter, r *http.Request) {
-	h.render(w, "profile.html", h.pageData(r, nil))
+	h.render(w, "profile.html", h.pageData(r, map[string]any{
+		"Profile": h.auth.GetCurrentUser(r.Context()),
+	}))
+}
+
+// UserPage shows a member's profile card. It is where @username mentions in
+// rendered markdown link to — those pointed at /users/{username} long before
+// any route served it, so every mention was a dead link.
+func (h *Handler) UserPage(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	u, err := h.tickets.GetUserByUsername(r.Context(), orgID, chi.URLParam(r, "username"))
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+	h.render(w, "profile.html", h.pageData(r, map[string]any{"Profile": u}))
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

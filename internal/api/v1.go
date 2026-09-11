@@ -11,6 +11,7 @@ import (
 	"github.com/allmend/docket/internal/middleware"
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
+	"github.com/allmend/docket/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -160,6 +161,25 @@ func apiError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// apiServiceError is serviceError for the JSON API: known sentinels get their
+// status, anything else a generic 500 carrying only the fallback message.
+func apiServiceError(w http.ResponseWriter, err error, fallback string) {
+	switch {
+	case errors.Is(err, service.ErrTicketClosed):
+		apiError(w, http.StatusConflict, "ticket is closed")
+	case errors.Is(err, service.ErrForbidden):
+		apiError(w, http.StatusForbidden, "forbidden")
+	case errors.Is(err, service.ErrInvalidInput):
+		apiError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, store.ErrDuplicate):
+		apiError(w, http.StatusConflict, "already exists")
+	case isNotFound(err):
+		apiError(w, http.StatusNotFound, "not found")
+	default:
+		apiError(w, http.StatusInternalServerError, fallback)
+	}
+}
+
 // parseRef splits "ENG-42" into ("ENG", 42). Returns an error on bad format.
 func parseRef(ref string) (key string, number int, err error) {
 	i := strings.LastIndex(ref, "-")
@@ -218,7 +238,7 @@ func (h *Handler) v1CreateTeam(w http.ResponseWriter, r *http.Request) {
 
 	team, _, err := h.teams.CreateTeam(r.Context(), orgID, userID, body.Name, body.Key, body.Description, mode)
 	if err != nil {
-		apiError(w, http.StatusInternalServerError, "failed to create team")
+		apiServiceError(w, err, "failed to create team")
 		return
 	}
 	writeJSON(w, http.StatusCreated, team)
@@ -268,7 +288,7 @@ func (h *Handler) v1UpdateTeam(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := h.teams.UpdateTeam(r.Context(), orgID, team.ID, body.Name, body.Description)
 	if err != nil {
-		apiError(w, http.StatusInternalServerError, "failed to update team")
+		apiServiceError(w, err, "failed to update team")
 		return
 	}
 	writeJSON(w, http.StatusOK, updated)
@@ -470,12 +490,8 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 
 	actorID := service.UserIDFromContext(r.Context())
 	updated, err := h.tickets.UpdateTicket(r.Context(), orgID, ticket.ID, actorID, body.Title, body.Body, priority, assigneeID)
-	if errors.Is(err, service.ErrTicketClosed) {
-		apiError(w, http.StatusConflict, "ticket is closed")
-		return
-	}
 	if err != nil {
-		apiError(w, http.StatusInternalServerError, "failed to update ticket")
+		apiServiceError(w, err, "failed to update ticket")
 		return
 	}
 	// Match the GET shape; tracks must not vanish just because this was a PUT.

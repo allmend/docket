@@ -7,6 +7,7 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
+	"github.com/google/uuid"
 )
 
 func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
@@ -17,7 +18,7 @@ func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	members, _ := h.tokens.ListMembers(r.Context(), orgID)
-	tokenList, _ := h.tokens.List(r.Context(), orgID)
+	tokenList := h.tokenList(r, orgID)
 
 	h.render(w, "settings.html", h.pageData(r, map[string]any{
 		"Members": members,
@@ -28,6 +29,18 @@ func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
 		"Team":   nil,
 		"Tracks": nil,
 	}))
+}
+
+// tokenList loads the org's API tokens with Revocable stamped for the viewer, so
+// the revoke button only appears where the server will honour it.
+func (h *Handler) tokenList(r *http.Request, orgID uuid.UUID) []model.APIToken {
+	tokens, _ := h.tokens.List(r.Context(), orgID)
+	userID := service.UserIDFromContext(r.Context())
+	role := service.RoleFromContext(r.Context())
+	for i := range tokens {
+		tokens[i].Revocable = service.CanRevokeToken(&tokens[i], userID, role)
+	}
+	return tokens
 }
 
 func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
@@ -55,7 +68,7 @@ func (h *Handler) CreateToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tokenList, _ := h.tokens.List(r.Context(), orgID)
+	tokenList := h.tokenList(r, orgID)
 	h.render(w, "settings-tokens-partial.html", map[string]any{
 		"Tokens":    tokenList,
 		"NewToken":  token,
@@ -70,12 +83,13 @@ func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.tokens.Revoke(r.Context(), orgID, tokenID); err != nil {
-		http.Error(w, "failed to revoke token", http.StatusInternalServerError)
+	actorID := service.UserIDFromContext(r.Context())
+	if err := h.tokens.Revoke(r.Context(), orgID, tokenID, actorID, service.RoleFromContext(r.Context())); err != nil {
+		serviceError(w, err, "failed to revoke token")
 		return
 	}
 
-	tokenList, _ := h.tokens.List(r.Context(), orgID)
+	tokenList := h.tokenList(r, orgID)
 	h.render(w, "settings-tokens-partial.html", map[string]any{
 		"Tokens": tokenList,
 		// Only shown once, immediately after creation.
@@ -154,7 +168,7 @@ func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.tokens.UpdateRole(r.Context(), orgID, targetID, r.FormValue("role")); err != nil {
-		http.Error(w, "failed to update role", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update role")
 		return
 	}
 

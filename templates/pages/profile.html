@@ -7,8 +7,8 @@
   <div class="max-w-[640px] mx-auto px-8 py-6">
     <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950 mb-6">Profile</h1>
 
-    {{if .CurrentUser}}
-    {{$u := .CurrentUser}}
+    {{if .Profile}}
+    {{$u := .Profile}}
     <div class="bg-base-200 border border-base-300 rounded-md p-6 space-y-4">
       <div class="flex items-center gap-4">
         <span class="w-14 h-14 rounded-md text-[#0d1117] inline-flex items-center justify-center mono text-[22px] font-semibold shrink-0" style="background-color:{{avatarColor $u.Name}}">{{initials $u.Name}}</span>
@@ -30,7 +30,7 @@
       </div>
     </div>
     {{else}}
-    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center mono text-[13px] text-base-600">Not signed in</div>
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center mono text-[13px] text-base-600">User not found</div>
     {{end}}
   </div>
 </div>

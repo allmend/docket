@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/allmend/docket/internal/model"
@@ -30,6 +31,9 @@ func (s *LinkService) ListLinks(ctx context.Context, orgID, ticketID uuid.UUID) 
 // pointing at a closed ticket can still be added from the open end. DeleteLink
 // works the same way.
 func (s *LinkService) CreateLink(ctx context.Context, orgID, viewTicketID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType, actorID uuid.UUID) (*model.TicketLink, error) {
+	if fromTicketID == toTicketID {
+		return nil, fmt.Errorf("%w: a ticket cannot be linked to itself", ErrInvalidInput)
+	}
 	if err := assertTicketOpen(ctx, s.store, orgID, viewTicketID); err != nil {
 		return nil, err
 	}
@@ -57,7 +61,7 @@ func (s *LinkService) DeleteLink(ctx context.Context, orgID, ticketID, linkID, a
 	}
 	link, _ := s.store.GetLink(ctx, orgID, linkID)
 
-	if err := s.store.DeleteLink(ctx, orgID, linkID); err != nil {
+	if err := s.store.DeleteLink(ctx, orgID, ticketID, linkID); err != nil {
 		return err
 	}
 

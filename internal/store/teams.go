@@ -81,6 +81,9 @@ func (s *Store) CreateTeam(ctx context.Context, orgID, createdBy uuid.UUID, name
 		 RETURNING `+teamCols,
 		orgID, name, key, slug, description, createdBy,
 	), &t)
+	if isUniqueViolation(err) {
+		return nil, ErrDuplicate // key or slug already taken in this org
+	}
 	return &t, err
 }
 
@@ -92,6 +95,9 @@ func (s *Store) UpdateTeam(ctx context.Context, orgID, teamID uuid.UUID, name, s
 		 RETURNING `+teamCols,
 		orgID, teamID, name, slug, description,
 	), &t)
+	if isUniqueViolation(err) {
+		return nil, ErrDuplicate // another team already has this name's slug
+	}
 	return &t, err
 }
 
@@ -165,9 +171,16 @@ func (s *Store) ListTeamMembers(ctx context.Context, orgID, teamID uuid.UUID) ([
 	return users, rows.Err()
 }
 
+// AddTeamMember adds a user to a team. Both must belong to orgID: the user ID
+// arrives from a form, and without the guard another tenant's user could be
+// listed — name and email — as a member of this org's team.
 func (s *Store) AddTeamMember(ctx context.Context, orgID, teamID, userID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
-		`INSERT INTO team_members (org_id, team_id, user_id) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
+		`INSERT INTO team_members (org_id, team_id, user_id)
+		 SELECT $1, $2, $3
+		 WHERE EXISTS (SELECT 1 FROM teams WHERE id = $2 AND org_id = $1)
+		   AND EXISTS (SELECT 1 FROM users WHERE id = $3 AND org_id = $1)
+		 ON CONFLICT DO NOTHING`,
 		orgID, teamID, userID,
 	)
 	return err

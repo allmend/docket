@@ -1,10 +1,10 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/allmend/docket/internal/metrics"
 	"github.com/allmend/docket/internal/model"
@@ -198,8 +198,8 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 
 	comments, _ := h.comments.ListComments(r.Context(), orgID, ticket.ID)
 	h.stampCommentsEditable(r, comments)
-	history, _ := h.comments.ListHistory(r.Context(), ticket.ID)
-	assignees, _ := h.tickets.ListAssignees(r.Context(), ticket.ID)
+	history, _ := h.comments.ListHistory(r.Context(), orgID, ticket.ID)
+	assignees, _ := h.tickets.ListAssignees(r.Context(), orgID, ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)
 	links, _ := h.links.ListLinks(r.Context(), orgID, ticket.ID)
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
@@ -235,11 +235,16 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 
 	ticket, err := h.resolveTicketRef(r, orgID, ref)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if ticket == nil {
-		http.Error(w, fmt.Sprintf("%s not found", ref), http.StatusNotFound)
+		// Only a malformed ref is the caller's fault; an unknown one is a 404,
+		// and any other failure is ours — never echo a database error.
+		switch {
+		case isNotFound(err):
+			http.Error(w, "ticket not found", http.StatusNotFound)
+		case errors.Is(err, errBadTicketRef):
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		default:
+			http.Error(w, "failed to load ticket", http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -252,8 +257,8 @@ func (h *Handler) TicketPage(w http.ResponseWriter, r *http.Request) {
 
 	comments, _ := h.comments.ListComments(r.Context(), orgID, ticket.ID)
 	h.stampCommentsEditable(r, comments)
-	history, _ := h.comments.ListHistory(r.Context(), ticket.ID)
-	assignees, _ := h.tickets.ListAssignees(r.Context(), ticket.ID)
+	history, _ := h.comments.ListHistory(r.Context(), orgID, ticket.ID)
+	assignees, _ := h.tickets.ListAssignees(r.Context(), orgID, ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)
 	links, _ := h.links.ListLinks(r.Context(), orgID, ticket.ID)
 	tags, _ := h.boards.ListTicketTags(r.Context(), orgID, ticket.ID)
@@ -414,7 +419,7 @@ func (h *Handler) CloseTicket(w http.ResponseWriter, r *http.Request) {
 		reason = "Closed"
 	}
 	if _, err := h.tickets.CloseTicket(r.Context(), orgID, ticketID, userID, reason); err != nil {
-		http.Error(w, "failed to close ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to close ticket")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -430,7 +435,7 @@ func (h *Handler) ReopenTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.tickets.ReopenTicket(r.Context(), orgID, ticketID, userID); err != nil {
-		http.Error(w, "failed to reopen ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to reopen ticket")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -449,13 +454,10 @@ func (h *Handler) DeleteTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Redirect back to the board.
-	board, _ := h.boards.GetBoard(r.Context(), orgID, ticket.BoardID)
-	redirectTo := "/boards"
-	if board != nil {
-		redirectTo = "/boards/" + board.ID.String()
-	}
-	w.Header().Set("HX-Redirect", redirectTo)
+	// Back to the workspace board. This used to redirect to /boards/{id}, a
+	// route with no GET handler, so every delete from the permalink page ended
+	// on an error page.
+	w.Header().Set("HX-Redirect", h.workspacePageURL(r, orgID, ticket.BoardID, "board"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -481,7 +483,7 @@ func (h *Handler) MoveTicket(w http.ResponseWriter, r *http.Request) {
 
 	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos)
 	if err != nil {
-		http.Error(w, "failed to move ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to move ticket")
 		return
 	}
 
@@ -543,7 +545,7 @@ func (h *Handler) SearchTicketAssignees(w http.ResponseWriter, r *http.Request) 
 	}
 	q := r.URL.Query().Get("q")
 	users, _ := h.tickets.SearchUsers(r.Context(), orgID, q)
-	current, _ := h.tickets.ListAssignees(r.Context(), ticketID)
+	current, _ := h.tickets.ListAssignees(r.Context(), orgID, ticketID)
 	currentSet := make(map[uuid.UUID]bool, len(current))
 	for _, u := range current {
 		currentSet[u.ID] = true
@@ -580,7 +582,7 @@ func (h *Handler) AddTicketAssignee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	assignees, _ := h.tickets.ListAssignees(r.Context(), ticketID)
+	assignees, _ := h.tickets.ListAssignees(r.Context(), orgID, ticketID)
 	w.Header().Set("HX-Trigger", "boardUpdated")
 	h.render(w, "ticket-assignees.html", map[string]any{
 		"Ticket":      ticket,
@@ -605,7 +607,7 @@ func (h *Handler) RemoveTicketAssignee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ticket, _ := h.tickets.GetTicket(r.Context(), orgID, ticketID)
-	assignees, _ := h.tickets.ListAssignees(r.Context(), ticketID)
+	assignees, _ := h.tickets.ListAssignees(r.Context(), orgID, ticketID)
 	w.Header().Set("HX-Trigger", "boardUpdated")
 	h.render(w, "ticket-assignees.html", map[string]any{
 		"Ticket":      ticket,
@@ -705,7 +707,7 @@ func (h *Handler) UpdateTicketColumn(w http.ResponseWriter, r *http.Request) {
 	}
 	ticket, err := h.tickets.MoveToColumn(r.Context(), orgID, ticketID, columnID, userID)
 	if err != nil {
-		http.Error(w, "failed to move ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to move ticket")
 		return
 	}
 
@@ -717,7 +719,7 @@ func (h *Handler) UpdateTicketColumn(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("HX-Trigger", `{"ticketUpdated":true,"boardUpdated":true}`)
+	w.Header().Set("HX-Trigger", "boardUpdated")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -746,12 +748,12 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 	nextPos, _ := strconv.ParseFloat(r.FormValue("next_pos"), 64)
 
 	if err := h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, &sprintID); err != nil {
-		http.Error(w, "assign to sprint failed", http.StatusInternalServerError)
+		serviceError(w, err, "assign to sprint failed")
 		return
 	}
 	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos)
 	if err != nil {
-		http.Error(w, "move failed", http.StatusInternalServerError)
+		serviceError(w, err, "move failed")
 		return
 	}
 	if r.FormValue("unplanned") == "1" {
@@ -912,15 +914,12 @@ func (h *Handler) resolveTicketRef(r *http.Request, orgID uuid.UUID, ref string)
 	if id, err := uuid.Parse(ref); err == nil {
 		return h.tickets.GetTicket(r.Context(), orgID, id)
 	}
-	// Try KEY-N.
-	i := strings.LastIndex(ref, "-")
-	if i <= 0 || i == len(ref)-1 {
-		return nil, fmt.Errorf("invalid ticket ref %q", ref)
+	key, n, err := parseRef(ref)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", errBadTicketRef, err)
 	}
-	n, err := strconv.Atoi(ref[i+1:])
-	if err != nil || n <= 0 {
-		return nil, fmt.Errorf("invalid ticket ref %q", ref)
-	}
-	key := strings.ToUpper(ref[:i])
 	return h.tickets.GetByRef(r.Context(), orgID, key, n)
 }
+
+// errBadTicketRef marks a ref that is neither a UUID nor KEY-N.
+var errBadTicketRef = errors.New("bad ticket ref")

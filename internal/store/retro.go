@@ -189,13 +189,23 @@ func (s *Store) ListRetroCards(ctx context.Context, orgID, retroBoardID uuid.UUI
 	return roots, nil
 }
 
+// StackRetroCard stacks a root card onto another root card of the same retro
+// board. The stack is one level deep, so the moved card's own children move to
+// the new parent with it — left under a card that is now a child, they would
+// drop out of ListRetroCards entirely. Returns pgx.ErrNoRows when the cards are
+// not both roots on the same retro board in orgID.
 func (s *Store) StackRetroCard(ctx context.Context, orgID, cardID, parentID uuid.UUID) error {
-	_, err := s.primary.Exec(ctx,
+	tag, err := s.primary.Exec(ctx,
 		`UPDATE retro_cards SET parent_id = $3
-		 WHERE org_id = $1 AND id = $2 AND parent_id IS NULL`,
+		 WHERE org_id = $1 AND (id = $2 OR parent_id = $2)
+		   AND EXISTS (
+		       SELECT 1 FROM retro_cards c JOIN retro_cards p ON p.retro_board_id = c.retro_board_id
+		       WHERE c.id = $2 AND p.id = $3
+		         AND c.org_id = $1 AND p.org_id = $1
+		         AND c.parent_id IS NULL AND p.parent_id IS NULL)`,
 		orgID, cardID, parentID,
 	)
-	return err
+	return noRowsIfUnaffected(tag, err)
 }
 
 func (s *Store) UnstackRetroCard(ctx context.Context, orgID, cardID uuid.UUID) error {
@@ -208,9 +218,13 @@ func (s *Store) UnstackRetroCard(ctx context.Context, orgID, cardID uuid.UUID) e
 
 func (s *Store) CreateRetroCard(ctx context.Context, orgID, retroBoardID, authorID uuid.UUID, column model.RetroColumn, body string) (*model.RetroCard, error) {
 	var c model.RetroCard
+	// Only into an open retro board of this org: closing is what turns action
+	// items into tickets, so a card added afterwards would never get one.
+	// A rejected insert surfaces as pgx.ErrNoRows.
 	err := s.primary.QueryRow(ctx,
 		`INSERT INTO retro_cards (org_id, retro_board_id, author_id, column_name, body)
-		 VALUES ($1, $2, $3, $4, $5)
+		 SELECT $1, $2, $3, $4, $5
+		 WHERE EXISTS (SELECT 1 FROM retro_boards WHERE id = $2 AND org_id = $1 AND status = 'open')
 		 RETURNING id, org_id, retro_board_id, column_name, body, author_id, owner_id, COALESCE(owner_name,''), ticket_id`,
 		orgID, retroBoardID, authorID, column, body,
 	).Scan(&c.ID, &c.OrgID, &c.RetroBoardID, &c.Column, &c.Body, &c.AuthorID, &c.OwnerID, &c.OwnerName, &c.TicketID)

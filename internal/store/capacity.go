@@ -41,6 +41,7 @@ func (s *Store) SeedSprintCapacity(ctx context.Context, orgID, sprintID, teamID 
 		SELECT $1, tm.user_id, $2
 		FROM team_members tm
 		WHERE tm.org_id = $2 AND tm.team_id = $3
+		  AND EXISTS (SELECT 1 FROM sprints WHERE id = $1 AND org_id = $2)
 		ON CONFLICT (sprint_id, user_id) DO NOTHING
 	`, sprintID, orgID, teamID)
 	return err
@@ -55,6 +56,7 @@ func (s *Store) UpsertSprintCapacity(ctx context.Context, orgID, sprintID, userI
 		INSERT INTO sprint_capacity (sprint_id, user_id, org_id, focus_pct, updated_at)
 		SELECT $1, $2, $3, $4, NOW()
 		WHERE EXISTS (SELECT 1 FROM sprints WHERE id = $1 AND org_id = $3)
+		  AND EXISTS (SELECT 1 FROM users   WHERE id = $2 AND org_id = $3)
 		ON CONFLICT (sprint_id, user_id) DO UPDATE
 		  SET focus_pct = EXCLUDED.focus_pct,
 		      updated_at = NOW()

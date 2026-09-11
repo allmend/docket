@@ -24,7 +24,7 @@ func TestAddTicketAssignee_OrgIsolation(t *testing.T) {
 
 	assignees := func() int {
 		t.Helper()
-		list, err := s.ListTicketAssignees(ctx, ticketA.ID)
+		list, err := s.ListTicketAssignees(ctx, orgA.ID, ticketA.ID)
 		if err != nil {
 			t.Fatalf("list assignees: %v", err)
 		}
@@ -76,7 +76,7 @@ func TestRemoveTicketAssignee_OrgIsolation(t *testing.T) {
 	if err := s.RemoveTicketAssignee(ctx, orgB.ID, ticketA.ID, userA.ID); err != nil {
 		t.Fatalf("remove (wrong org) returned error: %v", err)
 	}
-	list, err := s.ListTicketAssignees(ctx, ticketA.ID)
+	list, err := s.ListTicketAssignees(ctx, orgA.ID, ticketA.ID)
 	if err != nil {
 		t.Fatalf("list assignees: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestRemoveTicketAssignee_OrgIsolation(t *testing.T) {
 	if err := s.RemoveTicketAssignee(ctx, orgA.ID, ticketA.ID, userA.ID); err != nil {
 		t.Fatalf("remove (in org) returned error: %v", err)
 	}
-	list, _ = s.ListTicketAssignees(ctx, ticketA.ID)
+	list, _ = s.ListTicketAssignees(ctx, orgA.ID, ticketA.ID)
 	if len(list) != 0 {
 		t.Fatalf("in-org remove failed: got %d assignees, want 0", len(list))
 	}

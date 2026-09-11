@@ -11,6 +11,8 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
+	"github.com/allmend/docket/internal/store"
+	"github.com/jackc/pgx/v5"
 )
 
 // serviceError writes the HTTP response for a service-layer error: known
@@ -25,6 +27,12 @@ func serviceError(w http.ResponseWriter, err error, fallback string) {
 		http.Error(w, "forbidden", http.StatusForbidden)
 	case errors.Is(err, service.ErrInvalidInput):
 		http.Error(w, err.Error(), http.StatusBadRequest)
+	case errors.Is(err, store.ErrDuplicate):
+		http.Error(w, "that name is already taken", http.StatusConflict)
+	case errors.Is(err, pgx.ErrNoRows):
+		// Also what the store's ownership guards return, so an ID from another
+		// org reads exactly like one that doesn't exist.
+		http.Error(w, "not found", http.StatusNotFound)
 	default:
 		http.Error(w, fallback, http.StatusInternalServerError)
 	}

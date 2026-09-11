@@ -6,11 +6,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type TokenService struct {
@@ -40,7 +42,23 @@ func (s *TokenService) List(ctx context.Context, orgID uuid.UUID) ([]model.APITo
 	return s.store.ListAPITokens(ctx, orgID)
 }
 
-func (s *TokenService) Revoke(ctx context.Context, orgID, tokenID uuid.UUID) error {
+// CanRevokeToken is the single rule for revoking an API token: org admins may
+// revoke any token, anyone else only the tokens they created — otherwise any
+// member could cut off an admin's or an integration's credentials. Revoke
+// enforces it; the settings page uses it to show the button only where it works.
+func CanRevokeToken(t *model.APIToken, actorID uuid.UUID, actorRole string) bool {
+	return actorRole == "admin" || t.CreatedBy == actorID
+}
+
+// Revoke revokes an API token, subject to CanRevokeToken.
+func (s *TokenService) Revoke(ctx context.Context, orgID, tokenID, actorID uuid.UUID, actorRole string) error {
+	t, err := s.store.GetAPIToken(ctx, orgID, tokenID)
+	if err != nil {
+		return err
+	}
+	if !CanRevokeToken(t, actorID, actorRole) {
+		return ErrForbidden
+	}
 	return s.store.RevokeAPIToken(ctx, orgID, tokenID)
 }
 
@@ -64,11 +82,22 @@ func (s *TokenService) ListMembers(ctx context.Context, orgID uuid.UUID) ([]mode
 	return s.store.ListOrgMembers(ctx, orgID)
 }
 
+// UpdateRole sets a member's role. Demoting the last admin is refused — the org
+// would be left with nobody able to manage members or roles.
 func (s *TokenService) UpdateRole(ctx context.Context, orgID, userID uuid.UUID, role string) error {
 	if role != "admin" && role != "member" {
-		return fmt.Errorf("invalid role: %s", role)
+		return fmt.Errorf("%w: role must be admin or member", ErrInvalidInput)
 	}
-	return s.store.UpdateUserRole(ctx, orgID, userID, role)
+	if _, err := s.store.GetUserByID(ctx, orgID, userID); err != nil {
+		return err
+	}
+	if err := s.store.UpdateUserRole(ctx, orgID, userID, role); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: the org must keep at least one admin", ErrInvalidInput)
+		}
+		return err
+	}
+	return nil
 }
 
 func sha256sum(s string) string {

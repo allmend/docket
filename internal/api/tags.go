@@ -83,7 +83,7 @@ func (h *Handler) CreateTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.boards.CreateTag(r.Context(), orgID, boardID, name, color, "", nil); err != nil {
-		http.Error(w, "failed to create tag", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create tag")
 		return
 	}
 	tags, _ := h.boards.ListBoardTags(r.Context(), orgID, boardID)

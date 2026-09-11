@@ -119,24 +119,38 @@ func (s *Store) GetColumnMeta(ctx context.Context, columnID uuid.UUID) (colName,
 	return
 }
 
+// CreateColumn inserts a column. The insert only proceeds when boardID belongs
+// to orgID; otherwise it surfaces as pgx.ErrNoRows and nothing is written.
 func (s *Store) CreateColumn(ctx context.Context, orgID, boardID uuid.UUID, name string, position float64) (*model.Column, error) {
 	var c model.Column
 	err := s.primary.QueryRow(ctx,
 		`INSERT INTO columns (org_id, board_id, name, position)
-		 VALUES ($1, $2, $3, $4)
+		 SELECT $1, $2, $3, $4
+		 WHERE EXISTS (SELECT 1 FROM boards WHERE id = $2 AND org_id = $1)
 		 RETURNING id, org_id, board_id, name, position, created_at, updated_at`,
 		orgID, boardID, name, position,
 	).Scan(&c.ID, &c.OrgID, &c.BoardID, &c.Name, &c.Position, &c.CreatedAt, &c.UpdatedAt)
 	return &c, err
 }
 
-func (s *Store) MaxColumnPosition(ctx context.Context, boardID uuid.UUID) (float64, error) {
+func (s *Store) MaxColumnPosition(ctx context.Context, orgID, boardID uuid.UUID) (float64, error) {
 	var pos float64
 	err := s.replica.QueryRow(ctx,
-		`SELECT COALESCE(MAX(position), 0) FROM columns WHERE board_id = $1`,
-		boardID,
+		`SELECT COALESCE(MAX(position), 0) FROM columns WHERE org_id = $1 AND board_id = $2`,
+		orgID, boardID,
 	).Scan(&pos)
 	return pos, err
+}
+
+// CountTicketsInColumn returns how many tickets sit in a column. Deleting a
+// column that still holds tickets would violate tickets.column_id's foreign key.
+func (s *Store) CountTicketsInColumn(ctx context.Context, orgID, columnID uuid.UUID) (int, error) {
+	var n int
+	err := s.replica.QueryRow(ctx,
+		`SELECT COUNT(*) FROM tickets WHERE org_id = $1 AND column_id = $2`,
+		orgID, columnID,
+	).Scan(&n)
+	return n, err
 }
 
 func (s *Store) RenameColumn(ctx context.Context, orgID, columnID uuid.UUID, name string) (*model.Column, error) {
@@ -184,11 +198,16 @@ func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, c
 	err := s.primary.QueryRow(ctx,
 		// Resolve lead_user_id through an org-scoped lookup so a cross-org user
 		// ID is stored as NULL rather than referencing another tenant's user.
+		// The board must belong to the org too, or nothing is inserted.
 		`INSERT INTO tags (org_id, board_id, name, color, description, lead_user_id)
-		 VALUES ($1, $2, $3, $4, $5, (SELECT id FROM users WHERE id = $6 AND org_id = $1))
+		 SELECT $1, $2, $3, $4, $5, (SELECT id FROM users WHERE id = $6 AND org_id = $1)
+		 WHERE EXISTS (SELECT 1 FROM boards WHERE id = $2 AND org_id = $1)
 		 RETURNING id, org_id, board_id, name, color, description, lead_user_id`,
 		orgID, boardID, name, color, description, leadUserID,
 	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color, &t.Description, &t.LeadUserID)
+	if isUniqueViolation(err) {
+		return nil, ErrDuplicate // tag names are unique per board
+	}
 	return &t, err
 }
 
@@ -203,6 +222,9 @@ func (s *Store) UpdateTag(ctx context.Context, orgID, tagID uuid.UUID, name, col
 		 RETURNING id, org_id, board_id, name, color, description, lead_user_id`,
 		orgID, tagID, name, color, description, leadUserID,
 	).Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color, &t.Description, &t.LeadUserID)
+	if isUniqueViolation(err) {
+		return nil, ErrDuplicate // tag names are unique per board
+	}
 	return &t, err
 }
 
@@ -476,7 +498,8 @@ func (s *Store) CreateSprint(ctx context.Context, orgID, boardID, createdBy uuid
 	var sp model.Sprint
 	err := scanSprint(s.primary.QueryRow(ctx,
 		`INSERT INTO sprints (org_id, board_id, name, goal, status, start_date, end_date, created_by)
-		 VALUES ($1, $2, $3, $4, 'planning', $5, $6, $7)
+		 SELECT $1, $2, $3, $4, 'planning', $5, $6, $7
+		 WHERE EXISTS (SELECT 1 FROM boards WHERE id = $2 AND org_id = $1)
 		 RETURNING `+sprintCols,
 		orgID, boardID, name, goal, startDate, endDate, createdBy,
 	), &sp)
@@ -503,6 +526,21 @@ func (s *Store) SetSprintStatus(ctx context.Context, orgID, sprintID uuid.UUID, 
 		orgID, sprintID, status,
 	), &sp)
 	return &sp, err
+}
+
+// CompleteSprint flips an active sprint to completed. It is the first statement
+// of the close transaction, and the row lock it takes serialises closes: a
+// second, concurrent close waits, then finds the sprint no longer active and
+// gets pgx.ErrNoRows — rather than re-snapshotting a sprint whose unfinished
+// tickets have already gone back to the backlog, which would overwrite the
+// real numbers with an undercount.
+func (s *Store) CompleteSprint(ctx context.Context, orgID, sprintID uuid.UUID) error {
+	tag, err := s.primary.Exec(ctx,
+		`UPDATE sprints SET status = 'completed', updated_at = NOW()
+		 WHERE org_id = $1 AND id = $2 AND status = 'active'`,
+		orgID, sprintID,
+	)
+	return noRowsIfUnaffected(tag, err)
 }
 
 func (s *Store) DeleteSprint(ctx context.Context, orgID, sprintID uuid.UUID) error {
@@ -574,31 +612,39 @@ func (s *Store) ListSprintTickets(ctx context.Context, orgID, sprintID uuid.UUID
 // AssignTicketToSprint sets sprint_id on a ticket (nil = move to backlog).
 // When assigning to a sprint, column_id is set to the first column of the sprint's board
 // so the ticket always lands in "To Do" regardless of where it was in a previous sprint.
-// When moving to backlog, column_id is cleared.
+//
+// The sprint must belong to the org and to the ticket's own board, and must not
+// be completed: a sprint ID from another board would drag the ticket onto that
+// board's columns, one from another org would store a cross-tenant reference,
+// and completed sprints are read-only. A rejected assignment writes nothing and
+// returns pgx.ErrNoRows, as does an unknown ticket.
 func (s *Store) AssignTicketToSprint(ctx context.Context, orgID, ticketID uuid.UUID, sprintID *uuid.UUID) error {
 	if sprintID == nil {
-		_, err := s.primary.Exec(ctx,
+		tag, err := s.primary.Exec(ctx,
 			`UPDATE tickets SET sprint_id = NULL, updated_at = NOW()
 			 WHERE org_id = $1 AND id = $2`,
 			orgID, ticketID,
 		)
-		return err
+		return noRowsIfUnaffected(tag, err)
 	}
-	_, err := s.primary.Exec(ctx,
-		`UPDATE tickets SET
-		   sprint_id = $3,
+	tag, err := s.primary.Exec(ctx,
+		`UPDATE tickets t SET
+		   sprint_id = sp.id,
 		   column_id = (
 		     SELECT c.id FROM columns c
-		     JOIN sprints sp ON sp.board_id = c.board_id
-		     WHERE sp.org_id = $1 AND sp.id = $3
+		     WHERE c.org_id = $1 AND c.board_id = sp.board_id
 		     ORDER BY c.position
 		     LIMIT 1
 		   ),
 		   updated_at = NOW()
-		 WHERE org_id = $1 AND id = $2`,
+		 FROM sprints sp
+		 WHERE t.org_id = $1 AND t.id = $2
+		   AND sp.org_id = $1 AND sp.id = $3
+		   AND sp.board_id = t.board_id
+		   AND sp.status <> 'completed'`,
 		orgID, ticketID, *sprintID,
 	)
-	return err
+	return noRowsIfUnaffected(tag, err)
 }
 
 // SnapshotSprintStats captures committed/completed ticket and point counts onto the sprint row.

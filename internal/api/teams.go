@@ -95,7 +95,7 @@ func (h *Handler) CreateTeam(w http.ResponseWriter, r *http.Request) {
 
 	team, _, err := h.teams.CreateTeam(r.Context(), orgID, userID, name, key, r.FormValue("description"), mode)
 	if err != nil {
-		http.Error(w, "failed to create team", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create team")
 		return
 	}
 
@@ -151,7 +151,7 @@ func (h *Handler) UpdateTeam(w http.ResponseWriter, r *http.Request) {
 
 	updated, err := h.teams.UpdateTeam(r.Context(), orgID, team.ID, r.FormValue("name"), r.FormValue("description"))
 	if err != nil {
-		http.Error(w, "failed to update team", http.StatusInternalServerError)
+		serviceError(w, err, "failed to update team")
 		return
 	}
 
@@ -340,12 +340,12 @@ func (h *Handler) SaveTrack(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, err := h.boards.UpdateTag(r.Context(), orgID, tagID, name, color, description, leadUserID); err != nil {
-			http.Error(w, "failed to update track", http.StatusInternalServerError)
+			serviceError(w, err, "failed to update track")
 			return
 		}
 	} else {
 		if _, err := h.boards.CreateTag(r.Context(), orgID, board.ID, name, color, description, leadUserID); err != nil {
-			http.Error(w, "failed to create track", http.StatusInternalServerError)
+			serviceError(w, err, "failed to create track")
 			return
 		}
 	}

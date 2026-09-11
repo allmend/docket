@@ -45,7 +45,7 @@
       <span class="mono text-[13px] text-base-600">
         {{if .LastUsedAt}}{{timeAgo .LastUsedAt}}{{else}}never{{end}}
       </span>
-      {{if not .IsRevoked}}
+      {{if and (not .IsRevoked) .Revocable}}
       {{/* Was a POST form with a _method=DELETE hidden input, but nothing
            translates that — the route is registered DELETE, so every revoke
            returned 405 and silently did nothing. hx-delete issues the real verb. */}}

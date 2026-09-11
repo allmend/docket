@@ -70,7 +70,7 @@ func (h *Handler) StartSprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.boards.StartSprint(r.Context(), orgID, sprintID, formDate(r, "start_date"), formDate(r, "end_date")); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serviceError(w, err, "failed to start sprint")
 		return
 	}
 	h.redirectToBoard(w, r, orgID, boardID)
@@ -88,7 +88,7 @@ func (h *Handler) CloseSprint(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := service.UserIDFromContext(r.Context())
 	if _, err := h.boards.CloseSprint(r.Context(), orgID, sprintID, userID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serviceError(w, err, "failed to close sprint")
 		return
 	}
 	h.redirectToBoard(w, r, orgID, boardID)
@@ -105,7 +105,7 @@ func (h *Handler) DeleteSprint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.boards.DeleteSprint(r.Context(), orgID, sprintID); err != nil {
-		http.Error(w, "failed to delete sprint", http.StatusInternalServerError)
+		serviceError(w, err, "failed to delete sprint")
 		return
 	}
 	// Land on the backlog, not the board: the board would bounce straight back
@@ -132,7 +132,7 @@ func (h *Handler) AssignTicketToSprint(w http.ResponseWriter, r *http.Request) {
 		sprintID = &id
 	}
 	if err := h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, sprintID); err != nil {
-		http.Error(w, "failed to assign ticket", http.StatusInternalServerError)
+		serviceError(w, err, "failed to assign ticket")
 		return
 	}
 	w.Header().Set("HX-Trigger", `{"backlogUpdated":true,"boardUpdated":true}`)
@@ -177,7 +177,7 @@ func (h *Handler) SprintCapacityPartial(w http.ResponseWriter, r *http.Request) 
 	}
 	cap, err := h.boards.GetSprintCapacity(r.Context(), orgID, boardID, sprintID)
 	if err != nil {
-		http.Error(w, "capacity not found", http.StatusInternalServerError)
+		serviceError(w, err, "failed to load capacity")
 		return
 	}
 	sprint, err := h.boards.GetSprint(r.Context(), orgID, sprintID)
@@ -221,7 +221,7 @@ func (h *Handler) UpdateMemberCapacity(w http.ResponseWriter, r *http.Request) {
 	}
 	cap, err := h.boards.GetSprintCapacity(r.Context(), orgID, boardID, sprintID)
 	if err != nil {
-		http.Error(w, "capacity not found", http.StatusInternalServerError)
+		serviceError(w, err, "failed to load capacity")
 		return
 	}
 	sprint, err := h.boards.GetSprint(r.Context(), orgID, sprintID)

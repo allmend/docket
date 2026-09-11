@@ -31,15 +31,17 @@ func (s *Store) ListDodItems(ctx context.Context, orgID, boardID uuid.UUID) ([]m
 	return out, rows.Err()
 }
 
-// CreateDodItem appends a new item at the end of a board's DoD list.
+// CreateDodItem appends a new item at the end of a board's DoD list. The board
+// must belong to orgID; otherwise nothing is inserted and pgx.ErrNoRows returns.
 func (s *Store) CreateDodItem(ctx context.Context, orgID, boardID uuid.UUID, text string) (*model.DodItem, error) {
 	var d model.DodItem
 	err := s.primary.QueryRow(ctx, `
 		INSERT INTO dod_items (org_id, board_id, text, position)
-		VALUES ($1, $2, $3, (
+		SELECT $1, $2, $3, (
 			SELECT COALESCE(MAX(position), 0) + 1000
 			FROM dod_items WHERE org_id = $1 AND board_id = $2
-		))
+		)
+		WHERE EXISTS (SELECT 1 FROM boards WHERE id = $2 AND org_id = $1)
 		RETURNING id, org_id, board_id, text, position, created_at
 	`, orgID, boardID, text).Scan(&d.ID, &d.OrgID, &d.BoardID, &d.Text, &d.Position, &d.CreatedAt)
 	if err != nil {
@@ -82,12 +84,16 @@ func (s *Store) GetTicketDod(ctx context.Context, orgID, boardID, ticketID uuid.
 	return out, rows.Err()
 }
 
-// ToggleDodCheck checks or unchecks a DoD item for a ticket.
+// ToggleDodCheck checks or unchecks a DoD item for a ticket. A check is only
+// recorded when the item and the ticket are in orgID and on the same board.
 func (s *Store) ToggleDodCheck(ctx context.Context, orgID, ticketID, itemID uuid.UUID, checked bool) error {
 	if checked {
 		_, err := s.primary.Exec(ctx, `
 			INSERT INTO dod_checks (dod_item_id, ticket_id, org_id)
-			VALUES ($1, $2, $3)
+			SELECT $1, $2, $3
+			WHERE EXISTS (
+				SELECT 1 FROM dod_items d JOIN tickets t ON t.board_id = d.board_id
+				WHERE d.id = $1 AND t.id = $2 AND d.org_id = $3 AND t.org_id = $3)
 			ON CONFLICT (dod_item_id, ticket_id) DO NOTHING
 		`, itemID, ticketID, orgID)
 		return err

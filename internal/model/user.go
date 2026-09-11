@@ -44,6 +44,10 @@ type APIToken struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+
+	// Revocable is stamped per viewer for rendering: whether this viewer may
+	// revoke the token (see service.CanRevokeToken). Never persisted.
+	Revocable bool `json:"-"`
 }
 
 func (t *APIToken) IsRevoked() bool { return t.RevokedAt != nil }

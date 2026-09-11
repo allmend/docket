@@ -90,11 +90,16 @@ func (s *Store) AppendHistory(ctx context.Context, ticketID, actorID uuid.UUID, 
 	return err
 }
 
-func (s *Store) ListHistory(ctx context.Context, ticketID uuid.UUID) ([]model.HistoryEntry, error) {
+// ListHistory returns a ticket's history. ticket_history has no org_id of its
+// own, so the org filter goes through the ticket.
+func (s *Store) ListHistory(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.HistoryEntry, error) {
 	rows, err := s.replica.Query(ctx,
-		`SELECT id, ticket_id, actor_id, actor_name, field, old_value, new_value, created_at
-		 FROM ticket_history WHERE ticket_id = $1 ORDER BY created_at ASC`,
-		ticketID,
+		`SELECT h.id, h.ticket_id, h.actor_id, h.actor_name, h.field, h.old_value, h.new_value, h.created_at
+		 FROM ticket_history h
+		 JOIN tickets t ON t.id = h.ticket_id
+		 WHERE t.org_id = $1 AND h.ticket_id = $2
+		 ORDER BY h.created_at ASC`,
+		orgID, ticketID,
 	)
 	if err != nil {
 		return nil, err

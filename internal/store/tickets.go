@@ -167,18 +167,24 @@ func (s *Store) CreateTicket(ctx context.Context,
 	return &t, err
 }
 
+// MoveTicket sets a ticket's column and position. A nil columnID keeps the
+// current column (reordering within the backlog). The target column must sit on
+// the ticket's own board — a column from another board would make the ticket
+// render there while still numbered under its original team. A rejected move
+// writes nothing and returns pgx.ErrNoRows.
 func (s *Store) MoveTicket(ctx context.Context, orgID, ticketID, columnID uuid.UUID, position float64) error {
-	_, err := s.primary.Exec(ctx,
+	tag, err := s.primary.Exec(ctx,
 		`UPDATE tickets
 		 SET column_id  = CASE WHEN $3 = '00000000-0000-0000-0000-000000000000'::uuid THEN column_id ELSE $3 END,
 		     position   = $4,
 		     updated_at = NOW()
 		 WHERE org_id = $1 AND id = $2
 		   AND ($3 = '00000000-0000-0000-0000-000000000000'::uuid
-		        OR EXISTS (SELECT 1 FROM columns WHERE id = $3 AND org_id = $1))`,
+		        OR EXISTS (SELECT 1 FROM columns c
+		                   WHERE c.id = $3 AND c.org_id = $1 AND c.board_id = tickets.board_id))`,
 		orgID, ticketID, columnID, position,
 	)
-	return err
+	return noRowsIfUnaffected(tag, err)
 }
 
 func (s *Store) UpdateTicket(ctx context.Context,
@@ -362,11 +368,11 @@ func (s *Store) DeleteTicket(ctx context.Context, orgID, ticketID uuid.UUID) err
 	return err
 }
 
-func (s *Store) MaxTicketPositionInColumn(ctx context.Context, columnID uuid.UUID) (float64, error) {
+func (s *Store) MaxTicketPositionInColumn(ctx context.Context, orgID, columnID uuid.UUID) (float64, error) {
 	var pos float64
 	err := s.replica.QueryRow(ctx,
-		`SELECT COALESCE(MAX(position), 0) FROM tickets WHERE column_id = $1`,
-		columnID,
+		`SELECT COALESCE(MAX(position), 0) FROM tickets WHERE org_id = $1 AND column_id = $2`,
+		orgID, columnID,
 	).Scan(&pos)
 	return pos, err
 }
@@ -441,14 +447,17 @@ func (s *Store) UpdateTicketPoints(ctx context.Context, orgID, ticketID uuid.UUI
 	return &t, err
 }
 
-func (s *Store) ListTicketAssignees(ctx context.Context, ticketID uuid.UUID) ([]model.User, error) {
+// ListTicketAssignees returns a ticket's assignees. ticket_assignees has no
+// org_id of its own, so the org filter goes through the ticket.
+func (s *Store) ListTicketAssignees(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.User, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT u.id, u.org_id, u.username, u.name, u.email, u.role, u.created_at, u.updated_at
 		 FROM ticket_assignees ta
+		 JOIN tickets t ON t.id = ta.ticket_id
 		 JOIN users u ON u.id = ta.user_id
-		 WHERE ta.ticket_id = $1
+		 WHERE t.org_id = $1 AND ta.ticket_id = $2
 		 ORDER BY u.name`,
-		ticketID,
+		orgID, ticketID,
 	)
 	if err != nil {
 		return nil, err

@@ -42,7 +42,7 @@ func (h *Handler) CloseSprintAndStartRetro(w http.ResponseWriter, r *http.Reques
 	}
 
 	if _, err := h.boards.CloseSprint(r.Context(), orgID, sprintID, userID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serviceError(w, err, "failed to close sprint")
 		return
 	}
 
@@ -119,13 +119,16 @@ func (h *Handler) RetroBoardPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The retro must belong to this workspace's board; the old lookup went by
+	// the URL's board and sprint and would create a retro to show if none
+	// matched, so a mismatched URL minted rows on a GET.
 	rb, err := h.retro.GetRetroBoard(r.Context(), orgID, retroBoardID)
-	if err != nil {
+	if err != nil || rb.BoardID != board.ID {
 		http.Error(w, "retro not found", http.StatusNotFound)
 		return
 	}
 
-	view, err := h.retro.GetRetroView(r.Context(), orgID, board.ID, rb.SprintID)
+	view, err := h.retro.GetRetroView(r.Context(), orgID, rb)
 	if err != nil {
 		http.Error(w, "failed to load retro", http.StatusInternalServerError)
 		return
@@ -162,8 +165,8 @@ func (h *Handler) CreateRetroCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := h.retro.CreateCard(r.Context(), orgID, boardID, retroBoardID, userID, col, body); err != nil {
-		http.Error(w, "failed to create card", http.StatusInternalServerError)
+	if _, err := h.retro.CreateCard(r.Context(), orgID, retroBoardID, userID, col, body); err != nil {
+		serviceError(w, err, "failed to create card")
 		return
 	}
 
@@ -219,7 +222,7 @@ func (h *Handler) AssignRetroCardOwner(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.retro.AssignActionItemOwner(r.Context(), orgID, cardID, ownerID, userID); err != nil {
-		http.Error(w, "failed to assign owner: "+err.Error(), http.StatusInternalServerError)
+		serviceError(w, err, "failed to assign owner")
 		return
 	}
 
@@ -250,7 +253,7 @@ func (h *Handler) StackRetroCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.retro.StackCard(r.Context(), orgID, cardID, parentID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		serviceError(w, err, "failed to stack card")
 		return
 	}
 	h.renderRetroColumns(w, r, orgID, boardID, retroBoardID, userID)
@@ -272,7 +275,7 @@ func (h *Handler) UnstackRetroCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.retro.UnstackCard(r.Context(), orgID, cardID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		serviceError(w, err, "failed to unstack card")
 		return
 	}
 	h.renderRetroColumns(w, r, orgID, boardID, retroBoardID, userID)
@@ -280,11 +283,11 @@ func (h *Handler) UnstackRetroCard(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) renderRetroColumns(w http.ResponseWriter, r *http.Request, orgID, boardID, retroBoardID, userID uuid.UUID) {
 	rb, err := h.retro.GetRetroBoard(r.Context(), orgID, retroBoardID)
-	if err != nil {
+	if err != nil || rb.BoardID != boardID {
 		http.Error(w, "retro not found", http.StatusNotFound)
 		return
 	}
-	view, err := h.retro.GetRetroView(r.Context(), orgID, boardID, rb.SprintID)
+	view, err := h.retro.GetRetroView(r.Context(), orgID, rb)
 	if err != nil {
 		http.Error(w, "failed to reload retro", http.StatusInternalServerError)
 		return

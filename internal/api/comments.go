@@ -57,7 +57,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	if h.notifications != nil {
 		actorName := comment.AuthorName
 		// notify each assignee (except the commenter)
-		if assignees, err := h.tickets.ListAssignees(r.Context(), ticketID); err == nil {
+		if assignees, err := h.tickets.ListAssignees(r.Context(), orgID, ticketID); err == nil {
 			for _, a := range assignees {
 				if a.ID != userID {
 					h.notifications.Notify(r.Context(), orgID, a.ID, &ticketID, &userID, actorName, "comment")

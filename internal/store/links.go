@@ -101,12 +101,18 @@ func (s *Store) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID 
 	return &l, nil
 }
 
-func (s *Store) DeleteLink(ctx context.Context, orgID, linkID uuid.UUID) error {
-	_, err := s.primary.Exec(ctx,
-		`DELETE FROM ticket_links WHERE org_id = $1 AND id = $2`,
-		orgID, linkID,
+// DeleteLink removes a link, but only from one of its own ends: the service
+// gates deletion on ticketID being open, so accepting any link ID here would let
+// a link between two closed tickets be removed via an unrelated open one.
+// Returns pgx.ErrNoRows when nothing matched.
+func (s *Store) DeleteLink(ctx context.Context, orgID, ticketID, linkID uuid.UUID) error {
+	tag, err := s.primary.Exec(ctx,
+		`DELETE FROM ticket_links
+		 WHERE org_id = $1 AND id = $2
+		   AND (from_ticket_id = $3 OR to_ticket_id = $3)`,
+		orgID, linkID, ticketID,
 	)
-	return err
+	return noRowsIfUnaffected(tag, err)
 }
 
 // ListBlockingLinksForDoneTickets returns "blocks" links where the blocker is in a

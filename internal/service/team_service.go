@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/allmend/docket/internal/model"
@@ -55,7 +56,12 @@ func (s *TeamService) GetTeamByKey(ctx context.Context, orgID uuid.UUID, key str
 // CreateTeam creates a team and immediately provisions its board.
 // The board mode is chosen at team-creation time.
 func (s *TeamService) CreateTeam(ctx context.Context, orgID, userID uuid.UUID, name, key, description string, mode model.BoardMode) (*model.Team, *model.Board, error) {
-	team, err := s.store.CreateTeam(ctx, orgID, userID, name, NormaliseKey(key), Slugify(name), description)
+	name = strings.TrimSpace(name)
+	key = NormaliseKey(key)
+	if name == "" || key == "" {
+		return nil, nil, fmt.Errorf("%w: a name and an alphanumeric key are required", ErrInvalidInput)
+	}
+	team, err := s.store.CreateTeam(ctx, orgID, userID, name, key, Slugify(name), description)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -69,6 +75,10 @@ func (s *TeamService) CreateTeam(ctx context.Context, orgID, userID uuid.UUID, n
 }
 
 func (s *TeamService) UpdateTeam(ctx context.Context, orgID, teamID uuid.UUID, name, description string) (*model.Team, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: name is required", ErrInvalidInput)
+	}
 	return s.store.UpdateTeam(ctx, orgID, teamID, name, Slugify(name), description)
 }
 

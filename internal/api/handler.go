@@ -319,6 +319,7 @@ func (h *Handler) Routes(r chi.Router) {
 
 	r.Get("/search", h.Search)
 	r.Get("/users/search", h.SearchUsersForMention)
+	r.Get("/users/{username}", h.UserPage)
 	r.Get("/tickets/search-mention", h.SearchTicketsForMention)
 
 	r.Post("/tickets/{ticketID}/comments", h.CreateComment)

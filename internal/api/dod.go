@@ -36,7 +36,7 @@ func (h *Handler) CreateDodItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := h.boards.CreateDodItem(r.Context(), orgID, boardID, text); err != nil {
-		http.Error(w, "failed to create item", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create item")
 		return
 	}
 	items, _ := h.boards.ListDodItems(r.Context(), orgID, boardID)

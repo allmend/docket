@@ -25,7 +25,7 @@ func (h *Handler) CreateColumn(w http.ResponseWriter, r *http.Request) {
 
 	_, err := h.boards.AddColumn(r.Context(), orgID, boardID, name)
 	if err != nil {
-		http.Error(w, "failed to create column", http.StatusInternalServerError)
+		serviceError(w, err, "failed to create column")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -49,7 +49,7 @@ func (h *Handler) RenameColumn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if _, err := h.boards.RenameColumn(r.Context(), orgID, columnID, name); err != nil {
-		http.Error(w, "failed to rename column", http.StatusInternalServerError)
+		serviceError(w, err, "failed to rename column")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")
@@ -64,7 +64,7 @@ func (h *Handler) DeleteColumn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.boards.DeleteColumn(r.Context(), orgID, columnID); err != nil {
-		http.Error(w, "failed to delete column", http.StatusInternalServerError)
+		serviceError(w, err, "failed to delete column")
 		return
 	}
 	w.Header().Set("HX-Trigger", "boardUpdated")

@@ -2,11 +2,13 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type RetroService struct {
@@ -27,15 +29,13 @@ func (s *RetroService) GetRetroBoard(ctx context.Context, orgID, retroBoardID uu
 	return s.store.GetRetroBoard(ctx, orgID, retroBoardID)
 }
 
-func (s *RetroService) GetRetroView(ctx context.Context, orgID, boardID uuid.UUID, sprintID *uuid.UUID) (*model.RetroView, error) {
-	board, err := s.store.GetBoard(ctx, orgID, boardID)
+// GetRetroView loads an existing retro board with its cards. It takes the
+// resolved retro board rather than get-or-creating one, so viewing a page can
+// never create a retro as a side effect.
+func (s *RetroService) GetRetroView(ctx context.Context, orgID uuid.UUID, rb *model.RetroBoard) (*model.RetroView, error) {
+	board, err := s.store.GetBoard(ctx, orgID, rb.BoardID)
 	if err != nil {
 		return nil, fmt.Errorf("get board: %w", err)
-	}
-
-	rb, err := s.store.GetOrCreateRetroBoard(ctx, orgID, boardID, sprintID)
-	if err != nil {
-		return nil, fmt.Errorf("get retro board: %w", err)
 	}
 
 	cards, err := s.store.ListRetroCards(ctx, orgID, rb.ID)
@@ -67,7 +67,12 @@ func (s *RetroService) GetRetroView(ctx context.Context, orgID, boardID uuid.UUI
 	return view, nil
 }
 
-func (s *RetroService) CreateCard(ctx context.Context, orgID, boardID, retroBoardID, authorID uuid.UUID, column model.RetroColumn, body string) (*model.RetroCard, error) {
+func (s *RetroService) CreateCard(ctx context.Context, orgID, retroBoardID, authorID uuid.UUID, column model.RetroColumn, body string) (*model.RetroCard, error) {
+	switch column {
+	case model.RetroWentWell, model.RetroDidntGoWell, model.RetroActionItem:
+	default:
+		return nil, fmt.Errorf("%w: unknown retro column %q", ErrInvalidInput, column)
+	}
 	return s.store.CreateRetroCard(ctx, orgID, retroBoardID, authorID, column, body)
 }
 
@@ -160,37 +165,53 @@ func (s *RetroService) GetSprintReviewData(ctx context.Context, orgID, boardID, 
 	}, nil
 }
 
-// AssignActionItemOwner assigns an owner to an action item card and creates a backlog ticket.
+// StackCard stacks one root card onto another on the same retro board. The
+// store enforces both being roots on the same board.
 func (s *RetroService) StackCard(ctx context.Context, orgID, cardID, parentID uuid.UUID) error {
 	if cardID == parentID {
-		return fmt.Errorf("cannot stack a card with itself")
+		return fmt.Errorf("%w: cannot stack a card with itself", ErrInvalidInput)
 	}
-	parent, err := s.store.GetRetroCard(ctx, orgID, parentID)
-	if err != nil {
-		return fmt.Errorf("parent card not found")
+	if err := s.store.StackRetroCard(ctx, orgID, cardID, parentID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("%w: cards must both be unstacked and on the same retro", ErrInvalidInput)
+		}
+		return err
 	}
-	if parent.ParentID != nil {
-		return fmt.Errorf("cannot stack onto a child card")
-	}
-	return s.store.StackRetroCard(ctx, orgID, cardID, parentID)
+	return nil
 }
 
 func (s *RetroService) UnstackCard(ctx context.Context, orgID, cardID uuid.UUID) error {
 	return s.store.UnstackRetroCard(ctx, orgID, cardID)
 }
 
+// AssignActionItemOwner assigns an owner to an action item card, creating its
+// backlog ticket the first time. Re-assigning reuses that ticket — creating a
+// fresh one on every owner change left duplicates in the backlog.
 func (s *RetroService) AssignActionItemOwner(ctx context.Context, orgID, cardID, ownerID, actorID uuid.UUID) (*model.RetroCard, error) {
 	card, err := s.store.GetRetroCard(ctx, orgID, cardID)
 	if err != nil {
 		return nil, fmt.Errorf("get card: %w", err)
 	}
 	if card.Column != model.RetroActionItem {
-		return nil, fmt.Errorf("only action items can have an owner")
+		return nil, fmt.Errorf("%w: only action items can have an owner", ErrInvalidInput)
 	}
 
 	owner, err := s.store.GetUserByID(ctx, orgID, ownerID)
 	if err != nil {
-		return nil, fmt.Errorf("get owner: %w", err)
+		return nil, fmt.Errorf("%w: unknown owner", ErrInvalidInput)
+	}
+
+	if card.TicketID != nil {
+		if card.OwnerID != nil && *card.OwnerID != ownerID {
+			_ = s.tickets.RemoveAssignee(ctx, orgID, *card.TicketID, *card.OwnerID, actorID)
+		}
+		_ = s.tickets.AddAssignee(ctx, orgID, *card.TicketID, ownerID, actorID)
+		if err := s.store.AssignRetroCardOwner(ctx, orgID, cardID, ownerID, *card.TicketID, owner.Name); err != nil {
+			return nil, fmt.Errorf("assign owner: %w", err)
+		}
+		card.OwnerID = &ownerID
+		card.OwnerName = owner.Name
+		return card, nil
 	}
 
 	// Get the retro board → board → columns to create a backlog ticket.

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/allmend/docket/internal/metrics"
 	"github.com/allmend/docket/internal/model"
@@ -17,6 +18,15 @@ type TicketService struct {
 
 func NewTicketService(st *store.Store, notifications *NotificationService) *TicketService {
 	return &TicketService{store: st, notifications: notifications}
+}
+
+// actorName resolves the display name recorded in ticket history. Empty when the
+// actor can't be found — history is still written, just unattributed.
+func (s *TicketService) actorName(ctx context.Context, orgID, actorID uuid.UUID) string {
+	if actor, _ := s.store.GetUserByID(ctx, orgID, actorID); actor != nil {
+		return actor.Name
+	}
+	return ""
 }
 
 func (s *TicketService) GetTicket(ctx context.Context, orgID, ticketID uuid.UUID) (*model.Ticket, error) {
@@ -82,7 +92,7 @@ func (s *TicketService) CreateTicketInTeam(ctx context.Context,
 		return nil, fmt.Errorf("next ticket number: %w", err)
 	}
 
-	maxPos, err := s.store.MaxTicketPositionInColumn(ctx, columnID)
+	maxPos, err := s.store.MaxTicketPositionInColumn(ctx, orgID, columnID)
 	if err != nil {
 		return nil, fmt.Errorf("max position: %w", err)
 	}
@@ -116,7 +126,7 @@ func (s *TicketService) CreateTicket(ctx context.Context,
 		}
 	}
 
-	maxPos, err := s.store.MaxTicketPositionInColumn(ctx, columnID)
+	maxPos, err := s.store.MaxTicketPositionInColumn(ctx, orgID, columnID)
 	if err != nil {
 		return nil, fmt.Errorf("max position: %w", err)
 	}
@@ -151,17 +161,21 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 	if old.ClosedAt != nil {
 		return nil, ErrTicketClosed
 	}
+	// A nil assignee means "not supplied", not "unassign": the UI edit form has
+	// no assignee field, so treating nil as a clear wiped the assignee on every
+	// title/body edit. A supplied one must be a user of this org.
+	if assigneeID == nil {
+		assigneeID = old.AssigneeID
+	} else if _, err := s.store.GetUserByID(ctx, orgID, *assigneeID); err != nil {
+		return nil, fmt.Errorf("%w: unknown assignee", ErrInvalidInput)
+	}
 
 	updated, err := s.store.UpdateTicket(ctx, orgID, ticketID, title, body, priority, assigneeID)
 	if err != nil {
 		return nil, err
 	}
 
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	actorName := ""
-	if actor != nil {
-		actorName = actor.Name
-	}
+	actorName := s.actorName(ctx, orgID, actorID)
 
 	for _, c := range ticketFieldChanges(old, updated) {
 		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, c.Field, c.Old, c.New)
@@ -176,6 +190,24 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 	orgID, ticketID, targetColumnID, actorID uuid.UUID,
 	prevPos, nextPos float64,
 ) (float64, error) {
+	old, err := s.store.GetTicket(ctx, orgID, ticketID)
+	if err != nil {
+		return 0, err
+	}
+	// A nil target keeps the current column (backlog reordering). Anything else
+	// must be a column on the ticket's own board — checked before the rebalance
+	// below, which would otherwise renumber some other board's column first.
+	var newCol *model.Column
+	if targetColumnID != uuid.Nil {
+		newCol, err = s.store.GetColumn(ctx, orgID, targetColumnID)
+		if err != nil {
+			return 0, err
+		}
+		if newCol.BoardID != old.BoardID {
+			return 0, fmt.Errorf("%w: column is on a different board", ErrInvalidInput)
+		}
+	}
+
 	newPos, needsRebalance := nextPosition(prevPos, nextPos)
 	if needsRebalance {
 		// Renumber the column and compute the drop slot from the renumbered
@@ -196,7 +228,7 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 
 	// Capture from-column info before the move for the transition counter.
 	var fromCol, fromTeam string
-	if old, err := s.store.GetTicket(ctx, orgID, ticketID); err == nil && old.ColumnID != uuid.Nil {
+	if old.ColumnID != uuid.Nil {
 		fromCol, fromTeam, _ = s.store.GetColumnMeta(ctx, old.ColumnID)
 	}
 
@@ -204,14 +236,12 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		return 0, err
 	}
 
-	ticket, _ := s.store.GetTicket(ctx, orgID, ticketID)
-	newCol, _ := s.store.GetColumn(ctx, orgID, targetColumnID)
-	if ticket != nil && newCol != nil {
+	if newCol != nil {
 		colDone := isDone(newCol.Name)
-		if colDone && ticket.ClosedAt == nil {
+		if colDone && old.ClosedAt == nil {
 			_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
 			s.unblockOnClose(ctx, orgID, ticketID, actorID)
-		} else if !colDone && ticket.ClosedAt != nil {
+		} else if !colDone && old.ClosedAt != nil {
 			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 		}
 
@@ -238,8 +268,11 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 	if err != nil {
 		return nil, fmt.Errorf("get column: %w", err)
 	}
+	if newCol.BoardID != old.BoardID {
+		return nil, fmt.Errorf("%w: column is on a different board", ErrInvalidInput)
+	}
 
-	maxPos, _ := s.store.MaxTicketPositionInColumn(ctx, columnID)
+	maxPos, _ := s.store.MaxTicketPositionInColumn(ctx, orgID, columnID)
 	if err := s.store.MoveTicket(ctx, orgID, ticketID, columnID, maxPos+1000); err != nil {
 		return nil, err
 	}
@@ -253,11 +286,7 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 		_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 	}
 
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	actorName := ""
-	if actor != nil {
-		actorName = actor.Name
-	}
+	actorName := s.actorName(ctx, orgID, actorID)
 	oldName := ""
 	if oldCol != nil {
 		oldName = oldCol.Name
@@ -280,17 +309,16 @@ func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, act
 		return nil, err
 	}
 	if old != nil && old.Priority != priority {
-		actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-		actorName := ""
-		if actor != nil {
-			actorName = actor.Name
-		}
+		actorName := s.actorName(ctx, orgID, actorID)
 		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "priority", string(old.Priority), string(priority))
 	}
 	return t, nil
 }
 
 func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actorID uuid.UUID, points *float64) (*model.Ticket, error) {
+	if points != nil && (*points < 0 || math.IsNaN(*points) || math.IsInf(*points, 0)) {
+		return nil, fmt.Errorf("%w: story points must be a non-negative number", ErrInvalidInput)
+	}
 	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
 	if old != nil && old.ClosedAt != nil {
 		return nil, ErrTicketClosed
@@ -308,11 +336,7 @@ func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actor
 			newVal = fmt.Sprintf("%g", *points)
 		}
 		if oldVal != newVal {
-			actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-			actorName := ""
-			if actor != nil {
-				actorName = actor.Name
-			}
+			actorName := s.actorName(ctx, orgID, actorID)
 			_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "story_points", oldVal, newVal)
 		}
 	}
@@ -324,11 +348,7 @@ func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorI
 	if err != nil {
 		return nil, err
 	}
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	actorName := ""
-	if actor != nil {
-		actorName = actor.Name
-	}
+	actorName := s.actorName(ctx, orgID, actorID)
 	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "closed", "", reason)
 	s.unblockOnClose(ctx, orgID, ticketID, actorID)
 	return t, nil
@@ -342,10 +362,7 @@ func (s *TicketService) unblockOnClose(ctx context.Context, orgID, ticketID, act
 	if err != nil || len(links) == 0 {
 		return
 	}
-	actorName := ""
-	if actor, _ := s.store.GetUserByID(ctx, orgID, actorID); actor != nil {
-		actorName = actor.Name
-	}
+	actorName := s.actorName(ctx, orgID, actorID)
 	for _, l := range links {
 		_ = s.store.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, "")
 		_ = s.store.AppendHistory(ctx, l.FromTicketID, actorID, actorName, "link_cleared", "blocks "+l.ToDisplayID, "")
@@ -358,36 +375,30 @@ func (s *TicketService) ReopenTicket(ctx context.Context, orgID, ticketID, actor
 	if err != nil {
 		return nil, err
 	}
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	actorName := ""
-	if actor != nil {
-		actorName = actor.Name
-	}
+	actorName := s.actorName(ctx, orgID, actorID)
 	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "reopened", "", "")
 	return t, nil
 }
 
-func (s *TicketService) ListAssignees(ctx context.Context, ticketID uuid.UUID) ([]model.User, error) {
-	return s.store.ListTicketAssignees(ctx, ticketID)
+func (s *TicketService) ListAssignees(ctx context.Context, orgID, ticketID uuid.UUID) ([]model.User, error) {
+	return s.store.ListTicketAssignees(ctx, orgID, ticketID)
 }
 
 func (s *TicketService) AddAssignee(ctx context.Context, orgID, ticketID, userID, actorID uuid.UUID) error {
 	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
 		return err
 	}
+	// Resolved up front: the store insert silently skips a user from another
+	// org, and history plus a notification would still be written for them.
+	added, err := s.store.GetUserByID(ctx, orgID, userID)
+	if err != nil {
+		return fmt.Errorf("%w: unknown user", ErrInvalidInput)
+	}
 	if err := s.store.AddTicketAssignee(ctx, orgID, ticketID, userID); err != nil {
 		return err
 	}
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	added, _ := s.store.GetUserByID(ctx, orgID, userID)
-	actorName, addedName := "", ""
-	if actor != nil {
-		actorName = actor.Name
-	}
-	if added != nil {
-		addedName = added.Name
-	}
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "assignee", "", addedName)
+	actorName := s.actorName(ctx, orgID, actorID)
+	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "assignee", "", added.Name)
 	if s.notifications != nil && userID != actorID {
 		s.notifications.Notify(ctx, orgID, userID, &ticketID, &actorID, actorName, "assigned")
 	}
@@ -402,15 +413,11 @@ func (s *TicketService) RemoveAssignee(ctx context.Context, orgID, ticketID, use
 	if err := s.store.RemoveTicketAssignee(ctx, orgID, ticketID, userID); err != nil {
 		return err
 	}
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	actorName, removedName := "", ""
-	if actor != nil {
-		actorName = actor.Name
-	}
+	removedName := ""
 	if removed != nil {
 		removedName = removed.Name
 	}
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "assignee", removedName, "")
+	_ = s.store.AppendHistory(ctx, ticketID, actorID, s.actorName(ctx, orgID, actorID), "assignee", removedName, "")
 	return nil
 }
 
@@ -443,11 +450,7 @@ func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, 
 		return nil, err
 	}
 	if old != nil && old.Title != title {
-		actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-		actorName := ""
-		if actor != nil {
-			actorName = actor.Name
-		}
+		actorName := s.actorName(ctx, orgID, actorID)
 		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "title", old.Title, title)
 	}
 	return t, nil
@@ -461,11 +464,7 @@ func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, a
 	if err != nil {
 		return nil, err
 	}
-	actor, _ := s.store.GetUserByID(ctx, orgID, actorID)
-	actorName := ""
-	if actor != nil {
-		actorName = actor.Name
-	}
+	actorName := s.actorName(ctx, orgID, actorID)
 	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "description", "(previous)", "(updated)")
 	return t, nil
 }

@@ -42,6 +42,18 @@ func (s *Store) GetAPITokenByHash(ctx context.Context, hash string) (*model.APIT
 	return &t, nil
 }
 
+func (s *Store) GetAPIToken(ctx context.Context, orgID, tokenID uuid.UUID) (*model.APIToken, error) {
+	var t model.APIToken
+	err := scanToken(s.replica.QueryRow(ctx,
+		`SELECT `+tokenCols+` FROM api_tokens WHERE org_id = $1 AND id = $2`,
+		orgID, tokenID,
+	), &t)
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
 func (s *Store) ListAPITokens(ctx context.Context, orgID uuid.UUID) ([]model.APIToken, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT `+tokenCols+` FROM api_tokens
@@ -105,10 +117,17 @@ func (s *Store) ListOrgMembers(ctx context.Context, orgID uuid.UUID) ([]model.Us
 	return out, rows.Err()
 }
 
+// UpdateUserRole changes a user's role. A demotion only goes through while some
+// other admin remains, so an org can never lock itself out of its admin
+// functions. Returns pgx.ErrNoRows when the user is unknown or the demotion
+// would remove the last admin.
 func (s *Store) UpdateUserRole(ctx context.Context, orgID, userID uuid.UUID, role string) error {
-	_, err := s.primary.Exec(ctx,
-		`UPDATE users SET role = $1, updated_at = NOW() WHERE org_id = $2 AND id = $3`,
+	tag, err := s.primary.Exec(ctx,
+		`UPDATE users SET role = $1, updated_at = NOW()
+		 WHERE org_id = $2 AND id = $3
+		   AND ($1 = 'admin' OR EXISTS (
+		       SELECT 1 FROM users WHERE org_id = $2 AND role = 'admin' AND id <> $3))`,
 		role, orgID, userID,
 	)
-	return err
+	return noRowsIfUnaffected(tag, err)
 }
