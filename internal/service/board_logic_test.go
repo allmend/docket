@@ -136,3 +136,25 @@ func TestCheckDoneColumnName(t *testing.T) {
 		})
 	}
 }
+
+func TestDailyParticipants(t *testing.T) {
+	alice := model.User{ID: uuid.New(), Name: "Alice"}
+	bob := model.User{ID: uuid.New(), Name: "Bob"}
+	carol := model.User{ID: uuid.New(), Name: "Carol"} // has work, not a team member
+
+	groups := []model.DailyScrumGroup{{User: bob}, {User: carol}}
+	got := dailyParticipants([]model.User{alice, bob}, groups)
+
+	want := []uuid.UUID{alice.ID, bob.ID, carol.ID}
+	if len(got) != len(want) {
+		t.Fatalf("got %d participants, want %d (%v)", len(got), len(want), got)
+	}
+	for i, id := range want {
+		if got[i].ID != id {
+			t.Errorf("participant %d = %s, want members first, then non-member assignees", i, got[i].Name)
+		}
+	}
+	if len(dailyParticipants(nil, nil)) != 0 {
+		t.Error("empty team with no work should have no participants")
+	}
+}

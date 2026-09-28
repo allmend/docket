@@ -813,10 +813,32 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 		ActiveSprint: activeSprint,
 		Groups:       result,
 		Unassigned:   unassigned,
-		AllAssignees: allAssignees,
+		AllAssignees: dailyParticipants(allAssignees, result),
 		AllTags:      allTags,
 		Filters:      filters,
 	}, nil
+}
+
+// dailyParticipants is the stand-up round: the team's members, then anyone else
+// holding a ticket in the sprint. The rail used to list members only, while
+// tickets are grouped by assignee, so work assigned to a non-member (common,
+// since workspace creators weren't added as members) never came up.
+func dailyParticipants(members []model.User, groups []model.DailyScrumGroup) []model.User {
+	seen := make(map[uuid.UUID]bool, len(members))
+	out := make([]model.User, 0, len(members)+len(groups))
+	for _, u := range members {
+		if !seen[u.ID] {
+			seen[u.ID] = true
+			out = append(out, u)
+		}
+	}
+	for _, g := range groups {
+		if !seen[g.User.ID] {
+			seen[g.User.ID] = true
+			out = append(out, g.User)
+		}
+	}
+	return out
 }
 
 func filterDailyScrumTickets(tickets []model.Ticket, f model.DailyScrumFilters) []model.Ticket {

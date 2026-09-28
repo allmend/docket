@@ -15,6 +15,9 @@
 {{$board   := .Board}}
 {{$team    := .Team}}
 {{$sprint  := .ActiveSprint}}
+{{/* The round is every participant plus, when there is unassigned work, a final
+     "Unassigned" turn — otherwise those tickets never come up in the stand-up. */}}
+{{$rounds  := len .AllAssignees}}{{if .Unassigned}}{{$rounds = add $rounds 1}}{{end}}
 
 <div class="flex-1 min-h-0 flex flex-col overflow-hidden"
      x-data="{
@@ -22,7 +25,8 @@
        spokenIdxs: [],
        selectSpeaker(idx, aid) {
          this.speakerIdx = idx;
-         htmx.ajax('GET', '/boards/{{$board.ID}}/daily/tickets?assignee_id='+aid, {target:'#daily-speaker-panel', swap:'innerHTML'});
+         const q = aid === 'unassigned' ? 'unassigned=1' : 'assignee_id=' + aid;
+         htmx.ajax('GET', '/boards/{{$board.ID}}/daily/tickets?' + q, {target:'#daily-speaker-panel', swap:'innerHTML'});
        },
        next(aids) {
          if (this.speakerIdx >= 0) this.spokenIdxs.push(this.speakerIdx);
@@ -74,22 +78,23 @@
       {{end}}
     </div>
 
-    {{if .AllAssignees}}
+    {{if $rounds}}
     <!-- Progress: X / N spoke -->
     <div class="flex items-center gap-2 shrink-0 ml-2">
       <span class="mono text-[13px] text-base-600"
-            x-text="spokenIdxs.length + ' / {{len .AllAssignees}} spoke'"></span>
+            x-text="spokenIdxs.length + ' / {{$rounds}} spoke'"></span>
       <div class="w-24 h-1 bg-base-300 rounded-sm overflow-hidden">
         <div class="h-full bg-primary-500 transition-all"
-             :style="'width:' + Math.round(spokenIdxs.length / {{len .AllAssignees}} * 100) + '%'"></div>
+             :style="'width:' + Math.round(spokenIdxs.length / {{$rounds}} * 100) + '%'"></div>
       </div>
     </div>
     {{end}}
 
     <div class="ml-auto flex items-center gap-2 shrink-0">
-      {{if .AllAssignees}}
-      {{/* serialize assignee IDs for Alpine */}}
+      {{if $rounds}}
+      {{/* serialize assignee IDs for Alpine; "unassigned" is the last turn */}}
       {{$aids := ""}}{{range $i, $u := .AllAssignees}}{{if $i}}{{$aids = printf "%s," $aids}}{{end}}{{$aids = printf "%s'%s'" $aids $u.ID}}{{end}}
+      {{if .Unassigned}}{{if .AllAssignees}}{{$aids = printf "%s," $aids}}{{end}}{{$aids = printf "%s'unassigned'" $aids}}{{end}}
       <button type="button"
               @click="pass([{{$aids}}])"
               class="h-8 px-3 bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-900">Pass</button>
@@ -126,7 +131,7 @@
     <!-- Left: participant rail -->
     <div class="border-r border-base-300 overflow-y-auto bg-base-100 flex flex-col">
       <div class="sticky top-0 bg-base-100/95 backdrop-blur px-3 h-9 flex items-center justify-between border-b border-base-300 z-10">
-        <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">round · {{len .AllAssignees}}</span>
+        <span class="mono text-[13px] uppercase tracking-[0.16em] text-base-600">round · {{$rounds}}</span>
         <span class="inline-flex items-center gap-1 mono text-[12px] text-base-600" title="Move between people">
           <kbd class="bg-base-250 border border-base-350 rounded-sm px-1 leading-none">j</kbd>
           <kbd class="bg-base-250 border border-base-350 rounded-sm px-1 leading-none">k</kbd>
@@ -189,18 +194,44 @@
       </div>
       {{end}}
 
-      {{/* If nobody has tickets, show unassigned count */}}
+      {{/* Unassigned work is the last turn of the round: selectable like a person
+           (click, j/k, Next person), loading the unassigned tickets. It used to be
+           a dimmed counter nothing could open. */}}
       {{if .Unassigned}}
-      <div class="flex items-center gap-2.5 pl-3 pr-3 py-2.5 border-b border-base-300 opacity-50">
+      {{$ui := len .AllAssignees}}
+      {{$ublocked := 0}}{{range .Unassigned}}{{if .Ticket.IsBlocked}}{{$ublocked = add $ublocked 1}}{{end}}{{end}}
+      <div class="flex items-center gap-2.5 pl-3 pr-3 py-2.5 cursor-pointer select-none
+                  border-b border-b-base-300 border-l-2 border-l-transparent"
+           data-speaker-row
+           data-speaker-idx="{{$ui}}"
+           data-assignee-id="unassigned"
+           :class="speakerIdx === {{$ui}} ? '!bg-base-250 ring-1 ring-info/30 !border-l-info' : 'hover:bg-base-250/40'"
+           @click="selectSpeaker({{$ui}}, 'unassigned')">
         <span class="w-5 flex items-center justify-center shrink-0">
-          <span class="w-2 h-2 rounded-full border border-base-500"></span>
+          <template x-if="spokenIdxs.includes({{$ui}})">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="2"><path d="M3 8.5l3.2 3.2L13 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </template>
+          <template x-if="speakerIdx === {{$ui}} && !spokenIdxs.includes({{$ui}})">
+            <span class="w-2 h-2 rounded-full bg-info animate-pulse"></span>
+          </template>
+          <template x-if="speakerIdx !== {{$ui}} && !spokenIdxs.includes({{$ui}})">
+            <span class="w-2 h-2 rounded-full border border-base-500"></span>
+          </template>
         </span>
         <span class="w-8 h-8 rounded-sm border border-dashed border-base-500 text-base-600 inline-flex items-center justify-center text-[13px] shrink-0">?</span>
         <div class="min-w-0 flex-1">
-          <div class="text-[14px] text-base-800">Unassigned</div>
+          <div class="text-[14px] truncate"
+               :class="speakerIdx === {{$ui}} ? 'text-base-950 font-medium' : 'text-base-900'">Unassigned</div>
           <div class="mono text-[12px] text-base-600">{{len .Unassigned}}t</div>
         </div>
-        <span class="mono text-[12px] text-base-600">{{len .Unassigned}}t</span>
+        <div class="flex flex-col items-end gap-1 shrink-0">
+          <span class="mono text-[12px] text-base-600">{{len .Unassigned}}t</span>
+          {{if gt $ublocked 0}}
+          <span class="inline-flex items-center gap-1 mono text-[12px] text-danger">
+            <span class="w-1.5 h-1.5 rounded-full bg-danger"></span>{{$ublocked}}
+          </span>
+          {{end}}
+        </div>
       </div>
       {{end}}
 
