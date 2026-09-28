@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.2] - 2026-09-28
+
+### Fixed
+- Ticking an acceptance-criteria item ticks that item. Toggling counted every `[ ]` and `[x]` anywhere in the text, so brackets inside an item (`a[x]`) or on a line that isn't an item shifted the count and flipped the wrong box. Toggling, deleting and the list itself now share one definition of an item.
+- A column can no longer be renamed to "Done", and a board can't get a second Done column. Either created a Done column that could never be renamed or deleted again. Column names are trimmed, and a blank name is rejected.
+- Creating a link that already exists succeeds and returns the existing link instead of failing with a 500, and records no duplicate history.
+- The New Ticket dialog's priority menu shows all five options; it was clipped after the first two. Story points are picked from the same 1/2/3/5/8/13 scale as on the ticket page instead of typed in.
+- Changing a ticket's status from its page or the drawer refreshes the view, so a ticket moved to Done switches to its closed, read-only state straight away.
+- Workspace key badges fit keys longer than four characters, on the workspace list and in the New Ticket workspace picker.
+
+### Changed
+- Creating a ticket keeps you where you are: the dialog closes (or clears, with "Add another") and a notice links to the new ticket, instead of navigating to it.
+- The workspace dashboard is headed with the workspace's name instead of "Dashboard".
+
 ## [0.14.1] - 2026-09-28
 
 ### Fixed
