@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Unassigned tickets take part in the Daily Scrum. They were counted in the participant list but could never be opened, and Next person skipped them; "Unassigned" is now the last turn of the round.
+- Anyone assigned a ticket in the sprint comes up in the Daily Scrum round, not only the workspace's members.
+
 ## [0.14.3] - 2026-09-28
 
 ### Fixed
