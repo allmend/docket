@@ -305,7 +305,7 @@
            teamName:     $el.dataset.defaultTeamName || 'Select workspace',
            pickerOpen:   false,
            priority:     '',
-           priorityOpen: false,
+           priorityColors: { critical: '#f85149', high: '#ff8c42', medium: '#d29922', low: '#58a6ff' },
            addAnother:   false
          }"
          x-effect="if (newTicketModal) $nextTick(() => $refs.ntTitle && $refs.ntTitle.focus())">
@@ -345,75 +345,61 @@
         </button>
       </header>
 
+      {{/* The after-request logic lives in Alpine (x-on), not hx-on: it needs $el,
+           $refs and the modal's own state, none of which exist in an hx-on handler.
+           As hx-on it threw on its first line, so the form was never reset and the
+           dialog never closed. The form is always cleared — creating no longer
+           navigates away, so a closed dialog would otherwise reopen pre-filled.
+           elt === $el ignores htmx requests from inside the form (the editor). */}}
       <form hx-post="/tickets/new"
-            :data-add-another="addAnother"
-            hx-on::after-request="if(event.detail.successful){ if($el.dataset.addAnother==='true'){ $el.reset(); $refs.ntTitle.focus(); } else { window.dispatchEvent(new CustomEvent('close-new-ticket-modal')); } document.body.dispatchEvent(new CustomEvent('boardUpdated')); }"
+            x-on:htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) { $el.reset(); priority = ''; if (addAnother) { $refs.ntTitle.focus() } else { newTicketModal = false } document.body.dispatchEvent(new CustomEvent('boardUpdated')) }"
             @keydown.meta.enter.prevent="$el.requestSubmit()"
-            @keydown.ctrl.enter.prevent="$el.requestSubmit()"
-            class="p-5 space-y-3">
-        <input type="hidden" name="team_id"  :value="teamID" />
-        <input type="hidden" name="priority" :value="priority" />
-        <input x-ref="ntTitle" type="text" name="title" required
-               placeholder="Ticket title…"
-               class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />
-        {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add description — what & why. (@username, #TICKET-ID)" "Rows" "10")}}
-        <div class="grid grid-cols-2 gap-2 pt-1">
-          <!-- Priority -->
-          <div class="relative">
-            <button type="button" @click="priorityOpen = !priorityOpen"
-                    class="w-full bg-base-150 border border-base-300 hover:border-base-400 rounded h-8 px-2.5 flex items-center gap-2 shadow-sunk">
-              <span :class="{'bg-p0':priority==='critical','bg-p1':priority==='high','bg-p2':priority==='medium','bg-p3':priority==='low','bg-base-500':!priority}"
-                    class="w-1 h-3 rounded-sm shrink-0"></span>
-              <span class="mono text-[13px] text-base-900" x-text="priority ? ({low:'P3 · Low',medium:'P2 · Medium',high:'P1 · High',critical:'P0 · Critical'}[priority]) : 'Priority'"></span>
-              <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" class="text-base-600 ml-auto shrink-0"><path d="m4 6 4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            {{/* Opens upward: the modal card is overflow-hidden (rounded corners), and
-                 this row sits just above the footer, so a downward menu was clipped
-                 after the first two options. */}}
-            <div x-show="priorityOpen" @click.outside="priorityOpen = false"
-                 class="absolute bottom-full mb-1 left-0 w-full bg-base-250 border border-base-350 rounded shadow-pop z-10 py-1 overflow-hidden">
-              <button type="button" @click="priority=''; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
-                <span class="w-1 h-3 rounded-sm bg-base-500 shrink-0"></span><span class="mono text-[13px]">—</span><span class="text-base-700 ml-1">None</span>
-              </button>
-              <button type="button" @click="priority='low'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
-                <span class="w-1 h-3 rounded-sm bg-p3 shrink-0"></span><span class="mono text-[13px]">P3</span><span class="text-base-700 ml-1">Low</span>
-              </button>
-              <button type="button" @click="priority='medium'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
-                <span class="w-1 h-3 rounded-sm bg-p2 shrink-0"></span><span class="mono text-[13px]">P2</span><span class="text-base-700 ml-1">Medium</span>
-              </button>
-              <button type="button" @click="priority='high'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
-                <span class="w-1 h-3 rounded-sm bg-p1 shrink-0"></span><span class="mono text-[13px]">P1</span><span class="text-base-700 ml-1">High</span>
-              </button>
-              <button type="button" @click="priority='critical'; priorityOpen=false" class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300">
-                <span class="w-1 h-3 rounded-sm bg-p0 shrink-0"></span><span class="mono text-[13px]">P0</span><span class="text-base-700 ml-1">Critical</span>
-              </button>
+            @keydown.ctrl.enter.prevent="$el.requestSubmit()">
+        <input type="hidden" name="team_id" :value="teamID" />
+        <div class="p-5 space-y-3">
+          <input x-ref="ntTitle" type="text" name="title" required
+                 placeholder="Ticket title…"
+                 class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />
+          {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add description — what & why. (@username, #TICKET-ID)" "Rows" "10")}}
+          {{/* Native selects styled like the ticket drawer's, as in the New Ticket
+               design: browser menu, arrow keys and type-ahead for free, and nothing
+               to clip inside the overflow-hidden card. */}}
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div class="selwrap">
+              <span class="swatch" :style="{ backgroundColor: priorityColors[priority] || '#484f58' }"></span>
+              <select name="priority" x-model="priority" class="metasel has-swatch" aria-label="Priority">
+                <option value="">Priority</option>
+                <option value="low">P3 · Low</option>
+                <option value="medium">P2 · Medium</option>
+                <option value="high">P1 · High</option>
+                <option value="critical">P0 · Critical</option>
+              </select>
+              <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div class="selwrap">
+              <select name="story_points" class="metasel pts" aria-label="Story points">
+                <option value="">Points</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="5">5</option>
+                <option value="8">8</option>
+                <option value="13">13</option>
+              </select>
+              <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
           </div>
-          <!-- Story points: the same fixed scale and select styling as the ticket page -->
-          <div class="selwrap">
-            <select name="story_points" class="metasel pts" aria-label="Story points">
-              <option value="">Points</option>
-              <option value="1">1</option>
-              <option value="2">2</option>
-              <option value="3">3</option>
-              <option value="5">5</option>
-              <option value="8">8</option>
-              <option value="13">13</option>
-            </select>
-            <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </div>
         </div>
-        <div class="flex items-center gap-3 border-t border-base-300 bg-base-100/40 -mx-5 -mb-5 px-4 h-12">
-          <!-- Add another toggle -->
-          <button type="button" @click="addAnother = !addAnother"
-                  class="inline-flex items-center gap-2 select-none shrink-0">
+        <footer class="h-12 px-4 flex items-center gap-3 border-t border-base-300 bg-base-100/40">
+          <button type="button" role="switch" :aria-checked="addAnother" @click="addAnother = !addAnother"
+                  class="inline-flex items-center gap-2 group select-none shrink-0 whitespace-nowrap">
             <span class="relative w-[34px] h-[20px] rounded-full border transition-colors shrink-0"
                   :class="addAnother ? 'bg-primary-500/20 border-primary-500/50' : 'bg-base-350 border-base-400'">
               <span class="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full transition-all"
                     :class="addAnother ? 'bg-primary-400' : 'bg-base-700'"
-                    :style="addAnother ? 'left:16px' : 'left:2px'"></span>
+                    :style="{ left: addAnother ? '16px' : '2px' }"></span>
             </span>
-            <span class="text-[14px]" :class="addAnother ? 'text-base-900' : 'text-base-800'">Add another</span>
+            <span class="text-[14px]" :class="addAnother ? 'text-base-900' : 'text-base-800 group-hover:text-base-900'">Add another</span>
           </button>
           <div class="ml-auto flex items-center gap-2">
             <button type="button" @click="newTicketModal = false"
@@ -421,7 +407,7 @@
             <button type="submit"
                     class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[15px] px-3 py-1 rounded shadow-lift">Create ticket</button>
           </div>
-        </div>
+        </footer>
       </form>
     </div>
   </div>
@@ -436,9 +422,11 @@
        @mouseleave="timer = setTimeout(() => ref = '', 2000)"
        x-show="ref" x-cloak
        x-transition:leave="transition-opacity duration-150" x-transition:leave-end="opacity-0"
-       class="fixed bottom-4 right-4 z-[70] flex items-center gap-3 bg-base-250 border border-base-350 rounded-md shadow-pop px-3.5 h-10 text-[14px] text-base-900"
+       class="fixed bottom-5 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-2.5 bg-base-250 border border-base-350 rounded-md shadow-pop px-3.5 py-2.5 text-[14px] text-base-900"
        role="status" aria-live="polite">
-    <span class="w-1.5 h-1.5 rounded-full bg-primary-500 shrink-0"></span>
+    <span class="w-4 h-4 rounded-full bg-primary-500/15 border border-primary-500/40 inline-flex items-center justify-center shrink-0">
+      <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="#10b981" stroke-width="2.4"><path d="m3 8 3.5 3.5L13 4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </span>
     <span>Created <a :href="'/tickets/' + ref" class="mono text-primary-400 hover:underline" x-text="ref"></a></span>
     <button type="button" @click="ref = ''" class="text-base-600 hover:text-base-900" aria-label="dismiss">
       <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m3 3 10 10M13 3 3 13"/></svg>
