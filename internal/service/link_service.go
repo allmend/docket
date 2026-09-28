@@ -37,9 +37,12 @@ func (s *LinkService) CreateLink(ctx context.Context, orgID, viewTicketID, fromT
 	if err := assertTicketOpen(ctx, s.store, orgID, viewTicketID); err != nil {
 		return nil, err
 	}
-	link, err := s.store.CreateLink(ctx, orgID, fromTicketID, toTicketID, relation)
+	link, created, err := s.store.CreateLink(ctx, orgID, fromTicketID, toTicketID, relation)
 	if err != nil {
 		return nil, err
+	}
+	if !created {
+		return link, nil // already linked: nothing changed, nothing to record
 	}
 
 	actorName := s.actorName(ctx, orgID, actorID)

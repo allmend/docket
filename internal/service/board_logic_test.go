@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/allmend/docket/internal/model"
@@ -102,5 +103,36 @@ func TestFilterDailyScrumTicketsCombined(t *testing.T) {
 	})
 	if len(got) != 1 || got[0].Title != "Fix login bug" {
 		t.Errorf("combined filters failed: %+v", got)
+	}
+}
+
+func TestCheckDoneColumnName(t *testing.T) {
+	withDone := []model.Column{{Name: "To Do"}, {Name: "Done"}}
+	withoutDone := []model.Column{{Name: "Ideas"}}
+
+	tests := []struct {
+		name     string
+		existing []model.Column
+		col      string
+		renaming bool
+		wantErr  bool
+	}{
+		{"ordinary rename", withDone, "In Review", true, false},
+		{"rename to Done", withoutDone, "Done", true, true},
+		{"rename to done, any case", withoutDone, "dOnE", true, true},
+		{"add second Done", withDone, "done", false, true},
+		{"add first Done to a blank board", withoutDone, "Done", false, false},
+		{"add ordinary column", withDone, "QA", false, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := checkDoneColumnName(tc.existing, tc.col, tc.renaming)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tc.wantErr)
+			}
+			if err != nil && !errors.Is(err, ErrInvalidInput) {
+				t.Errorf("err = %v, want ErrInvalidInput (maps to 400)", err)
+			}
+		})
 	}
 }

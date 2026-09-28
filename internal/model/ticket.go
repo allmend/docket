@@ -75,16 +75,28 @@ type ACItem struct {
 	Checked bool
 }
 
+// ParseACLine reports whether line is an acceptance-criteria checklist item
+// ("- [ ] text" or "- [x] text", leading whitespace allowed) and returns it.
+// It is the one definition of "an item": the rendered list, toggling and
+// deleting all count items through it, so an index means the same thing to all
+// three — brackets elsewhere in the text are not checkboxes.
+func ParseACLine(line string) (ACItem, bool) {
+	line = strings.TrimSpace(line)
+	switch {
+	case strings.HasPrefix(line, "- [x] "), strings.HasPrefix(line, "- [X] "):
+		return ACItem{Text: line[6:], Checked: true}, true
+	case strings.HasPrefix(line, "- [ ] "):
+		return ACItem{Text: line[6:], Checked: false}, true
+	}
+	return ACItem{}, false
+}
+
 // ACItems parses the acceptance_criteria field into a slice of checklist items.
-// Each non-empty line is expected in "- [ ] text" or "- [x] text" format.
 func (t Ticket) ACItems() []ACItem {
 	var items []ACItem
 	for _, line := range strings.Split(t.AcceptanceCriteria, "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "- [x] ") || strings.HasPrefix(line, "- [X] ") {
-			items = append(items, ACItem{Text: line[6:], Checked: true})
-		} else if strings.HasPrefix(line, "- [ ] ") {
-			items = append(items, ACItem{Text: line[6:], Checked: false})
+		if item, ok := ParseACLine(line); ok {
+			items = append(items, item)
 		}
 	}
 	return items

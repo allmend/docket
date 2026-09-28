@@ -85,6 +85,22 @@ func TestToggleNthCheckbox(t *testing.T) {
 	}
 }
 
+// The index comes from the rendered list (model.Ticket.ACItems), so toggling
+// must count items exactly as that does: brackets inside an item's text, or on
+// a line that isn't an item, are not checkboxes.
+func TestToggleNthCheckboxCountsOnlyItems(t *testing.T) {
+	src := "Notes about [x] and [ ]\n- [ ] support a[x] syntax\n  - [ ] indented second"
+
+	got := toggleNthCheckbox(src, 1)
+	want := "Notes about [x] and [ ]\n- [ ] support a[x] syntax\n  - [x] indented second"
+	if got != want {
+		t.Errorf("toggle second item:\n got %q\nwant %q", got, want)
+	}
+	if n := len((model.Ticket{AcceptanceCriteria: src}).ACItems()); n != 2 {
+		t.Fatalf("ACItems() sees %d items, want 2 — test premise broken", n)
+	}
+}
+
 func TestACAppendItem(t *testing.T) {
 	if got := acAppendItem("", "first"); got != "- [ ] first" {
 		t.Errorf("append to empty = %q", got)

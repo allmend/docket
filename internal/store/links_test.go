@@ -21,7 +21,7 @@ func TestBlockingLinksFromTicket_OrgIsolation(t *testing.T) {
 	blocker := seedTicket(t, orgA.ID, userA.ID, "blocker")
 	blocked := seedTicket(t, orgA.ID, userA.ID, "blocked")
 
-	if _, err := s.CreateLink(ctx, orgA.ID, blocker.ID, blocked.ID, model.RelationBlocks); err != nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, blocker.ID, blocked.ID, model.RelationBlocks); err != nil {
 		t.Fatalf("setup link: %v", err)
 	}
 
@@ -68,14 +68,14 @@ func TestDeleteBlockingLinksFromTicket_OnlyBlocks(t *testing.T) {
 	closing := seedTicket(t, orgA.ID, userA.ID, "closing")
 	other := seedTicket(t, orgA.ID, userA.ID, "other")
 
-	if _, err := s.CreateLink(ctx, orgA.ID, closing.ID, other.ID, model.RelationBlocks); err != nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, closing.ID, other.ID, model.RelationBlocks); err != nil {
 		t.Fatalf("setup blocks link: %v", err)
 	}
-	if _, err := s.CreateLink(ctx, orgA.ID, closing.ID, other.ID, model.RelationRelatesTo); err != nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, closing.ID, other.ID, model.RelationRelatesTo); err != nil {
 		t.Fatalf("setup relates_to link: %v", err)
 	}
 	// An inbound "blocks" link (someone else blocks the closing ticket) must survive too.
-	if _, err := s.CreateLink(ctx, orgA.ID, other.ID, closing.ID, model.RelationBlocks); err != nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, other.ID, closing.ID, model.RelationBlocks); err != nil {
 		t.Fatalf("setup inbound blocks link: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestListLinks_RelationVocabulary(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		if _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, c.relation); err != nil {
+		if _, _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, c.relation); err != nil {
 			t.Fatalf("create %s link: %v", c.relation, err)
 		}
 	}
@@ -178,7 +178,7 @@ func TestCreateLink_RejectsUnknownRelation(t *testing.T) {
 	from := seedTicket(t, org.ID, user.ID, "source")
 	to := seedTicket(t, org.ID, user.ID, "target")
 
-	if _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationType("clones")); err == nil {
+	if _, _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationType("clones")); err == nil {
 		t.Fatal("clones link was accepted; the CHECK constraint should reject it")
 	}
 }
@@ -198,7 +198,7 @@ func TestBulkGetWaitingOn(t *testing.T) {
 	dependency := seedTicket(t, orgA.ID, user.ID, "dependency")
 
 	// depends_on stores the dependent as the source, the opposite way round to blocks.
-	if _, err := s.CreateLink(ctx, orgA.ID, dependent.ID, dependency.ID, model.RelationDependsOn); err != nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, dependent.ID, dependency.ID, model.RelationDependsOn); err != nil {
 		t.Fatalf("create depends_on link: %v", err)
 	}
 
@@ -258,11 +258,11 @@ func TestCreateLink_OrgIsolation(t *testing.T) {
 	theirs := seedTicket(t, orgB.ID, userB.ID, "theirs")
 
 	// Pointing at another org's ticket writes nothing.
-	if _, err := s.CreateLink(ctx, orgA.ID, mine.ID, theirs.ID, model.RelationBlocks); err == nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, mine.ID, theirs.ID, model.RelationBlocks); err == nil {
 		t.Error("link to a foreign ticket was accepted")
 	}
 	// Claiming another org's ticket as the source writes nothing either.
-	if _, err := s.CreateLink(ctx, orgA.ID, theirs.ID, mine.ID, model.RelationBlocks); err == nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, theirs.ID, mine.ID, model.RelationBlocks); err == nil {
 		t.Error("link from a foreign ticket was accepted")
 	}
 	links, err := s.ListLinks(ctx, orgA.ID, mine.ID)
@@ -275,7 +275,43 @@ func TestCreateLink_OrgIsolation(t *testing.T) {
 
 	// Two tickets in the same org still link normally.
 	sibling := seedTicket(t, orgA.ID, userA.ID, "sibling")
-	if _, err := s.CreateLink(ctx, orgA.ID, mine.ID, sibling.ID, model.RelationBlocks); err != nil {
+	if _, _, err := s.CreateLink(ctx, orgA.ID, mine.ID, sibling.ID, model.RelationBlocks); err != nil {
 		t.Fatalf("in-org link rejected: %v", err)
+	}
+}
+
+// TestCreateLink_Idempotent pins that asking for an existing link returns it
+// instead of surfacing the unique violation (which the handler mapped to 500).
+func TestCreateLink_Idempotent(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	org := seedOrg(t, "org-a")
+	user := seedUser(t, org.ID, "alice")
+	from := seedTicket(t, org.ID, user.ID, "from")
+	to := seedTicket(t, org.ID, user.ID, "to")
+
+	first, created, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationDependsOn)
+	if err != nil || !created {
+		t.Fatalf("first create: created=%v err=%v", created, err)
+	}
+	again, created, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationDependsOn)
+	if err != nil {
+		t.Fatalf("second create: %v", err)
+	}
+	if created {
+		t.Error("second create reported created=true")
+	}
+	if again.ID != first.ID {
+		t.Errorf("second create returned link %v, want the existing %v", again.ID, first.ID)
+	}
+
+	links, err := s.ListLinks(ctx, org.ID, from.ID)
+	if err != nil {
+		t.Fatalf("list links: %v", err)
+	}
+	if len(links) != 1 {
+		t.Errorf("got %d links, want exactly 1", len(links))
 	}
 }

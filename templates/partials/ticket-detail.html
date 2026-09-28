@@ -118,10 +118,13 @@
         <div class="selwrap"
              x-data="{sw:'{{$sw}}',upd(s){let t=s.toLowerCase();this.sw=t.includes('progress')?'#58a6ff':t.includes('review')?'#d29922':t==='done'?'#10b981':'#484f58';}}">
           <span class="swatch" :style="'background:'+sw"></span>
+          {{/* Re-render the drawer after the move: moving to Done closes the ticket,
+               and the drawer must switch to its read-only closed view. */}}
           <select name="column_id"
                   hx-put="/tickets/{{$t.ID}}/column"
                   hx-trigger="change"
                   hx-swap="none"
+                  hx-on::after-request="if(event.detail.successful) htmx.ajax('GET', '/tickets/{{$t.ID}}/quick', {target:'#modal-body', swap:'innerHTML'})"
                   @change="upd($el.options[$el.selectedIndex].text)"
                   class="metasel has-swatch">
             {{range .Columns}}

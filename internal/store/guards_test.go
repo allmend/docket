@@ -158,7 +158,7 @@ func TestDeleteLink_OnlyFromItsOwnEnds(t *testing.T) {
 	to := seedTicket(t, org.ID, user.ID, "to")
 	bystander := seedTicket(t, org.ID, user.ID, "bystander")
 
-	link, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationRelatesTo)
+	link, _, err := s.CreateLink(ctx, org.ID, from.ID, to.ID, model.RelationRelatesTo)
 	if err != nil {
 		t.Fatalf("create link: %v", err)
 	}

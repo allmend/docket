@@ -85,20 +85,34 @@ func (s *Store) GetLink(ctx context.Context, orgID, linkID uuid.UUID) (*model.Ti
 // arrives as a raw UUID from the client, so without the guard a link could be
 // written against a ticket in another tenant. Inserts nothing and returns
 // pgx.ErrNoRows if either check fails.
-func (s *Store) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType) (*model.TicketLink, error) {
+//
+// Creating a link that already exists is not an error: the existing link comes
+// back with created=false. It used to surface the unique violation as a 500, and
+// "make sure A depends on B" is a normal thing for a client to ask twice.
+func (s *Store) CreateLink(ctx context.Context, orgID, fromTicketID, toTicketID uuid.UUID, relation model.RelationType) (*model.TicketLink, bool, error) {
 	var l model.TicketLink
+	var created bool
 	err := s.primary.QueryRow(ctx,
-		`INSERT INTO ticket_links (org_id, from_ticket_id, to_ticket_id, relation_type)
-		 SELECT $1, $2, $3, $4
-		 WHERE EXISTS (SELECT 1 FROM tickets WHERE id = $2 AND org_id = $1)
-		   AND EXISTS (SELECT 1 FROM tickets WHERE id = $3 AND org_id = $1)
-		 RETURNING id, org_id, from_ticket_id, to_ticket_id, relation_type, created_at`,
+		`WITH ins AS (
+		     INSERT INTO ticket_links (org_id, from_ticket_id, to_ticket_id, relation_type)
+		     SELECT $1, $2, $3, $4
+		     WHERE EXISTS (SELECT 1 FROM tickets WHERE id = $2 AND org_id = $1)
+		       AND EXISTS (SELECT 1 FROM tickets WHERE id = $3 AND org_id = $1)
+		     ON CONFLICT (from_ticket_id, to_ticket_id, relation_type) DO NOTHING
+		     RETURNING id, org_id, from_ticket_id, to_ticket_id, relation_type, created_at
+		 )
+		 SELECT id, org_id, from_ticket_id, to_ticket_id, relation_type, created_at, true FROM ins
+		 UNION ALL
+		 SELECT id, org_id, from_ticket_id, to_ticket_id, relation_type, created_at, false
+		 FROM ticket_links
+		 WHERE org_id = $1 AND from_ticket_id = $2 AND to_ticket_id = $3 AND relation_type = $4
+		   AND NOT EXISTS (SELECT 1 FROM ins)`,
 		orgID, fromTicketID, toTicketID, relation,
-	).Scan(&l.ID, &l.OrgID, &l.FromTicketID, &l.ToTicketID, &l.Relation, &l.CreatedAt)
+	).Scan(&l.ID, &l.OrgID, &l.FromTicketID, &l.ToTicketID, &l.Relation, &l.CreatedAt, &created)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return &l, nil
+	return &l, created, nil
 }
 
 // DeleteLink removes a link, but only from one of its own ends: the service

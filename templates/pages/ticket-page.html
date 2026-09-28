@@ -13,7 +13,7 @@
 {{/* Points are locked while in a started (active) sprint — change from the Backlog instead. */}}
 {{$sprintActive := .SprintActive}}
 
-<div class="flex-1 min-h-0 overflow-hidden flex flex-col">
+<div id="ticket-page" class="flex-1 min-h-0 overflow-hidden flex flex-col">
 
   <!-- Ticket bar -->
   <div class="shrink-0 h-11 px-5 flex items-center gap-3 border-b border-base-300 bg-base-200">
@@ -127,10 +127,14 @@
       <div>
         <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1.5">Status</div>
         {{if not $closed}}
+        {{/* A status change can close or reopen the ticket and always adds history,
+             so re-fetch this page and swap it in (Pattern A: one handler, no drift).
+             With hx-swap="none" alone, a ticket moved to Done stayed editable here. */}}
         <select name="column_id"
                 hx-put="/tickets/{{$t.ID}}/column"
                 hx-trigger="change"
                 hx-swap="none"
+                hx-on::after-request="if(event.detail.successful) htmx.ajax('GET', window.location.pathname, {target:'#ticket-page', select:'#ticket-page', swap:'outerHTML'})"
                 class="w-full bg-base-150 border border-base-300 hover:border-base-400 rounded h-8 px-2 text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500 cursor-pointer">
           {{range .Columns}}
           <option value="{{.ID}}" {{if eq .ID $t.ColumnID}}selected{{end}}>{{.Name}}</option>

@@ -22,6 +22,26 @@ func isDone(name string) bool {
 	return strings.EqualFold(name, "done")
 }
 
+// checkDoneColumnName guards the one name with behaviour attached. The Done
+// column can't be renamed or deleted, so renaming another column to "Done"
+// created a second, permanently locked Done column whose existing tickets were
+// never closed. A new Done column is allowed only on a board that has none
+// (Blank boards start without one).
+func checkDoneColumnName(existing []model.Column, name string, renaming bool) error {
+	if !isDone(name) {
+		return nil
+	}
+	if renaming {
+		return fmt.Errorf("%w: a column can't be renamed to Done — add a Done column instead", ErrInvalidInput)
+	}
+	for _, c := range existing {
+		if isDone(c.Name) {
+			return fmt.Errorf("%w: this board already has a Done column", ErrInvalidInput)
+		}
+	}
+	return nil
+}
+
 func NewBoardService(st *store.Store) *BoardService {
 	return &BoardService{store: st}
 }
@@ -212,6 +232,17 @@ func (s *BoardService) ListColumns(ctx context.Context, orgID, boardID uuid.UUID
 }
 
 func (s *BoardService) AddColumn(ctx context.Context, orgID, boardID uuid.UUID, name string) (*model.Column, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: column name is required", ErrInvalidInput)
+	}
+	cols, err := s.store.ListColumns(ctx, orgID, boardID)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkDoneColumnName(cols, name, false); err != nil {
+		return nil, err
+	}
 	maxPos, err := s.store.MaxColumnPosition(ctx, orgID, boardID)
 	if err != nil {
 		return nil, fmt.Errorf("max position: %w", err)
@@ -226,6 +257,13 @@ func (s *BoardService) RenameColumn(ctx context.Context, orgID, columnID uuid.UU
 	}
 	if isDone(col.Name) {
 		return nil, fmt.Errorf("%w: the Done column cannot be renamed", ErrInvalidInput)
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("%w: column name is required", ErrInvalidInput)
+	}
+	if err := checkDoneColumnName(nil, name, true); err != nil {
+		return nil, err
 	}
 	return s.store.RenameColumn(ctx, orgID, columnID, name)
 }

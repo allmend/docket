@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -78,11 +79,11 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if r.FormValue("create_more") == "true" {
-		w.WriteHeader(http.StatusNoContent)
-		return
-	}
-	w.Header().Set("HX-Redirect", "/tickets/"+ticket.DisplayID())
+	// No redirect: the modal stays on the page the user was on. It closes (or
+	// resets, with "Add another") and ticketCreated drives a toast linking to
+	// the new ticket.
+	trigger, _ := json.Marshal(map[string]any{"ticketCreated": map[string]string{"ref": ticket.DisplayID()}})
+	w.Header().Set("HX-Trigger", string(trigger))
 	w.WriteHeader(http.StatusNoContent)
 }
 

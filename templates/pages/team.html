@@ -14,7 +14,7 @@
   <!-- Page header -->
   <div class="flex items-end justify-between mb-6">
     <div>
-      <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Dashboard</h1>
+      <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">{{.Team.Name}}</h1>
       <div class="mono text-[14px] text-base-700 mt-0.5">
         {{now | formatDate}}
         {{if .NavActiveSprint}} · <span class="text-base-900">{{.NavActiveSprint.Name}}</span>{{if .NavActiveSprint.TotalDays}} · day {{.NavActiveSprint.DayNumber}} of {{.NavActiveSprint.TotalDays}}{{end}}{{end}}

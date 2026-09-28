@@ -1,7 +1,6 @@
 package service
 
 import (
-	"regexp"
 	"strings"
 
 	"github.com/allmend/docket/internal/model"
@@ -42,24 +41,30 @@ func rebalanceDropSlot(tickets []model.Ticket, ticketID uuid.UUID, nextPos float
 	return float64((len(tickets) + 1) * 1000)
 }
 
-// checkboxRe matches GFM task-list markers: [ ] or [x] (case-insensitive).
-var checkboxRe = regexp.MustCompile(`\[([ xX])\]`)
-
-// toggleNthCheckbox flips the Nth task-list marker in src, counting from 0.
-// Out-of-range indices leave src unchanged.
+// toggleNthCheckbox flips the Nth acceptance-criteria item, counting from 0 the
+// same way model.Ticket.ACItems does. Out-of-range indices leave src unchanged.
 func toggleNthCheckbox(src string, n int) string {
-	count := 0
-	return checkboxRe.ReplaceAllStringFunc(src, func(match string) string {
-		if count == n {
-			count++
-			if match == "[ ]" {
-				return "[x]"
-			}
-			return "[ ]"
+	lines := strings.Split(src, "\n")
+	itemIdx := 0
+	for i, line := range lines {
+		item, ok := model.ParseACLine(line)
+		if !ok {
+			continue
 		}
-		count++
-		return match
-	})
+		if itemIdx == n {
+			// The marker sits at "- [" after any indentation; flip the one
+			// character inside the brackets.
+			at := len(line) - len(strings.TrimLeft(line, " \t")) + 3
+			mark := "x"
+			if item.Checked {
+				mark = " "
+			}
+			lines[i] = line[:at] + mark + line[at+1:]
+			return strings.Join(lines, "\n")
+		}
+		itemIdx++
+	}
+	return src
 }
 
 // acAppendItem appends a new unchecked checklist line to the acceptance criteria.
@@ -78,8 +83,7 @@ func acDeleteItem(ac string, index int) string {
 	itemIdx := 0
 	for _, line := range strings.Split(ac, "\n") {
 		trimmed := strings.TrimSpace(line)
-		isItem := strings.HasPrefix(trimmed, "- [ ] ") || strings.HasPrefix(trimmed, "- [x] ") || strings.HasPrefix(trimmed, "- [X] ")
-		if isItem {
+		if _, isItem := model.ParseACLine(line); isItem {
 			if itemIdx != index {
 				kept = append(kept, line)
 			}
