@@ -35,6 +35,9 @@ services:
     volumes:
       # Mount the full source tree so Air + Tailwind watch live edits
       - ../:/app
+      # ...but keep the image's own node_modules: the host's holds macOS-only
+      # binaries (esbuild), which can't run in this Linux container.
+      - /app/node_modules
       # Persist Go build cache across restarts
       - go_build_cache:/root/.cache/go-build
       - go_mod_cache:/go/pkg/mod

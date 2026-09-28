@@ -6,7 +6,9 @@ RUN apk add --no-cache nodejs npm curl git make
 WORKDIR /app
 
 # Install Go tools
-RUN go install github.com/air-verse/air@latest
+# Pinned: @latest broke this image once air started requiring a newer Go than
+# the base image. Bump together with the golang base image.
+RUN go install github.com/air-verse/air@v1.67.1
 
 # Pre-download Go modules (cache layer — invalidated only on go.mod change)
 COPY go.mod go.sum ./
@@ -24,8 +26,11 @@ EXPOSE 8081
 
 # air watches Go files and restarts the binary.
 # Tailwind + esbuild run in parallel via the entrypoint script.
+# Both watchers run in the background with no stdin, and both exit when stdin
+# closes unless told otherwise — so with plain --watch they quit at startup and
+# CSS/JS never rebuilt. --watch=always / --watch=forever keep them running.
 CMD ["/bin/sh", "-c", "\
-  npx tailwindcss -i static/src/app.css -o static/dist/app.css --watch & \
-  npx esbuild static/src/board.js --bundle --outdir=static/dist --watch & \
+  npx tailwindcss -i static/src/app.css -o static/dist/app.css --watch=always & \
+  npx esbuild static/src/board.js static/src/editor.js --bundle --outdir=static/dist --watch=forever & \
   air \
 "]

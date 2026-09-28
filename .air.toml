@@ -2,7 +2,9 @@
   cmd = "go build -o ./tmp/docket ./cmd/serve"
   bin = "./tmp/docket"
   args_bin = ["--mode=all"]
-  include_ext = ["go"]
+  # html: templates are parsed once at startup, so a template edit needs a restart.
+  # Not sql — a half-written migration would apply itself on save.
+  include_ext = ["go", "html"]
   exclude_dir = ["tmp", "static", "node_modules"]
   delay = 500
 
