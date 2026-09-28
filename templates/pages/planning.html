@@ -52,13 +52,16 @@
           <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">planning</span>
           <span class="inline-flex items-center px-1.5 py-0.5 rounded-sm bg-warn/15 border border-warn/30 mono text-[12px] uppercase tracking-wider text-warn">draft</span>
         </div>
-        <form method="POST" action="/boards/{{$board.ID}}/sprints/{{.ID}}" class="space-y-1">
-          <input type="hidden" name="_method" value="PUT">
+        {{/* hx-put, not a form POST: the route is registered PUT and there is no
+             method-override middleware, so Enter here used to 405 and the sprint
+             name and goal could never be saved. Saves on change (blur) or Enter. */}}
+        <form hx-put="/boards/{{$board.ID}}/sprints/{{.ID}}" hx-trigger="change, submit" hx-swap="none"
+              class="space-y-1">
           <input type="hidden" name="start_date" :value="start">
           <input type="hidden" name="end_date" :value="end">
-          <input name="name" placeholder="Sprint name…"
+          <input name="name" value="{{.Name}}" placeholder="Sprint name…"
                  class="block w-full max-w-[460px] bg-transparent border border-base-300 rounded px-3 py-0.5 text-[22px] font-semibold tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
-          <input name="goal" placeholder="Sprint goal — what will we ship?"
+          <input name="goal" value="{{.Goal}}" placeholder="Sprint goal — what will we ship?"
                  class="block w-full max-w-[560px] bg-transparent border border-base-300 rounded px-3 py-0.5 mono text-[14px] text-base-800 placeholder:text-base-500 focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
           <button type="submit" class="sr-only">Save</button>
         </form>

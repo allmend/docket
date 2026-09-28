@@ -28,6 +28,18 @@
           <span class="text-[14px] text-base-900">{{$u.Role}}</span>
         </div>
       </div>
+
+      {{if .IsSelf}}
+      <div class="pt-4 border-t border-base-300 flex justify-end">
+        <form method="POST" action="/logout">
+          <button type="submit"
+                  class="h-8 px-3 inline-flex items-center gap-2 bg-base-150 hover:bg-base-250 border border-base-300 rounded text-[14px] text-base-900">
+            {{template "icon-sign-out" .}}
+            Sign out
+          </button>
+        </form>
+      </div>
+      {{end}}
     </div>
     {{else}}
     <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center mono text-[13px] text-base-600">User not found</div>

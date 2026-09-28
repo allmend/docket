@@ -121,14 +121,16 @@
         <div class="bg-danger/5 border border-danger/30 rounded-md p-5">
           <h3 class="text-[15px] font-semibold text-danger mb-1">Delete workspace</h3>
           <p class="text-[14px] text-base-700 mb-4">Deleting this workspace is permanent and cannot be undone. All tickets, sprints, and retros will be lost.</p>
-          <form method="POST" action="/workspaces/{{$team.Slug}}"
-                onsubmit="return confirm('Delete workspace {{$team.Name}}? This cannot be undone.')">
-            <input type="hidden" name="_method" value="DELETE">
-            <button type="submit"
+          {{/* hx-delete, not a form POST: the route is registered DELETE and there is
+               no method-override middleware, so the old hidden _method field 405'd. */}}
+          <div>
+            <button type="button"
+                    hx-delete="/workspaces/{{$team.Slug}}"
+                    hx-confirm="Delete workspace {{$team.Name}}? This cannot be undone."
                     class="h-8 px-3 inline-flex items-center gap-2 bg-danger/10 hover:bg-danger/20 border border-danger/40 rounded text-[14px] text-danger">
               Delete workspace
             </button>
-          </form>
+          </div>
         </div>
 
         {{else}}

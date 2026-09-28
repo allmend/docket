@@ -305,8 +305,8 @@ func (s *BoardService) UpdateSprint(ctx context.Context, orgID, sprintID uuid.UU
 
 // StartSprint transitions a planning sprint to active.
 // Only one sprint may be active at a time — the DB unique partial index enforces this.
-// If the sprint has no dates yet, the start/end passed from the planning duration
-// picker are applied so the board header can show real "day N of M" progress.
+// When the planning duration picker sends start/end, they are applied so the
+// board header can show real "day N of M" progress.
 func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUID, startDate, endDate *time.Time) (*model.Sprint, error) {
 	sp, err := s.store.GetSprint(ctx, orgID, sprintID)
 	if err != nil {
@@ -319,8 +319,13 @@ func (s *BoardService) StartSprint(ctx context.Context, orgID, sprintID uuid.UUI
 	if _, err := s.store.GetActiveSprint(ctx, orgID, sp.BoardID); err == nil {
 		return nil, fmt.Errorf("%w: another sprint is already active on this board", ErrInvalidInput)
 	}
-	// Backfill dates from the planning picker only when none were explicitly set.
-	if sp.StartDate == nil && startDate != nil && endDate != nil {
+	// The planning picker is the source of truth for a sprint that hasn't started:
+	// the name/goal form saves the picker's dates too, so "only when none are set"
+	// would ignore a duration changed after the goal was typed.
+	if startDate != nil && endDate != nil {
+		if err := validateSprintDates(startDate, endDate); err != nil {
+			return nil, err
+		}
 		if _, err := s.store.UpdateSprint(ctx, orgID, sprintID, sp.Name, sp.Goal, startDate, endDate); err != nil {
 			return nil, fmt.Errorf("set sprint dates: %w", err)
 		}

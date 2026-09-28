@@ -169,3 +169,23 @@ func TestIsDone(t *testing.T) {
 		}
 	}
 }
+
+func TestColumnMoveChange(t *testing.T) {
+	todo := uuid.New()
+	done := &model.Column{ID: uuid.New(), Name: "Done"}
+	same := &model.Column{ID: todo, Name: "To Do"}
+
+	if _, ok := columnMoveChange(todo, "To Do", nil); ok {
+		t.Error("backlog reorder (nil column) recorded a change")
+	}
+	if _, ok := columnMoveChange(todo, "To Do", same); ok {
+		t.Error("reorder within the same column recorded a change")
+	}
+	c, ok := columnMoveChange(todo, "To Do", done)
+	if !ok {
+		t.Fatal("cross-column move recorded nothing")
+	}
+	if c != (fieldChange{"column", "To Do", "Done"}) {
+		t.Errorf("change = %+v, want column To Do → Done", c)
+	}
+}

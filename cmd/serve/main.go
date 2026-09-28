@@ -144,6 +144,7 @@ func startAPI(
 	r.Use(appMiddleware.Metrics)
 	r.Use(appMiddleware.SecurityHeaders)
 	r.Use(appMiddleware.LimitBody(maxRequestBody))
+	r.Use(compressResponses())
 
 	// Static assets — directory listings disabled, files only.
 	r.Handle("/static/*", http.StripPrefix("/static/", noDirListing(http.FileServer(http.Dir("static/dist")))))
@@ -225,6 +226,14 @@ func keyByLoginUsername(r *http.Request) (string, error) {
 }
 
 // noDirListing rejects directory paths so the file server never renders an index.
+// compressResponses gzips/deflates text responses — static JS/CSS, full pages and
+// HTMX partials alike. Without it every cold page load shipped ~280 KB of assets
+// that compress to ~80 KB. Level 5 is chi's recommended speed/size balance; the
+// default type list covers html, css, js, json and svg.
+func compressResponses() func(http.Handler) http.Handler {
+	return middleware.Compress(5)
+}
+
 func noDirListing(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {

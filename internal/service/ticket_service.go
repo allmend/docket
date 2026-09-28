@@ -245,6 +245,12 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
 		}
 
+		// Drag is how most tickets move, so it must leave the same trail as the
+		// status dropdown (MoveToColumn) — ticket_history is the audit log.
+		if c, ok := columnMoveChange(old.ColumnID, fromCol, newCol); ok {
+			_ = s.store.AppendHistory(ctx, ticketID, actorID, s.actorName(ctx, orgID, actorID), c.Field, c.Old, c.New)
+		}
+
 		toCol, toTeam, _ := s.store.GetColumnMeta(ctx, targetColumnID)
 		team := fromTeam
 		if team == "" {

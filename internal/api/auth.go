@@ -41,6 +41,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) ProfilePage(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "profile.html", h.pageData(r, map[string]any{
 		"Profile": h.auth.GetCurrentUser(r.Context()),
+		"IsSelf":  true,
 	}))
 }
 
@@ -54,7 +55,10 @@ func (h *Handler) UserPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
-	h.render(w, "profile.html", h.pageData(r, map[string]any{"Profile": u}))
+	h.render(w, "profile.html", h.pageData(r, map[string]any{
+		"Profile": u,
+		"IsSelf":  u.ID == service.UserIDFromContext(r.Context()),
+	}))
 }
 
 func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {

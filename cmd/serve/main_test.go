@@ -1,6 +1,8 @@
 package main
 
 import (
+	"compress/gzip"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -112,5 +114,52 @@ func TestKeyByLoginUsernameNormalises(t *testing.T) {
 func TestKeyFuncLeavesFormReadable(t *testing.T) {
 	if code := postLogin(t, loginRouter(), "dave"); code != http.StatusOK {
 		t.Fatalf("handler saw no username after the key func parsed the form (got %d)", code)
+	}
+}
+
+func TestCompressResponsesGzipsTextAssets(t *testing.T) {
+	body := strings.Repeat("function docket() { return 42; }\n", 200)
+	h := compressResponses()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		_, _ = w.Write([]byte(body))
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/static/board.js", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("Content-Encoding"); got != "gzip" {
+		t.Fatalf("Content-Encoding = %q, want gzip", got)
+	}
+	if !strings.Contains(rec.Header().Get("Vary"), "Accept-Encoding") {
+		t.Errorf("Vary = %q, want it to include Accept-Encoding", rec.Header().Get("Vary"))
+	}
+	zr, err := gzip.NewReader(rec.Body)
+	if err != nil {
+		t.Fatalf("gzip reader: %v", err)
+	}
+	got, err := io.ReadAll(zr)
+	if err != nil {
+		t.Fatalf("read gzip body: %v", err)
+	}
+	if string(got) != body {
+		t.Errorf("decompressed body differs from the original")
+	}
+}
+
+func TestCompressResponsesLeavesPlainClientsAlone(t *testing.T) {
+	h := compressResponses()(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte("<p>hi</p>"))
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if got := rec.Header().Get("Content-Encoding"); got != "" {
+		t.Errorf("Content-Encoding = %q for a client that sent no Accept-Encoding", got)
+	}
+	if rec.Body.String() != "<p>hi</p>" {
+		t.Errorf("body = %q", rec.Body.String())
 	}
 }

@@ -272,6 +272,17 @@
         </div>
       </div>
       {{end}}
+      <div class="p-3 pt-0">
+        {{/* Plain form POST: /logout clears the cookies and 303s to /login,
+             which a normal navigation follows as a full page load. */}}
+        <form method="POST" action="/logout">
+          <button type="submit"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded text-[15px] text-base-700 hover:text-base-900 hover:bg-base-200">
+            {{template "icon-sign-out" .}}
+            Sign out
+          </button>
+        </form>
+      </div>
     </aside>
 
     <!-- Main content -->
@@ -342,6 +353,10 @@
             class="p-5 space-y-3">
         <input type="hidden" name="team_id"  :value="teamID" />
         <input type="hidden" name="priority" :value="priority" />
+        {{/* Tells CreateGlobalTicket to answer 204 without HX-Redirect. htmx acts on
+             HX-Redirect before after-request runs, so without this the modal
+             navigated away even with "Add another" on. */}}
+        <input type="hidden" name="create_more" :value="addAnother ? 'true' : 'false'" />
         <input x-ref="ntTitle" type="text" name="title" required
                placeholder="Ticket title…"
                class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />

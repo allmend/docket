@@ -91,6 +91,16 @@ func acDeleteItem(ac string, index int) string {
 	return strings.Join(kept, "\n")
 }
 
+// columnMoveChange returns the history entry for a move from the column named
+// fromName into newCol, or false when there is nothing to record: a nil newCol
+// (backlog reorder) or a drop back into the same column (reorder in place).
+func columnMoveChange(fromColumnID uuid.UUID, fromName string, newCol *model.Column) (fieldChange, bool) {
+	if newCol == nil || newCol.ID == fromColumnID {
+		return fieldChange{}, false
+	}
+	return fieldChange{"column", fromName, newCol.Name}, true
+}
+
 // fieldChange is one ticket field diff destined for the history log.
 type fieldChange struct {
 	Field, Old, New string
