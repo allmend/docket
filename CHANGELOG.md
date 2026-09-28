@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.1] - 2026-09-28
+
+### Fixed
+- You can sign out again. The link was lost in the layout rewrite, leaving `POST /logout` with nothing that called it; there is now a Sign out button in the sidebar and on your own profile page.
+- Deleting a workspace works. The button submitted a form POST with a hidden `_method=DELETE`, which nothing on the server reads, so it answered 405. Behind that, the delete itself failed on any workspace with tickets: the tickets' reference to their workspace had no cascade, and the database checked it before the board's cascade removed them. A migration makes that reference cascade.
+- A sprint's name and goal can be set from Sprint Planning. The fields started empty and pressing Enter posted to a route that only accepts PUT, so neither could ever be saved. They now show the current values and save when you leave the field or press Enter. Starting a sprint applies the dates in the duration picker even if the sprint already had some.
+- "Add another" in the New Ticket dialog keeps the dialog open and clears it for the next ticket, instead of navigating to the ticket just created.
+- Moving a ticket to another column by drag and drop is recorded in the ticket's history, as it already was when changing the status from the ticket itself.
+
+### Changed
+- Responses are compressed. Static JavaScript and CSS, pages and HTMX partials were all sent uncompressed — about 280 KB of assets on a cold load that now arrive as about 80 KB.
+
 ## [0.14.0] - 2026-09-11
 
 ### Security
