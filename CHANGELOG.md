@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.3] - 2026-09-28
+
+### Fixed
+- The New Ticket dialog clears itself after creating a ticket, and closes when "Add another" is off. The code that ran after a successful create failed on its first line, so the fields kept the ticket just filed and the dialog stayed open; the redirect removed in 0.14.2 had been hiding it.
+- Priority in the New Ticket dialog is a native dropdown with the same colour marker as the ticket drawer.
+
+### Changed
+- The "Ticket created" notice appears at the bottom centre with a check mark, as in the design.
+
+### Development
+- `make dev-docker` builds again (the dev image pins `air`, whose latest release needs a newer Go), and the stack live-reloads: the Tailwind and esbuild watchers no longer exit at startup, esbuild runs from the container's own `node_modules` and also rebuilds `editor.js`, and Air restarts on template changes.
+
 ## [0.14.2] - 2026-09-28
 
 ### Fixed
