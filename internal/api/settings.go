@@ -99,10 +99,6 @@ func (h *Handler) RevokeToken(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) CreateMember(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	if service.RoleFromContext(r.Context()) != "admin" {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
 
 	if !parseForm(w, r) {
 		return
@@ -154,10 +150,6 @@ func (h *Handler) renderMembers(w http.ResponseWriter, r *http.Request, errMsg s
 
 func (h *Handler) UpdateMemberRole(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
-	if service.RoleFromContext(r.Context()) != "admin" {
-		http.Error(w, "forbidden", http.StatusForbidden)
-		return
-	}
 
 	targetID, ok := pathUUID(w, r, "userID")
 	if !ok {

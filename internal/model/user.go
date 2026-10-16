@@ -34,6 +34,20 @@ const (
 	ScopeAPIWrite    TokenScope = "api:write"
 )
 
+// scopeRank orders the scopes: metrics:read < api:read < api:write.
+// An unknown or empty scope ranks 0 and allows nothing.
+var scopeRank = map[TokenScope]int{
+	ScopeMetricsRead: 1,
+	ScopeAPIRead:     2,
+	ScopeAPIWrite:    3,
+}
+
+// Allows reports whether a principal holding s may use something that
+// requires the given scope.
+func (s TokenScope) Allows(required TokenScope) bool {
+	return scopeRank[s] > 0 && scopeRank[s] >= scopeRank[required]
+}
+
 // APIToken is a long-lived bearer token for machine-to-machine access.
 type APIToken struct {
 	ID         uuid.UUID  `json:"id"`

@@ -71,29 +71,12 @@ func Authenticate(authSvc *service.AuthService, tokenSvc *service.TokenService, 
 	}
 }
 
-// RequireAdmin returns 403 if the authenticated user is not an org admin.
-func RequireAdmin(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if service.RoleFromContext(r.Context()) != "admin" {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 // RequireScope returns 403 if the request's token scope does not permit the
 // required scope. JWT users are always granted full access.
 func RequireScope(required model.TokenScope) func(http.Handler) http.Handler {
-	order := map[model.TokenScope]int{
-		model.ScopeMetricsRead: 1,
-		model.ScopeAPIRead:     2,
-		model.ScopeAPIWrite:    3,
-	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			scope := service.ScopeFromContext(r.Context())
-			if order[scope] < order[required] {
+			if !service.ScopeFromContext(r.Context()).Allows(required) {
 				http.Error(w, "insufficient token scope", http.StatusForbidden)
 				return
 			}

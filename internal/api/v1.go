@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/allmend/docket/internal/middleware"
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/allmend/docket/internal/store"
@@ -25,30 +24,26 @@ import (
 //
 // All mutations accept JSON bodies. All responses are JSON.
 func (h *Handler) V1Routes(r chi.Router) {
-	// Read endpoints require at least api:read scope (JWT sessions always pass).
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.RequireScope(model.ScopeAPIRead))
-		r.Get("/teams", h.v1ListTeams)
-		r.Get("/teams/{key}", h.v1GetTeam)
-		r.Get("/teams/{key}/tickets", h.v1ListTickets)
-		r.Get("/tickets/{ref}", h.v1GetTicket)
-	})
+	a := routes{r: r, api: true}
 
-	// Write endpoints require api:write scope — a read-only or metrics-only
-	// token must not be able to create, update, or delete anything.
-	r.Group(func(r chi.Router) {
-		r.Use(middleware.RequireScope(model.ScopeAPIWrite))
-		r.Post("/teams", h.v1CreateTeam)
-		r.Put("/teams/{key}", h.v1UpdateTeam)
-		r.Delete("/teams/{key}", h.v1DeleteTeam)
-		r.Post("/teams/{key}/tickets", h.v1CreateTicket)
-		r.Put("/tickets/{ref}", h.v1UpdateTicket)
-		r.Delete("/tickets/{ref}", h.v1DeleteTicket)
-	})
+	// Reads need at least an api:read token (JWT sessions always pass).
+	a.get(model.TierRead, "/teams", h.v1ListTeams)
+	a.get(model.TierRead, "/teams/{key}", h.v1GetTeam)
+	a.get(model.TierRead, "/teams/{key}/tickets", h.v1ListTickets)
+	a.get(model.TierRead, "/tickets/{ref}", h.v1GetTicket)
+
+	// Writes need api:write — a read-only or metrics-only token must not be
+	// able to create, update, or delete anything.
+	a.post(model.TierWrite, "/teams", h.v1CreateTeam)
+	a.put(model.TierWrite, "/teams/{key}", h.v1UpdateTeam)
+	a.delete(model.TierWrite, "/teams/{key}", h.v1DeleteTeam)
+	a.post(model.TierWrite, "/teams/{key}/tickets", h.v1CreateTicket)
+	a.put(model.TierWrite, "/tickets/{ref}", h.v1UpdateTicket)
+	a.delete(model.TierWrite, "/tickets/{ref}", h.v1DeleteTicket)
 
 	// Business metrics — Prometheus text format, scoped to the caller's org.
 	// The lowest scope (metrics:read) suffices.
-	r.With(middleware.RequireScope(model.ScopeMetricsRead)).Get("/metrics", h.v1Metrics)
+	a.get(model.TierMetrics, "/metrics", h.v1Metrics)
 }
 
 // v1Metrics returns business metrics in Prometheus text format scoped to the

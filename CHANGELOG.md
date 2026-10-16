@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Every route now declares the access it requires (read, write, org admin or metrics), and one place checks it against the caller's role and token scope. Anything not explicitly allowed is denied, and a test fails if a route is added without a declared tier. Behaviour is unchanged: members can do what they could before, and adding members or changing roles still needs an org admin. Denied requests are logged with the route and tier.
+
 ### Fixed
 - Unassigned tickets take part in the Daily Scrum. They were counted in the participant list but could never be opened, and Next person skipped them; "Unassigned" is now the last turn of the round.
 - Anyone assigned a ticket in the sprint comes up in the Daily Scrum round, not only the workspace's members.
