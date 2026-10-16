@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-16
+
 ### Security
 - Every route now declares the access it requires (read, write, org admin or metrics), and one place checks it against the caller's role and token scope. Anything not explicitly allowed is denied, and a test fails if a route is added without a declared tier. Behaviour is unchanged: members can do what they could before, and adding members or changing roles still needs an org admin. Denied requests are logged with the route and tier.
 
@@ -314,7 +316,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
-[Unreleased]: https://github.com/allmend/docket/compare/v0.14.3...HEAD
+[Unreleased]: https://github.com/allmend/docket/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/allmend/docket/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/allmend/docket/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/allmend/docket/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/allmend/docket/compare/v0.14.0...v0.14.1
