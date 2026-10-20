@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Health endpoints on their own port (`9413`, set with `HEALTH_PORT`/`HEALTH_ADDR`): `/livez` reports that the process answers and never touches the database; `/readyz` checks that migrations finished, Postgres answers within a second, and the pod isn't shutting down. `?verbose` lists each check. The port is not part of the Service or the public route.
+- `docket healthcheck` (`--live` for `/livez`) so the distroless image has a working Docker `HEALTHCHECK`; `deploy/docker-compose.yml` uses it.
+
+### Changed
+- On SIGTERM a replica fails `/readyz` immediately and keeps serving for `SHUTDOWN_DELAY` (default `5s`) before it stops, so rolling updates drain instead of dropping requests.
+- The Kubernetes manifests probe the health port: a startup probe covers migrations, liveness uses `/livez`, readiness uses `/readyz`, and the termination grace period covers the drain. **Update your Deployment** from `deploy/k8s/deployment.yaml`: previous probes hit `/login` on the app port.
+
 ## [0.15.0] - 2026-10-16
 
 ### Security
