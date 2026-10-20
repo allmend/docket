@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -273,7 +274,60 @@ func runMigrations(dsn string) error {
 	if err != nil {
 		return fmt.Errorf("migrate.New: %w", err)
 	}
+
+	// A database migrated by a newer release has a version this build has no
+	// file for, and m.Up() fails on it ("no migration found for version N"),
+	// which turned every image rollback into a crash loop. Migrations stay
+	// compatible with the previous release's code, so starting is safe: warn
+	// and skip. A dirty database still goes to m.Up(), which refuses it.
+	dbVersion, dirty, err := m.Version()
+	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	files, err := os.ReadDir("migrations")
+	if err != nil {
+		return fmt.Errorf("list migrations: %w", err)
+	}
+	names := make([]string, 0, len(files))
+	for _, f := range files {
+		names = append(names, f.Name())
+	}
+	latest := latestMigration(names)
+	if schemaAhead(dbVersion, dirty, latest) {
+		slog.Warn("database schema is newer than this build; starting anyway",
+			"db_version", dbVersion, "build_version", latest)
+		return migrate.ErrNoChange
+	}
 	return m.Up()
+}
+
+// latestMigration returns the highest version among golang-migrate file names
+// ("000025_name.up.sql"). Names that don't start with a number are ignored.
+func latestMigration(names []string) uint {
+	var latest uint
+	for _, n := range names {
+		if !strings.HasSuffix(n, ".up.sql") {
+			continue
+		}
+		num, _, ok := strings.Cut(n, "_")
+		if !ok {
+			continue
+		}
+		v, err := strconv.ParseUint(num, 10, 64)
+		if err != nil {
+			continue
+		}
+		if uint(v) > latest {
+			latest = uint(v)
+		}
+	}
+	return latest
+}
+
+// schemaAhead reports whether the database was migrated past what this build
+// ships. A dirty database is never "ahead": it needs an operator, not a skip.
+func schemaAhead(dbVersion uint, dirty bool, latest uint) bool {
+	return !dirty && latest > 0 && dbVersion > latest
 }
 
 // autoSeed creates the default org and admin user on a fresh database — and
