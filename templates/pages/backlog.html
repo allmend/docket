@@ -10,7 +10,7 @@
 {{if .InitRefineMode}}
 <a href="{{if .Team}}/workspaces/{{.Team.Slug}}/backlog{{else}}/{{end}}" class="mono text-[13px] text-base-700 hover:text-base-900 px-1.5 py-1 rounded hover:bg-base-250">Backlog</a>
 <svg class="text-base-500 w-3 h-3 shrink-0" viewBox="0 0 12 16" fill="none"><line x1="8" y1="1" x2="4" y2="15" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Refinement</span>
+<span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Backlog Refinement</span>
 {{else}}
 <span class="mono text-[13px] text-base-900 px-1.5 py-1 rounded bg-base-250">Backlog</span>
 {{end}}
@@ -42,7 +42,7 @@
        x-show="refineMode"
        class="shrink-0 h-12 bg-base-200 border-b border-base-300 flex items-center gap-4 px-4 whitespace-nowrap overflow-x-auto">
     <div class="flex items-center gap-2.5 shrink-0">
-      <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">refinement</span>
+      <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">backlog refinement</span>
       <span class="text-[15px] font-medium text-base-950">{{if $board}}{{$board.Name}}{{else}}Backlog{{end}}</span>
     </div>
     <div class="flex items-center gap-2 mono text-[13px] text-base-700 shrink-0">
@@ -111,11 +111,11 @@
           {{if and $board (eq $board.Mode "scrum")}}
           {{if .InitRefineMode}}
           <a href="{{if $team}}/workspaces/{{$team.Slug}}/backlog{{else}}/{{end}}"
-             class="h-8 px-3 inline-flex items-center gap-2 rounded text-[14px] bg-base-250 hover:bg-base-300 border border-base-350 text-base-900">← Exit refinement</a>
+             class="h-8 px-3 inline-flex items-center gap-2 rounded text-[14px] bg-base-250 hover:bg-base-300 border border-base-350 text-base-900">← Exit Backlog Refinement</a>
           {{else}}
           <a href="{{if $team}}/workspaces/{{$team.Slug}}/backlog/refinement{{else}}/{{end}}"
              class="h-8 px-3 inline-flex items-center gap-2 rounded text-[14px] bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium shadow-lift">
-            Start refinement
+            Start Backlog Refinement
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
               <path d="M3 8h9M9 5l3 3-3 3" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -197,7 +197,7 @@
       <!-- Footer hint -->
       <div class="mono text-[13px] text-base-600 mt-3"
            x-show="!refineMode" x-cloak>
-        Drag to reorder priority · <span class="text-base-700">Start refinement</span> to walk the list one ticket at a time.
+        Drag to reorder priority · <span class="text-base-700">Start Backlog Refinement</span> to walk the list one ticket at a time.
       </div>
 
     </div>
