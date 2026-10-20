@@ -294,7 +294,7 @@
 
 {{/* backlog-planning-card is a draggable backlog ticket on the planning view. */}}
 {{define "backlog-planning-card"}}
-<div class="group bg-base-250 border border-base-300 rounded p-2.5 hover:border-primary-500/50 cursor-grab active:cursor-grabbing"
+<div class="group bg-base-250 border {{template "blocker-border" .}} rounded p-2.5 cursor-grab active:cursor-grabbing"
      data-ticket-id="{{.ID}}"
      data-position="{{.Position}}"
      data-ticket-column-id="{{.ColumnID}}"
@@ -315,6 +315,9 @@
     </div>
   </div>
   <p class="text-[14px] leading-[18px] text-base-900 mt-1.5">{{.Title}}</p>
+  {{if or .IsBlocked .IsWaiting}}
+  <div class="flex items-center gap-1.5 mt-1.5">{{template "blocker-chip" .}}</div>
+  {{end}}
   <div class="flex items-center justify-between mt-2 pt-2 border-t border-base-300">
     <div class="flex items-center gap-1.5 min-w-0 flex-1">
       {{range .Tags}}<span class="w-2 h-2 rounded-sm shrink-0" style="background-color:{{.Color}}"></span><span class="text-[12px] text-base-700 truncate">{{.Name}}</span>{{end}}

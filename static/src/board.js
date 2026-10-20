@@ -467,8 +467,9 @@ function backlogList() {
       const fromSprint = evt.from.classList.contains("sprint-list");
       const toSprint = evt.to.classList.contains("sprint-list");
 
-      if (!fromSprint && toSprint) {
-        // Backlog → sprint: place immediately, warn only if the sprint is active.
+      if ((!fromSprint && toSprint) || (fromSprint && toSprint && evt.from !== evt.to)) {
+        // Backlog (or another sprint) → sprint: place immediately, warn only if
+        // the target sprint is active.
         const sprintID = evt.to.dataset.sprintId;
         const sprintStatus = evt.to.dataset.sprintStatus;
         const slot = neighbourPositions(evt.to, ticketEl, true);

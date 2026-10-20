@@ -561,10 +561,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 			continue
 		}
 		st, _ := s.store.ListSprintTickets(ctx, orgID, sprints[i].ID)
-		for j := range st {
-			st[j].Assignees = assigneesByTicket[st[j].ID]
-			st[j].Tags = tagsByTicket[st[j].ID]
-		}
+		annotateTickets(st, assigneesByTicket, tagsByTicket, blockedByBacklog, waitingOnBacklog)
 		view.SprintViews = append(view.SprintViews, model.SprintView{
 			Sprint:  sprints[i],
 			Tickets: st,
@@ -575,10 +572,7 @@ func (s *BoardService) GetBacklog(ctx context.Context, orgID, boardID uuid.UUID)
 	if activeSprint, err := s.store.GetActiveSprint(ctx, orgID, boardID); err == nil {
 		view.ActiveSprint = activeSprint
 		sprintTickets, _ := s.store.ListSprintTickets(ctx, orgID, activeSprint.ID)
-		for i := range sprintTickets {
-			sprintTickets[i].Assignees = assigneesByTicket[sprintTickets[i].ID]
-			sprintTickets[i].Tags = tagsByTicket[sprintTickets[i].ID]
-		}
+		annotateTickets(sprintTickets, assigneesByTicket, tagsByTicket, blockedByBacklog, waitingOnBacklog)
 
 		type colInfo struct {
 			name   string

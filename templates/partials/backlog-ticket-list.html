@@ -53,78 +53,7 @@
       {{if .IsBacklog}}
       {{range .Tickets}}
       {{$i = add $i 1}}
-      <div class="backlog-ticket-row group flex items-center gap-3 px-4 h-12 hover:bg-base-250/40 cursor-pointer"
-           data-ticket-id="{{.ID}}"
-           data-rank="{{$i}}"
-           data-position="{{.Position}}"
-           data-ticket-column-id="{{.ColumnID}}"
-           x-show="!refineMode"
-           @click="
-             htmx.ajax('GET', '/tickets/{{.ID}}/quick', {target:'#modal-body', swap:'innerHTML'});
-             window.dispatchEvent(new CustomEvent('open-ticket-modal'));
-           ">
-
-        <!-- Drag handle -->
-        <div class="drag-handle w-[14px] opacity-0 group-hover:opacity-100 cursor-grab shrink-0 text-base-500 flex items-center justify-center leading-none text-[14px]" aria-hidden="true">⠿</div>
-
-        <!-- Rank -->
-        <span class="rank-label mono text-[13px] text-base-600 w-5 text-right shrink-0 select-none">{{$i}}</span>
-
-        <!-- ID -->
-        <a href="/tickets/{{.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] text-primary-400 w-[72px] shrink-0 hover:underline">{{.DisplayID}}</a>
-
-        <!-- Title -->
-        <span class="text-[15px] text-base-900 flex-1 truncate min-w-0">{{.Title}}</span>
-
-        <!-- Tracks: first tag plus a count, the column is too narrow for more -->
-        <span class="w-[92px] shrink-0" x-show="!refineMode" x-cloak>
-          {{$tags := .Tags}}
-          {{if $tags}}
-          {{$tag := index $tags 0}}
-          <span class="inline-flex items-center gap-1.5 min-w-0 max-w-full">
-            <span class="w-2 h-2 rounded-sm shrink-0" style="background-color: {{$tag.Color}}"></span>
-            <span class="text-[13px] text-base-700 truncate">{{$tag.Name}}</span>
-            {{if gt (len $tags) 1}}
-            <span class="mono text-[12px] text-base-600 shrink-0">+{{sub (len $tags) 1}}</span>
-            {{end}}
-          </span>
-          {{end}}
-        </span>
-
-        <!-- Priority -->
-        <span class="inline-flex items-center gap-1 w-9 shrink-0">
-          <span class="w-1 h-2.5 rounded-sm {{priorityColor .Priority.String}}"></span>
-          <span class="mono text-[11px] text-base-600">{{priorityLabel .Priority.String}}</span>
-        </span>
-
-        <!-- Estimate -->
-        {{if .StoryPoints}}
-        <span class="w-[68px] shrink-0 text-right mono text-[13px] text-base-700">{{deref .StoryPoints}} pt</span>
-        {{else}}
-        <button class="w-[68px] shrink-0 inline-flex items-center justify-center h-6 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 mono text-[13px]">— est</button>
-        {{end}}
-
-        <!-- Assignee / readiness -->
-        <template x-if="refineMode">
-          {{$ready := and .StoryPoints .ACItems}}
-          <span class="w-6 h-6 rounded-full shrink-0 inline-flex items-center justify-center
-            {{if $ready}}bg-primary-500/20{{else}}bg-base-300{{end}}"
-                title="{{if $ready}}Ready{{else}}Needs estimate or AC{{end}}">
-            {{if $ready}}
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m2 6 3 3 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            {{end}}
-          </span>
-        </template>
-        <template x-if="!refineMode">
-          {{if .Assignees}}
-          {{$a := index .Assignees 0}}
-          <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0" style="background-color:{{avatarColor $a.Name}}">{{initials $a.Name}}</span>
-          {{else}}
-          <span class="w-6 h-6 rounded-sm border border-dashed border-base-500 shrink-0"></span>
-          {{end}}
-        </template>
-
-      </div>
+      {{template "backlog-row" (dict "Ticket" . "Rank" $i "Draggable" true)}}
 
       <!-- Compact refine-mode row -->
       {{$ready := .StoryPoints}}
@@ -211,6 +140,99 @@
   </div>
 
   {{end}}
+
+</div>
+{{end}}
+
+{{/* backlog-row is one ticket row on the Backlog page. The backlog list and
+     the sprint sections above it both render it, so a row looks and drags the
+     same before and after a refresh; they used to have separate markup, and a
+     ticket dropped into a sprint lost its drag handle on reload.
+     Rank 0 means "not in the ranked backlog": no rank label (renumberRanks
+     counts .rank-label). Draggable false hides the handle, for done tickets. */}}
+{{define "backlog-row"}}
+{{$t := .Ticket}}
+<div class="backlog-ticket-row group flex items-center gap-3 px-4 h-12 hover:bg-base-250/40 cursor-pointer"
+     data-ticket-id="{{$t.ID}}"
+     {{if .Rank}}data-rank="{{.Rank}}"{{end}}
+     data-position="{{$t.Position}}"
+     data-ticket-column-id="{{$t.ColumnID}}"
+     x-show="!refineMode"
+     @click="
+       htmx.ajax('GET', '/tickets/{{$t.ID}}/quick', {target:'#modal-body', swap:'innerHTML'});
+       window.dispatchEvent(new CustomEvent('open-ticket-modal'));
+     ">
+
+  <!-- Drag handle -->
+  {{if .Draggable}}
+  <div class="drag-handle w-[14px] opacity-0 group-hover:opacity-100 cursor-grab shrink-0 text-base-500 flex items-center justify-center leading-none text-[14px]" aria-hidden="true">⠿</div>
+  {{else}}
+  <span class="w-[14px] shrink-0"></span>
+  {{end}}
+
+  <!-- Rank -->
+  {{if .Rank}}
+  <span class="rank-label mono text-[13px] text-base-600 w-5 text-right shrink-0 select-none">{{.Rank}}</span>
+  {{else}}
+  <span class="w-5 shrink-0"></span>
+  {{end}}
+
+  <!-- ID -->
+  <a href="/tickets/{{$t.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] {{if $t.ClosedAt}}text-base-600 line-through{{else}}text-primary-400{{end}} w-[72px] shrink-0 hover:underline">{{$t.DisplayID}}</a>
+
+  <!-- Title + blocked / depends-on marker -->
+  <span class="flex items-center gap-2 flex-1 min-w-0">
+    <span class="text-[15px] {{if $t.ClosedAt}}text-base-700{{else}}text-base-900{{end}} truncate min-w-0">{{$t.Title}}</span>
+    {{if not $t.ClosedAt}}{{template "blocker-chip" $t}}{{end}}
+  </span>
+
+  <!-- Tracks: first tag plus a count, the column is too narrow for more -->
+  <span class="w-[92px] shrink-0" x-show="!refineMode" x-cloak>
+    {{$tags := $t.Tags}}
+    {{if $tags}}
+    {{$tag := index $tags 0}}
+    <span class="inline-flex items-center gap-1.5 min-w-0 max-w-full">
+      <span class="w-2 h-2 rounded-sm shrink-0" style="background-color: {{$tag.Color}}"></span>
+      <span class="text-[13px] text-base-700 truncate">{{$tag.Name}}</span>
+      {{if gt (len $tags) 1}}
+      <span class="mono text-[12px] text-base-600 shrink-0">+{{sub (len $tags) 1}}</span>
+      {{end}}
+    </span>
+    {{end}}
+  </span>
+
+  <!-- Priority -->
+  <span class="inline-flex items-center gap-1 w-9 shrink-0">
+    <span class="w-1 h-2.5 rounded-sm {{priorityColor $t.Priority.String}}"></span>
+    <span class="mono text-[11px] text-base-600">{{priorityLabel $t.Priority.String}}</span>
+  </span>
+
+  <!-- Estimate -->
+  {{if $t.StoryPoints}}
+  <span class="w-[68px] shrink-0 text-right mono text-[13px] text-base-700">{{deref $t.StoryPoints}} pt</span>
+  {{else}}
+  <button class="w-[68px] shrink-0 inline-flex items-center justify-center h-6 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 mono text-[13px]">— est</button>
+  {{end}}
+
+  <!-- Assignee / readiness -->
+  <template x-if="refineMode">
+    {{$ready := and $t.StoryPoints $t.ACItems}}
+    <span class="w-6 h-6 rounded-full shrink-0 inline-flex items-center justify-center
+      {{if $ready}}bg-primary-500/20{{else}}bg-base-300{{end}}"
+          title="{{if $ready}}Ready{{else}}Needs estimate or AC{{end}}">
+      {{if $ready}}
+      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m2 6 3 3 5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      {{end}}
+    </span>
+  </template>
+  <template x-if="!refineMode">
+    {{if $t.Assignees}}
+    {{$a := index $t.Assignees 0}}
+    <span class="w-6 h-6 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[11px] font-semibold shrink-0" style="background-color:{{avatarColor $a.Name}}">{{initials $a.Name}}</span>
+    {{else}}
+    <span class="w-6 h-6 rounded-sm border border-dashed border-base-500 shrink-0"></span>
+    {{end}}
+  </template>
 
 </div>
 {{end}}

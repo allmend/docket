@@ -140,15 +140,15 @@
             <span class="ml-auto mono text-[13px] text-base-600">{{$as.Done}}/{{$as.Total}}</span>
             {{if $team}}<a href="/workspaces/{{$team.Slug}}/board" class="mono text-[13px] text-primary-400 hover:text-primary-300 ml-3" @click.stop>Board →</a>{{end}}
           </div>
-          <div x-show="open" x-cloak class="divide-y divide-base-300">
-            {{range $as.Columns}}{{range .Tickets}}
-            <div class="flex items-center gap-3 px-4 h-10 hover:bg-base-250/40 cursor-pointer"
-                 hx-get="/tickets/{{.ID}}/quick" hx-target="#modal-body" hx-swap="innerHTML"
-                 hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
-              <span class="w-1 h-2.5 rounded-sm shrink-0 {{priorityColor .Priority.String}}"></span>
-              <a href="/tickets/{{.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] text-primary-400 shrink-0 hover:underline">{{.DisplayID}}</a>
-              <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>
-            </div>
+          {{/* A drop target like the planning lists: dragging a ticket out returns
+               it to the backlog, dragging one in is unplanned work (warned). */}}
+          <div x-show="open" x-cloak class="sprint-list divide-y divide-base-300"
+               data-sprint-id="{{$as.Sprint.ID}}"
+               data-sprint-status="active"
+               data-first-column-id="{{$.FirstColumnID}}"
+               data-board-id="{{if $board}}{{$board.ID}}{{end}}">
+            {{range $as.Columns}}{{$done := .IsDone}}{{range .Tickets}}
+            {{template "backlog-row" (dict "Ticket" . "Rank" 0 "Draggable" (and (not $done) (not .ClosedAt)))}}
             {{end}}{{end}}
           </div>
         </div>
@@ -175,15 +175,7 @@
                  data-first-column-id="{{$.FirstColumnID}}"
                  data-board-id="{{if $board}}{{$board.ID}}{{end}}">
               {{range $sv.Tickets}}
-              <div class="sprint-ticket flex items-center gap-3 px-4 h-10 hover:bg-base-250/40 cursor-pointer"
-                   data-ticket-id="{{.ID}}" data-position="{{.Position}}"
-                   hx-get="/tickets/{{.ID}}/quick" hx-target="#modal-body" hx-swap="innerHTML"
-                   hx-on::after-request="window.dispatchEvent(new CustomEvent('open-ticket-modal'))">
-                <span class="w-1 h-2.5 rounded-sm shrink-0 {{priorityColor .Priority.String}}"></span>
-                {{if .StoryPoints}}<span class="mono text-[13px] text-base-700 bg-primary-500/10 border border-primary-500/20 rounded-sm px-1 shrink-0">{{deref .StoryPoints}}</span>{{end}}
-                <a href="/tickets/{{.DisplayID}}" draggable="false" onclick="event.stopPropagation()" class="mono text-[13px] text-primary-400 shrink-0 hover:underline">{{.DisplayID}}</a>
-                <span class="text-[14px] text-base-900 flex-1 truncate">{{.Title}}</span>
-              </div>
+              {{template "backlog-row" (dict "Ticket" . "Rank" 0 "Draggable" (not .ClosedAt))}}
               {{end}}
             </div>
           </div>

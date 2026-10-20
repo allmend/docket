@@ -1,0 +1,11 @@
+{{/* Blocked and depends-on markers, shared by every surface that lists tickets
+     (board cards, planning cards, backlog and sprint rows) so a ticket looks
+     the same wherever it sits and after it is dragged somewhere else. Red for
+     a hard block, amber for a dependency: not free to pick up, but nobody is
+     stuck. Red wins if a ticket is somehow both. Both take a model.Ticket. */}}
+
+{{/* blocker-border: border colour classes for a card. */}}
+{{define "blocker-border"}}{{if .IsBlocked}}border-danger/40 hover:border-danger/60{{else if .IsWaiting}}border-warn/40 hover:border-warn/60{{else}}border-base-300 hover:border-base-400{{end}}{{end}}
+
+{{/* blocker-chip: the "Blocked by X" / "Depends on X" chip, or nothing. */}}
+{{define "blocker-chip"}}{{if .IsBlocked}}<span class="inline-flex items-center h-4 px-1 rounded-sm bg-danger/15 border border-danger/30 mono text-[12px] uppercase tracking-wider text-danger shrink-0 whitespace-nowrap">Blocked{{if .BlockedBy}} by {{.BlockedBy}}{{end}}</span>{{else if .IsWaiting}}<span class="inline-flex items-center h-4 px-1 rounded-sm bg-warn/15 border border-warn/30 mono text-[12px] uppercase tracking-wider text-warn shrink-0 whitespace-nowrap">Depends on{{if .WaitingOn}} {{.WaitingOn}}{{end}}</span>{{end}}{{end}}
