@@ -268,6 +268,22 @@ func (s *BoardService) RenameColumn(ctx context.Context, orgID, columnID uuid.UU
 	return s.store.RenameColumn(ctx, orgID, columnID, name)
 }
 
+// MoveColumn moves a column one step left (dir < 0) or right (dir > 0) by
+// swapping positions with its neighbour. Moving past either end is invalid
+// input. The first column is the default drop target, so moving another
+// column to the front changes where new tickets land.
+func (s *BoardService) MoveColumn(ctx context.Context, orgID, boardID, columnID uuid.UUID, dir int) error {
+	cols, err := s.store.ListColumns(ctx, orgID, boardID)
+	if err != nil {
+		return err
+	}
+	neighbour, err := columnNeighbour(cols, columnID, dir)
+	if err != nil {
+		return err
+	}
+	return s.store.SwapColumnPositions(ctx, orgID, boardID, columnID, neighbour)
+}
+
 // DeleteColumn removes an empty, non-Done column. A board keeps at least one
 // column — the first column is the default drop target for new tickets — and a
 // column still holding tickets can't go, since tickets.column_id references it.

@@ -25,9 +25,11 @@ func (h *Handler) SettingsPage(w http.ResponseWriter, r *http.Request) {
 		"Tokens":  tokenList,
 		"Tab":     tab,
 		// settings.html is shared with the workspace-settings branch; this is
-		// the org-level view, which has no team or tracks.
-		"Team":   nil,
-		"Tracks": nil,
+		// the org-level view, which has no team, tracks or columns.
+		"Team":    nil,
+		"Tracks":  nil,
+		"Columns": nil,
+		"Board":   nil,
 	}))
 }
 

@@ -272,7 +272,7 @@ func (h *Handler) TeamSettings(w http.ResponseWriter, r *http.Request) {
 	// run under missingkey=error, so a conditional assignment is a latent 500.
 	data := map[string]any{
 		"Team": team, "Tab": tab,
-		"Board": nil, "Members": nil, "Tracks": nil, "Tokens": nil,
+		"Board": nil, "Members": nil, "Tracks": nil, "Tokens": nil, "Columns": nil,
 	}
 	var board *model.Board
 	if b, err := h.teams.GetBoardForTeam(r.Context(), orgID, team.ID); err == nil {
@@ -285,6 +285,10 @@ func (h *Handler) TeamSettings(w http.ResponseWriter, r *http.Request) {
 	if tab == "tracks" && board != nil {
 		tracks, _ := h.boards.ListTrackStats(r.Context(), orgID, board.ID)
 		data["Tracks"] = tracks
+	}
+	if tab == "columns" && board != nil {
+		cols, _ := h.boards.ListColumns(r.Context(), orgID, board.ID)
+		data["Columns"] = cols
 	}
 
 	h.render(w, "settings.html", h.pageData(r, data))

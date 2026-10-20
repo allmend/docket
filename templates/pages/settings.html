@@ -27,6 +27,7 @@
         <a href="?tab=general" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "general"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">General</a>
         <a href="?" class="block px-3 py-1.5 rounded text-[14px] {{if or (eq $tab "") (eq $tab "members")}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Members</a>
         <a href="?tab=tracks" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "tracks"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Tracks</a>
+        <a href="?tab=columns" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "columns"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Columns</a>
         <a href="?tab=sprint" class="block px-3 py-1.5 rounded text-[14px] {{if eq $tab "sprint"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Sprint defaults</a>
         <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Integrations</a>
         <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Notifications</a>
@@ -84,6 +85,10 @@
         {{else if eq $tab "tracks"}}
         {{/* ── Tracks ── */}}
         {{template "settings-tracks-partial" (dict "Team" $team "Tracks" .Tracks "Members" .Members)}}
+
+        {{else if eq $tab "columns"}}
+        {{/* ── Columns ── */}}
+        {{template "settings-columns-partial" (dict "Team" $team "Board" .Board "Columns" .Columns)}}
 
         {{else if eq $tab "sprint"}}
         {{/* ── Sprint defaults ── */}}

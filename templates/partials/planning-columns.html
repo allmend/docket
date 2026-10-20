@@ -42,7 +42,7 @@
     {{$isDone := .IsDone}}
     {{template "board-column" (dict "Board" $board "Col" $col "IsDone" $isDone "Tickets" .Tickets "Mode" "planning" "FirstColumnID" $.FirstColumnID "Points" .TotalPoints)}}
     {{end}}{{end}}
-    {{template "add-column-card" $board}}
+    {{template "add-column-card" $team}}
   </div>
 
 </div>

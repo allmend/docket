@@ -1,0 +1,86 @@
+{{define "settings-columns-partial"}}
+{{$team := .Team}}
+{{$board := .Board}}
+{{/* Re-fetches itself from the full settings page after any column change
+     (each action answers 204 + boardUpdated), so there is one renderer and
+     the panel can't drift from the page. A failed action shows its reason
+     inline: htmx doesn't swap 4xx responses, so it would otherwise be silent. */}}
+<div id="settings-columns"
+     hx-get="/workspaces/{{$team.Slug}}/settings?tab=columns"
+     hx-select="#settings-columns"
+     hx-swap="outerHTML"
+     hx-trigger="boardUpdated from:body"
+     x-data="{ err: '' }"
+     x-on:htmx:response-error="err = $event.detail.xhr.responseText"
+     x-on:htmx:after-request="if ($event.detail.successful) err = ''">
+
+  <div class="mb-4">
+    <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">Columns</h2>
+    <div class="mono text-[14px] text-base-700 mt-0.5">Board columns, left to right · new tickets land in the first one</div>
+  </div>
+
+  {{if not $board}}
+  <div class="bg-base-200 border border-base-300 rounded-md p-5 text-[14px] text-base-700">This workspace has no board.</div>
+  {{else}}
+
+  <div x-show="err" x-cloak class="mb-3 px-3 py-2 rounded border border-danger/30 bg-danger/10 text-[14px] text-danger" x-text="err"></div>
+
+  <div class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+    {{$last := len .Columns}}
+    {{range $i, $col := .Columns}}
+    {{$isDone := eq (lower $col.Name) "done"}}
+    <div class="group flex items-center gap-3 px-4 h-12 border-b border-base-300 last:border-b-0">
+      <span class="mono text-[13px] text-base-600 w-5 shrink-0">{{add $i 1}}</span>
+
+      {{if $isDone}}
+      <span class="flex-1 min-w-0 mono text-[13px] uppercase tracking-[0.18em] text-success truncate">{{$col.Name}}</span>
+      <span class="mono text-[12px] text-base-600 shrink-0">closes tickets · can't be renamed or deleted</span>
+      {{else}}
+      <form hx-put="/boards/{{$board.ID}}/columns/{{$col.ID}}" hx-swap="none" class="flex-1 min-w-0 flex items-center gap-2">
+        <input name="name" value="{{$col.Name}}" required aria-label="Column name"
+               class="flex-1 min-w-0 h-8 px-2.5 bg-base-150 border border-base-300 rounded text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500"/>
+        <button type="submit"
+                class="h-8 px-3 inline-flex items-center bg-base-250 hover:bg-base-300 border border-base-350 rounded text-[14px] text-base-900 shrink-0">Rename</button>
+      </form>
+      {{end}}
+
+      <div class="flex items-center gap-0.5 shrink-0">
+        <button type="button" title="Move left" aria-label="Move left"
+                {{if eq $i 0}}disabled{{end}}
+                hx-post="/boards/{{$board.ID}}/columns/{{$col.ID}}/move" hx-vals='{"direction":"left"}' hx-swap="none"
+                class="w-8 h-8 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-300 disabled:opacity-30 disabled:pointer-events-none">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button type="button" title="Move right" aria-label="Move right"
+                {{if eq (add $i 1) $last}}disabled{{end}}
+                hx-post="/boards/{{$board.ID}}/columns/{{$col.ID}}/move" hx-vals='{"direction":"right"}' hx-swap="none"
+                class="w-8 h-8 inline-flex items-center justify-center rounded text-base-600 hover:text-base-900 hover:bg-base-300 disabled:opacity-30 disabled:pointer-events-none">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m6 3 5 5-5 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        {{if not $isDone}}
+        <button type="button" title="Delete column" aria-label="Delete column"
+                hx-delete="/boards/{{$board.ID}}/columns/{{$col.ID}}"
+                hx-confirm="Delete column '{{$col.Name}}'? It must be empty."
+                hx-swap="none"
+                class="w-8 h-8 inline-flex items-center justify-center rounded text-base-600 hover:text-danger hover:bg-danger/10">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 5h10M5.5 5V3.5h5V5M6.5 8v4.5M9.5 8v4.5M4 5l.5 8h7L12 5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        {{else}}
+        <span class="w-8 h-8 shrink-0"></span>
+        {{end}}
+      </div>
+    </div>
+    {{end}}
+  </div>
+
+  <form hx-post="/boards/{{$board.ID}}/columns" hx-swap="none"
+        x-on:htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) $el.reset()"
+        class="mt-3 flex items-center gap-2">
+    <input name="name" required placeholder="New column name…" aria-label="New column name"
+           class="w-[260px] h-9 px-2.5 bg-base-150 border border-base-300 rounded text-[14px] text-base-900 placeholder:text-base-600 shadow-sunk focus:outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20"/>
+    <button type="submit"
+            class="h-9 px-3 inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">+ Add column</button>
+  </form>
+  {{end}}
+</div>
+{{end}}

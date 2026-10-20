@@ -265,6 +265,7 @@ func (h *Handler) Routes(r chi.Router) {
 
 	a.post(model.TierWrite, "/boards/{boardID}/columns", h.CreateColumn)
 	a.put(model.TierWrite, "/boards/{boardID}/columns/{columnID}", h.RenameColumn)
+	a.post(model.TierWrite, "/boards/{boardID}/columns/{columnID}/move", h.MoveColumn)
 	a.delete(model.TierWrite, "/boards/{boardID}/columns/{columnID}", h.DeleteColumn)
 
 	a.get(model.TierRead, "/boards/{boardID}/daily/tickets", h.BoardDailyScrumTickets)

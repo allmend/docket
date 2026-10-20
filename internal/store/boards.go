@@ -6,6 +6,7 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 const boardCols = `id, org_id, team_id, name, description, mode, created_by, created_at, updated_at`
@@ -163,6 +164,28 @@ func (s *Store) RenameColumn(ctx context.Context, orgID, columnID uuid.UUID, nam
 		orgID, columnID, name,
 	).Scan(&c.ID, &c.OrgID, &c.BoardID, &c.Name, &c.Position, &c.CreatedAt, &c.UpdatedAt)
 	return &c, err
+}
+
+// SwapColumnPositions exchanges the positions of two columns on the same board
+// in one statement. Both columns must belong to the org and to boardID; if
+// either doesn't, nothing changes and pgx.ErrNoRows is returned.
+func (s *Store) SwapColumnPositions(ctx context.Context, orgID, boardID, aID, bID uuid.UUID) error {
+	tag, err := s.primary.Exec(ctx,
+		`UPDATE columns c
+		 SET position = o.position, updated_at = NOW()
+		 FROM columns o
+		 WHERE c.org_id = $1 AND o.org_id = $1
+		   AND c.board_id = $2 AND o.board_id = $2
+		   AND ((c.id = $3 AND o.id = $4) OR (c.id = $4 AND o.id = $3))`,
+		orgID, boardID, aID, bID,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() != 2 {
+		return pgx.ErrNoRows
+	}
+	return nil
 }
 
 func (s *Store) DeleteColumn(ctx context.Context, orgID, columnID uuid.UUID) error {
