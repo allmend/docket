@@ -589,6 +589,11 @@ func (s *BoardService) ListBoardTags(ctx context.Context, orgID, boardID uuid.UU
 	return s.store.ListTags(ctx, orgID, boardID)
 }
 
+// ListOrgTags returns every workspace's tracks in one query.
+func (s *BoardService) ListOrgTags(ctx context.Context, orgID uuid.UUID) ([]model.Tag, error) {
+	return s.store.ListOrgTags(ctx, orgID)
+}
+
 func (s *BoardService) GetTag(ctx context.Context, orgID, tagID uuid.UUID) (*model.Tag, error) {
 	return s.store.GetTag(ctx, orgID, tagID)
 }

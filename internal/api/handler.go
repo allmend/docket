@@ -125,7 +125,7 @@ func (h *Handler) pageData(r *http.Request, data map[string]any) map[string]any 
 	// which would turn a failed lookup — or simply an org-level page — into a 500.
 	// Real values overwrite these below. Kept in step with pageDataKeys in
 	// templatecontract_test.go.
-	for _, k := range []string{"NavTeams", "CurrentUser", "NavTeam", "NavBoard", "NavTags", "NavActiveSprint"} {
+	for _, k := range []string{"NavTeams", "NavAllTags", "CurrentUser", "NavTeam", "NavBoard", "NavTags", "NavActiveSprint"} {
 		if _, has := data[k]; !has {
 			data[k] = nil
 		}
@@ -138,6 +138,10 @@ func (h *Handler) pageData(r *http.Request, data map[string]any) map[string]any 
 	// Minimal nav for org-level pages (dashboard, teams list, inbox, my-issues).
 	if teams, err := h.teams.ListTeamsWithBoards(ctx, orgID); err == nil {
 		data["NavTeams"] = teams
+	}
+	// Every workspace's tracks, for the New Ticket dialog's track picker.
+	if tags, err := h.boards.ListOrgTags(ctx, orgID); err == nil {
+		data["NavAllTags"] = tags
 	}
 	if u := h.auth.GetCurrentUser(ctx); u != nil {
 		data["CurrentUser"] = u

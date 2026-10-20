@@ -147,7 +147,7 @@ type renderSite struct {
 // pageDataKeys are the nav keys h.pageData injects on top of the caller's map.
 // pageData must set every one of these unconditionally — see TestPageDataSeedsAllKeys.
 var pageDataKeys = []string{
-	"NavTeams", "CurrentUser", "NavUnreadCount", "NavMyIssueCount",
+	"NavTeams", "NavAllTags", "CurrentUser", "NavUnreadCount", "NavMyIssueCount",
 	"OrgName", "OrgSlug", "CurrentPath", "NavTeam", "NavBoard",
 	"NavTags", "NavActiveSprint",
 }

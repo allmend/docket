@@ -194,6 +194,30 @@ func (s *Store) ListTags(ctx context.Context, orgID, boardID uuid.UUID) ([]model
 	return tags, rows.Err()
 }
 
+// ListOrgTags returns every tag in the org, ordered by board then name. The
+// New Ticket dialog uses it to offer each workspace's tracks without a query
+// per workspace.
+func (s *Store) ListOrgTags(ctx context.Context, orgID uuid.UUID) ([]model.Tag, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT id, org_id, board_id, name, color FROM tags WHERE org_id = $1 ORDER BY board_id, name`,
+		orgID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []model.Tag
+	for rows.Next() {
+		var t model.Tag
+		if err := rows.Scan(&t.ID, &t.OrgID, &t.BoardID, &t.Name, &t.Color); err != nil {
+			return nil, err
+		}
+		tags = append(tags, t)
+	}
+	return tags, rows.Err()
+}
+
 func (s *Store) CreateTag(ctx context.Context, orgID, boardID uuid.UUID, name, color, description string, leadUserID *uuid.UUID) (*model.Tag, error) {
 	var t model.Tag
 	err := s.primary.QueryRow(ctx,

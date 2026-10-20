@@ -305,6 +305,7 @@
            teamName:     $el.dataset.defaultTeamName || 'Select workspace',
            pickerOpen:   false,
            priority:     '',
+           trackColor:   '',
            priorityColors: { critical: '#f85149', high: '#ff8c42', medium: '#d29922', low: '#58a6ff' },
            addAnother:   false
          }"
@@ -330,7 +331,7 @@
             <button type="button"
                     data-team-id="{{.Team.ID}}"
                     data-team-name="{{.Team.Name}}"
-                    @click="teamID=$el.dataset.teamId; teamName=$el.dataset.teamName; pickerOpen=false"
+                    @click="teamID=$el.dataset.teamId; teamName=$el.dataset.teamName; pickerOpen=false; trackColor=''; $root.querySelectorAll('select[name=tag_id]').forEach(s => s.value = '')"
                     class="w-full flex items-center gap-2 px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-300 text-left">
               <span class="mono text-[13px] text-primary-400 shrink-0 w-14 truncate">{{.Team.Key}}</span>
               <span class="truncate flex-1">{{.Team.Name}}</span>
@@ -352,7 +353,7 @@
            navigates away, so a closed dialog would otherwise reopen pre-filled.
            elt === $el ignores htmx requests from inside the form (the editor). */}}
       <form hx-post="/tickets/new"
-            x-on:htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) { $el.reset(); priority = ''; if (addAnother) { $refs.ntTitle.focus() } else { newTicketModal = false } document.body.dispatchEvent(new CustomEvent('boardUpdated')) }"
+            x-on:htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) { $el.reset(); priority = ''; trackColor = ''; if (addAnother) { $refs.ntTitle.focus() } else { newTicketModal = false } document.body.dispatchEvent(new CustomEvent('boardUpdated')) }"
             @keydown.meta.enter.prevent="$el.requestSubmit()"
             @keydown.ctrl.enter.prevent="$el.requestSubmit()">
         <input type="hidden" name="team_id" :value="teamID" />
@@ -364,7 +365,28 @@
           {{/* Native selects styled like the ticket drawer's, as in the New Ticket
                design: browser menu, arrow keys and type-ahead for free, and nothing
                to clip inside the overflow-hidden card. */}}
-          <div class="grid grid-cols-2 gap-2 pt-1">
+          <div class="grid grid-cols-3 gap-2 pt-1">
+            {{/* One track select per workspace; only the selected workspace's is
+                 shown and enabled, so a track from another workspace is never
+                 submitted. The swatch colour comes from the option's data-color,
+                 never inlined into the expression. */}}
+            <div class="selwrap">
+              <span class="swatch" :style="{ backgroundColor: trackColor || '#484f58' }"></span>
+              <select class="metasel has-swatch" aria-label="Track" disabled x-show="!teamID"><option>Track</option></select>
+              {{range .NavTeams}}{{if .Board}}{{$bid := .Board.ID}}
+              <select name="tag_id" class="metasel has-swatch" aria-label="Track"
+                      data-team-id="{{.Team.ID}}"
+                      x-show="teamID === $el.dataset.teamId"
+                      :disabled="teamID !== $el.dataset.teamId"
+                      @change="trackColor = $event.target.selectedOptions[0].dataset.color || ''">
+                <option value="">Track</option>
+                {{range $.NavAllTags}}{{if eq .BoardID $bid}}
+                <option value="{{.ID}}" data-color="{{.Color}}">{{.Name}}</option>
+                {{end}}{{end}}
+              </select>
+              {{end}}{{end}}
+              <svg class="chev text-base-600" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
             <div class="selwrap">
               <span class="swatch" :style="{ backgroundColor: priorityColors[priority] || '#484f58' }"></span>
               <select name="priority" x-model="priority" class="metasel has-swatch" aria-label="Priority">
