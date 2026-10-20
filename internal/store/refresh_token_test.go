@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // TestRefreshTokenGraceWindow locks in the fix for the sporadic logouts: the
@@ -23,7 +25,7 @@ func TestRefreshTokenGraceWindow(t *testing.T) {
 	user := seedUser(t, org.ID, "alice")
 
 	const hash = "hash-grace"
-	if err := s.CreateRefreshToken(ctx, user.ID, hash, time.Now().Add(24*time.Hour)); err != nil {
+	if err := s.CreateRefreshToken(ctx, user.ID, hash, time.Now().Add(24*time.Hour), uuid.New()); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
@@ -62,7 +64,7 @@ func TestRefreshTokenGraceDoesNotSlide(t *testing.T) {
 	user := seedUser(t, org.ID, "alice")
 
 	const hash = "hash-slide"
-	if err := s.CreateRefreshToken(ctx, user.ID, hash, time.Now().Add(24*time.Hour)); err != nil {
+	if err := s.CreateRefreshToken(ctx, user.ID, hash, time.Now().Add(24*time.Hour), uuid.New()); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 
@@ -104,7 +106,7 @@ func TestRefreshTokenRevokeIgnoresGrace(t *testing.T) {
 	user := seedUser(t, org.ID, "alice")
 
 	const hash = "hash-revoked"
-	if err := s.CreateRefreshToken(ctx, user.ID, hash, time.Now().Add(24*time.Hour)); err != nil {
+	if err := s.CreateRefreshToken(ctx, user.ID, hash, time.Now().Add(24*time.Hour), uuid.New()); err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	if err := s.RevokeRefreshToken(ctx, hash); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
@@ -130,17 +131,20 @@ func (s *Store) GetPasswordHash(ctx context.Context, userID uuid.UUID) (string, 
 	return hash, err
 }
 
-func (s *Store) CreateRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) error {
+// CreateRefreshToken stores a refresh token in familyID: a fresh family on
+// login, the presented token's family on rotation.
+func (s *Store) CreateRefreshToken(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time, familyID uuid.UUID) error {
 	_, err := s.primary.Exec(ctx,
-		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
-		userID, tokenHash, expiresAt,
+		`INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id) VALUES ($1, $2, $3, $4)`,
+		userID, tokenHash, expiresAt, familyID,
 	)
 	return err
 }
 
 type RefreshTokenRow struct {
-	UserID uuid.UUID
-	OrgID  uuid.UUID
+	UserID   uuid.UUID
+	OrgID    uuid.UUID
+	FamilyID uuid.UUID
 }
 
 // ValidateRefreshToken accepts a token that is unrevoked and unexpired, and
@@ -152,7 +156,7 @@ func (s *Store) ValidateRefreshToken(ctx context.Context, tokenHash string, grac
 	// NOTE: must use primary when a real read replica is added — replication lag
 	// could make a just-revoked token appear valid on the replica.
 	err := s.replica.QueryRow(ctx,
-		`SELECT rt.user_id, u.org_id FROM refresh_tokens rt
+		`SELECT rt.user_id, u.org_id, rt.family_id FROM refresh_tokens rt
 		 JOIN users u ON u.id = rt.user_id
 		 WHERE rt.token_hash = $1
 		   AND rt.revoked_at IS NULL
@@ -160,11 +164,41 @@ func (s *Store) ValidateRefreshToken(ctx context.Context, tokenHash string, grac
 		   AND (rt.superseded_at IS NULL
 		        OR rt.superseded_at > NOW() - make_interval(secs => $2))`,
 		tokenHash, grace.Seconds(),
-	).Scan(&r.UserID, &r.OrgID)
+	).Scan(&r.UserID, &r.OrgID, &r.FamilyID)
 	if err != nil {
 		return nil, err
 	}
 	return &r, nil
+}
+
+// RevokeReusedRefreshToken handles a token ValidateRefreshToken rejected. If it
+// is an unrevoked, unexpired token that was rotated more than grace ago, it was
+// replayed after its replacement was issued: either a client bug or someone
+// else holding a copy. The whole family is revoked, which also logs out the
+// legitimate holder of the newest token. Reports whether that happened.
+func (s *Store) RevokeReusedRefreshToken(ctx context.Context, tokenHash string, grace time.Duration) (userID uuid.UUID, reused bool, err error) {
+	err = s.primary.QueryRow(ctx,
+		`WITH reused AS (
+		     SELECT family_id, user_id FROM refresh_tokens
+		     WHERE token_hash = $1
+		       AND revoked_at IS NULL
+		       AND expires_at > NOW()
+		       AND superseded_at IS NOT NULL
+		       AND superseded_at <= NOW() - make_interval(secs => $2)
+		 ), revoked AS (
+		     UPDATE refresh_tokens SET revoked_at = NOW()
+		     WHERE family_id = (SELECT family_id FROM reused) AND revoked_at IS NULL
+		 )
+		 SELECT user_id FROM reused`,
+		tokenHash, grace.Seconds(),
+	).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	return userID, true, nil
 }
 
 // SupersedeRefreshToken marks a token as rotated. It stays usable for the grace
@@ -183,11 +217,15 @@ func (s *Store) SupersedeRefreshToken(ctx context.Context, tokenHash string) err
 	return err
 }
 
-// RevokeRefreshToken kills a token immediately, with no grace — this is logout
-// and explicit revocation, where the whole point is that the token stops working.
+// RevokeRefreshToken kills a token and every other token of its family
+// immediately, with no grace — this is logout, where the whole point is that
+// the session stops working. Revoking only the presented token left its
+// predecessors usable while still inside their rotation grace window.
 func (s *Store) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
 	_, err := s.primary.Exec(ctx,
-		`UPDATE refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1`,
+		`UPDATE refresh_tokens SET revoked_at = NOW()
+		 WHERE family_id = (SELECT family_id FROM refresh_tokens WHERE token_hash = $1)
+		   AND revoked_at IS NULL`,
 		tokenHash,
 	)
 	return err

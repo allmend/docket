@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/allmend/docket/internal/model"
@@ -80,7 +81,7 @@ func (s *AuthService) loginWithOrg(ctx context.Context, org *model.Org, username
 		return nil, nil, ErrInvalidCredentials
 	}
 
-	pair, err := s.issueTokenPair(ctx, user)
+	pair, err := s.issueTokenPair(ctx, user, uuid.Nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -92,6 +93,12 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*mod
 	h := hashToken(rawRefreshToken)
 	row, err := s.store.ValidateRefreshToken(ctx, h, refreshGrace)
 	if err != nil {
+		if userID, reused, rerr := s.store.RevokeReusedRefreshToken(ctx, h, refreshGrace); rerr != nil {
+			slog.Error("refresh token reuse check", "err", rerr)
+		} else if reused {
+			slog.Warn("rotated refresh token replayed after its grace window; revoked the session",
+				"user_id", userID)
+		}
 		return nil, nil, ErrInvalidCredentials
 	}
 
@@ -107,7 +114,7 @@ func (s *AuthService) Refresh(ctx context.Context, rawRefreshToken string) (*mod
 		return nil, nil, fmt.Errorf("supersede: %w", err)
 	}
 
-	pair, err := s.issueTokenPair(ctx, user)
+	pair, err := s.issueTokenPair(ctx, user, row.FamilyID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -202,7 +209,12 @@ func (s *AuthService) ValidateAccessToken(tokenStr string) (*model.Claims, error
 	}, nil
 }
 
-func (s *AuthService) issueTokenPair(ctx context.Context, user *model.User) (*TokenPair, error) {
+// issueTokenPair signs an access token and stores a new refresh token in
+// familyID (uuid.Nil starts a new family, as on login).
+func (s *AuthService) issueTokenPair(ctx context.Context, user *model.User, familyID uuid.UUID) (*TokenPair, error) {
+	if familyID == uuid.Nil {
+		familyID = uuid.New()
+	}
 	accessToken, err := s.signAccessToken(user)
 	if err != nil {
 		return nil, fmt.Errorf("sign access token: %w", err)
@@ -213,7 +225,7 @@ func (s *AuthService) issueTokenPair(ctx context.Context, user *model.User) (*To
 		return nil, fmt.Errorf("generate refresh token: %w", err)
 	}
 
-	if err := s.store.CreateRefreshToken(ctx, user.ID, hashToken(raw), time.Now().Add(refreshTokenTTL)); err != nil {
+	if err := s.store.CreateRefreshToken(ctx, user.ID, hashToken(raw), time.Now().Add(refreshTokenTTL), familyID); err != nil {
 		return nil, fmt.Errorf("store refresh token: %w", err)
 	}
 
