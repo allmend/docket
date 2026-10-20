@@ -45,6 +45,9 @@ func templateFuncs() template.FuncMap {
 		"priorityColor": priorityColor,
 		"priorityLabel": priorityLabel,
 
+		"closeReasonLabel":   model.CloseReasonLabel,
+		"closeReasonOptions": model.CloseReasonOptions,
+
 		// A func rather than handler data so every render path of ticket-links
 		// gets the same list without plumbing it through.
 		"relationOptions": model.RelationOptions,

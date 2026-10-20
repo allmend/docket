@@ -34,7 +34,7 @@
       {{else if eq .Field "assignee"}}
         {{if .NewValue}}assigned <span class="text-base-900">{{.NewValue}}</span>
         {{else}}unassigned <span class="text-base-900">{{.OldValue}}</span>{{end}}
-      {{else if eq .Field "closed"}}closed this ticket
+      {{else if eq .Field "closed"}}closed this ticket{{with closeReasonLabel .NewValue}} — <span class="text-base-900">{{.}}</span>{{end}}
       {{else if eq .Field "reopened"}}reopened this ticket
       {{/* The stored value is a whole phrase ("blocks ENG-4", "required by
            ENG-4"), so these read as label plus clause. "linked required by"

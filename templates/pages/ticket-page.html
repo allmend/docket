@@ -42,12 +42,35 @@
     {{end}}
     <div class="ml-auto flex items-center gap-1">
       {{if not $closed}}
-      <button hx-post="/tickets/{{$t.ID}}/close"
-              hx-confirm="Close this ticket?"
-              hx-swap="none"
-              class="h-7 px-2 inline-flex items-center gap-1.5 rounded text-[13px] text-base-700 hover:text-danger hover:bg-danger/10 border border-transparent hover:border-danger/30">
-        Close
-      </button>
+      {{/* Closing asks why: a fixed set of reasons, or a short note for "Other". */}}
+      <div class="relative" x-data="{ open: false, other: false }"
+           @click.outside="open = false; other = false"
+           @keydown.escape.stop="open = false; other = false">
+        <button type="button" @click="open = !open" :aria-expanded="open"
+                class="h-7 px-2 inline-flex items-center gap-1.5 rounded text-[13px] text-base-700 hover:text-danger hover:bg-danger/10 border border-transparent hover:border-danger/30">
+          Close
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 6l4 4 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <div x-show="open" x-cloak
+             class="absolute right-0 top-full mt-1 z-20 w-56 bg-base-200 border border-base-300 rounded-md shadow-lift py-1">
+          <div class="px-3 pt-1 pb-1.5 mono text-[12px] uppercase tracking-wider text-base-600">Close as</div>
+          {{range closeReasonOptions}}{{if ne .Value "other"}}
+          <form hx-post="/tickets/{{$t.ID}}/close" hx-swap="none">
+            <input type="hidden" name="reason" value="{{.Value}}">
+            <button type="submit" class="w-full text-left px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-250">{{.Label}}</button>
+          </form>
+          {{else}}
+          <button type="button" x-show="!other" @click="other = true; $nextTick(() => $refs.closeNote.focus())"
+                  class="w-full text-left px-3 py-1.5 text-[14px] text-base-900 hover:bg-base-250">{{.Label}}</button>
+          <form x-show="other" x-cloak hx-post="/tickets/{{$t.ID}}/close" hx-swap="none" class="px-3 py-2 flex flex-col gap-2">
+            <input type="hidden" name="reason" value="other">
+            <input x-ref="closeNote" name="reason_note" required maxlength="200" placeholder="Why is it closed?" autocomplete="off"
+                   class="w-full bg-base-150 border border-base-300 rounded h-8 px-2 text-[14px] text-base-900 shadow-sunk focus:outline-none focus:border-primary-500">
+            <button type="submit" class="h-7 px-2 rounded text-[13px] bg-base-250 hover:bg-base-300 border border-base-350 text-base-900">Close ticket</button>
+          </form>
+          {{end}}{{end}}
+        </div>
+      </div>
       {{else}}
       <button hx-post="/tickets/{{$t.ID}}/reopen"
               hx-swap="none"
@@ -143,7 +166,7 @@
         {{else}}
         <div class="flex items-center gap-1.5 px-1 py-1">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" class="text-success shrink-0"><path d="M2.5 8.5 6 12l7.5-8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span class="text-[14px] text-success">Closed {{if $t.CloseReason}}· {{derefStr $t.CloseReason}}{{end}}</span>
+          <span class="text-[14px] text-success">Closed{{with $t.CloseReason}}{{with closeReasonLabel .}} · {{.}}{{end}}{{end}}</span>
         </div>
         {{end}}
       </div>

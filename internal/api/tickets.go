@@ -412,14 +412,7 @@ func (h *Handler) CloseTicket(w http.ResponseWriter, r *http.Request) {
 	if !parseForm(w, r) {
 		return
 	}
-	reason := r.FormValue("reason")
-	if r.FormValue("reason") == "other" {
-		reason = r.FormValue("reason_note")
-	}
-	if reason == "" {
-		reason = "Closed"
-	}
-	if _, err := h.tickets.CloseTicket(r.Context(), orgID, ticketID, userID, reason); err != nil {
+	if _, err := h.tickets.CloseTicket(r.Context(), orgID, ticketID, userID, r.FormValue("reason"), r.FormValue("reason_note")); err != nil {
 		serviceError(w, err, "failed to close ticket")
 		return
 	}

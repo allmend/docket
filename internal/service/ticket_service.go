@@ -349,7 +349,13 @@ func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actor
 	return t, nil
 }
 
-func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorID uuid.UUID, reason string) (*model.Ticket, error) {
+// CloseTicket closes a ticket with one of the picker's reasons (see
+// model.CloseReasonOptions); "other" takes a free-text note instead.
+func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorID uuid.UUID, reason, note string) (*model.Ticket, error) {
+	reason, ok := model.ParseCloseReason(reason, note)
+	if !ok {
+		return nil, fmt.Errorf("%w: choose a close reason (\"other\" needs a note of at most %d characters)", ErrInvalidInput, model.MaxCloseNoteLen)
+	}
 	t, err := s.store.CloseTicket(ctx, orgID, ticketID, reason)
 	if err != nil {
 		return nil, err
