@@ -61,7 +61,16 @@ func (s *TeamService) CreateTeam(ctx context.Context, orgID, userID uuid.UUID, n
 	if name == "" || key == "" {
 		return nil, nil, fmt.Errorf("%w: a name and an alphanumeric key are required", ErrInvalidInput)
 	}
-	team, err := s.store.CreateTeam(ctx, orgID, userID, name, key, Slugify(name), description)
+	// The creator joins as the first member in the same transaction, so no
+	// workspace is ever born without anyone in it.
+	var team *model.Team
+	err := s.store.InTx(ctx, func(tx *store.Store) error {
+		var err error
+		if team, err = tx.CreateTeam(ctx, orgID, userID, name, key, Slugify(name), description); err != nil {
+			return err
+		}
+		return tx.AddTeamMember(ctx, orgID, team.ID, userID)
+	})
 	if err != nil {
 		return nil, nil, err
 	}
