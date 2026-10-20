@@ -217,9 +217,9 @@ func (s *Store) ListUsers(ctx context.Context, orgID uuid.UUID) ([]model.User, e
 func (s *Store) SearchUsers(ctx context.Context, orgID uuid.UUID, q string) ([]model.User, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT id, org_id, username, name, email, role, created_at, updated_at
-		 FROM users WHERE org_id = $1 AND (name ILIKE $2 OR username ILIKE $2)
+		 FROM users WHERE org_id = $1 AND (name ILIKE $2 ESCAPE '\' OR username ILIKE $2 ESCAPE '\')
 		 ORDER BY name LIMIT 10`,
-		orgID, "%"+q+"%",
+		orgID, containsPattern(q),
 	)
 	if err != nil {
 		return nil, err

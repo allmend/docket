@@ -247,12 +247,12 @@ func (s *Store) UpdateTicketAC(ctx context.Context, orgID, ticketID uuid.UUID, a
 // SearchTicketsForLink returns tickets matching a query string by display ID prefix or title,
 // excluding the given ticket. Used for the link autocomplete.
 func (s *Store) SearchTicketsForLink(ctx context.Context, orgID, excludeID uuid.UUID, q string) ([]model.Ticket, error) {
-	like := "%" + q + "%"
+	like := containsPattern(q)
 	rows, err := s.replica.Query(ctx,
 		`SELECT `+ticketCols+ticketJoins+`
 		 WHERE t.org_id = $1 AND t.id != $2
 		   AND t.closed_at IS NULL
-		   AND (COALESCE(tm.key || '-' || t.number::text, '') ILIKE $3 OR t.title ILIKE $3)
+		   AND (COALESCE(tm.key || '-' || t.number::text, '') ILIKE $3 ESCAPE '\' OR t.title ILIKE $3 ESCAPE '\')
 		 ORDER BY tm.key, t.number
 		 LIMIT 20`,
 		orgID, excludeID, like,
@@ -275,11 +275,11 @@ func (s *Store) SearchTicketsForLink(ctx context.Context, orgID, excludeID uuid.
 // SearchTicketsForMention returns tickets matching a query string by display ID or title.
 // Used for the #ticket autocomplete in the editor.
 func (s *Store) SearchTicketsForMention(ctx context.Context, orgID uuid.UUID, q string) ([]model.Ticket, error) {
-	like := "%" + q + "%"
+	like := containsPattern(q)
 	rows, err := s.replica.Query(ctx,
 		`SELECT `+ticketCols+ticketJoins+`
 		 WHERE t.org_id = $1
-		   AND (COALESCE(tm.key || '-' || t.number::text, '') ILIKE $2 OR t.title ILIKE $2)
+		   AND (COALESCE(tm.key || '-' || t.number::text, '') ILIKE $2 ESCAPE '\' OR t.title ILIKE $2 ESCAPE '\')
 		 ORDER BY tm.key, t.number
 		 LIMIT 10`,
 		orgID, like,

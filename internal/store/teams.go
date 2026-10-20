@@ -200,13 +200,13 @@ func (s *Store) SearchNonMembers(ctx context.Context, orgID, teamID uuid.UUID, q
 		`SELECT u.id, u.org_id, u.name, u.email, u.created_at, u.updated_at
 		 FROM users u
 		 WHERE u.org_id = $1
-		   AND (u.name ILIKE '%' || $3 || '%' OR u.email ILIKE '%' || $3 || '%')
+		   AND (u.name ILIKE $3 ESCAPE '\' OR u.email ILIKE $3 ESCAPE '\')
 		   AND u.id NOT IN (
 		       SELECT user_id FROM team_members WHERE org_id = $1 AND team_id = $2
 		   )
 		 ORDER BY u.name
 		 LIMIT 20`,
-		orgID, teamID, q,
+		orgID, teamID, containsPattern(q),
 	)
 	if err != nil {
 		return nil, err
