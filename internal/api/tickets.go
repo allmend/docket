@@ -474,8 +474,9 @@ func (h *Handler) MoveTicket(w http.ResponseWriter, r *http.Request) {
 
 	prevPos, _ := strconv.ParseFloat(r.FormValue("prev_pos"), 64)
 	nextPos, _ := strconv.ParseFloat(r.FormValue("next_pos"), 64)
+	nextID, _ := uuid.Parse(r.FormValue("next_id")) // optional; Nil when absent
 
-	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos)
+	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos, nextID)
 	if err != nil {
 		serviceError(w, err, "failed to move ticket")
 		return
@@ -740,12 +741,13 @@ func (h *Handler) SprintPlaceTicket(w http.ResponseWriter, r *http.Request) {
 	}
 	prevPos, _ := strconv.ParseFloat(r.FormValue("prev_pos"), 64)
 	nextPos, _ := strconv.ParseFloat(r.FormValue("next_pos"), 64)
+	nextID, _ := uuid.Parse(r.FormValue("next_id")) // optional; Nil when absent
 
 	if err := h.boards.AssignTicketToSprint(r.Context(), orgID, ticketID, &sprintID); err != nil {
 		serviceError(w, err, "assign to sprint failed")
 		return
 	}
-	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos)
+	newPos, err := h.tickets.MoveTicket(r.Context(), orgID, ticketID, columnID, service.UserIDFromContext(r.Context()), prevPos, nextPos, nextID)
 	if err != nil {
 		serviceError(w, err, "move failed")
 		return

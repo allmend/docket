@@ -17,24 +17,55 @@ func TestRebalanceDropSlot(t *testing.T) {
 	dragged := id(9)
 
 	// Dropping in front of the middle ticket: it renumbers to 2000, slot is 1500.
-	if got := rebalanceDropSlot(col, dragged, 1000.0004); got != 1500 {
+	if got := rebalanceDropSlot(col, dragged, uuid.Nil, 1000.0004); got != 1500 {
 		t.Errorf("slot before middle = %v, want 1500", got)
 	}
 	// Dropping in front of the first ticket: it renumbers to 1000, slot is 500.
-	if got := rebalanceDropSlot(col, dragged, 1000); got != 500 {
+	if got := rebalanceDropSlot(col, dragged, uuid.Nil, 1000); got != 500 {
 		t.Errorf("slot before first = %v, want 500", got)
 	}
 	// The dragged ticket's own stale position must not match as the neighbour.
 	inCol := []model.Ticket{col[0], {ID: dragged, Position: 1000.0004}, col[1], col[2]}
-	if got := rebalanceDropSlot(inCol, dragged, 1000.0004); got != 2500 {
+	if got := rebalanceDropSlot(inCol, dragged, uuid.Nil, 1000.0004); got != 2500 {
 		t.Errorf("slot skipping self = %v, want 2500", got)
 	}
 	// Unknown neighbour (stale client data) falls back to the end of the column.
-	if got := rebalanceDropSlot(col, dragged, 42); got != 4000 {
+	if got := rebalanceDropSlot(col, dragged, uuid.Nil, 42); got != 4000 {
 		t.Errorf("stale-neighbour fallback = %v, want 4000", got)
 	}
-	if got := rebalanceDropSlot(nil, dragged, 42); got != 1000 {
+	if got := rebalanceDropSlot(nil, dragged, uuid.Nil, 42); got != 1000 {
 		t.Errorf("empty-column fallback = %v, want 1000", got)
+	}
+	// Positions tie across columns in a backlog, so the neighbour's ID wins
+	// over a position match when the client sends it.
+	tied := []model.Ticket{{ID: id(1), Position: 1000}, {ID: id(2), Position: 1000}, {ID: id(3), Position: 3000}}
+	if got := rebalanceDropSlot(tied, dragged, id(2), 1000); got != 1500 {
+		t.Errorf("slot by neighbour ID = %v, want 1500", got)
+	}
+	if got := rebalanceDropSlot(tied, dragged, id(7), 1000); got != 4000 {
+		t.Errorf("unknown neighbour ID fallback = %v, want 4000", got)
+	}
+}
+
+func TestDecideColumnTransition(t *testing.T) {
+	cases := []struct {
+		from, to string
+		closed   bool
+		want     columnTransition
+	}{
+		{"In Progress", "Done", false, transitionClose},
+		{"In Progress", "done", false, transitionClose},
+		{"Done", "In Progress", true, transitionReopen},
+		{"Done", "Done", true, transitionNone},         // reorder inside Done
+		{"To Do", "In Progress", true, transitionNone}, // closed with a reason outside Done stays closed
+		{"To Do", "Done", true, transitionNone},        // already closed: keeps its reason
+		{"Done", "To Do", false, transitionNone},       // open ticket sitting in Done: nothing to reopen
+		{"To Do", "In Progress", false, transitionNone},
+	}
+	for _, c := range cases {
+		if got := decideColumnTransition(c.from, c.to, c.closed); got != c.want {
+			t.Errorf("%q→%q closed=%v: got %v, want %v", c.from, c.to, c.closed, got, c.want)
+		}
 	}
 }
 

@@ -185,10 +185,12 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 }
 
 // MoveTicket repositions a ticket using fractional indexing.
-// prevPos and nextPos are the positions of the adjacent cards (0 means boundary).
+// prevPos and nextPos are the positions of the adjacent cards (0 means boundary);
+// nextID is the ticket below the drop, when the client knows it, and is only
+// used to find the drop slot again if the list has to be rebalanced.
 func (s *TicketService) MoveTicket(ctx context.Context,
 	orgID, ticketID, targetColumnID, actorID uuid.UUID,
-	prevPos, nextPos float64,
+	prevPos, nextPos float64, nextID uuid.UUID,
 ) (float64, error) {
 	old, err := s.store.GetTicket(ctx, orgID, ticketID)
 	if err != nil {
@@ -208,42 +210,42 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		}
 	}
 
-	newPos, needsRebalance := nextPosition(prevPos, nextPos)
-	if needsRebalance {
-		// Renumber the column and compute the drop slot from the renumbered
-		// neighbours. The client's prevPos/nextPos are meaningless after the
-		// renumber, so recomputing via nextPosition would demand a rebalance
-		// again, forever — the slot must come from the fresh positions.
-		tickets, err := s.store.ListTicketsByColumn(ctx, orgID, targetColumnID)
-		if err != nil {
-			return 0, fmt.Errorf("rebalance: %w", err)
-		}
-		newPos = rebalanceDropSlot(tickets, ticketID, nextPos)
-		for i, t := range tickets {
-			if err := s.store.MoveTicket(ctx, orgID, t.ID, targetColumnID, float64((i+1)*1000)); err != nil {
-				return 0, fmt.Errorf("rebalance: %w", err)
-			}
-		}
-	}
-
 	// Capture from-column info before the move for the transition counter.
 	var fromCol, fromTeam string
 	if old.ColumnID != uuid.Nil {
 		fromCol, fromTeam, _ = s.store.GetColumnMeta(ctx, orgID, old.ColumnID)
 	}
 
-	if err := s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos); err != nil {
-		return 0, err
+	newPos, needsRebalance := nextPosition(prevPos, nextPos)
+	if !needsRebalance {
+		if err := s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos); err != nil {
+			return 0, err
+		}
+	} else {
+		// Renumber the list the user dropped into and compute the slot from the
+		// renumbered neighbours. The client's prevPos/nextPos are meaningless
+		// after the renumber, so recomputing via nextPosition would demand a
+		// rebalance again, forever — the slot must come from fresh positions.
+		// One transaction, so a concurrent drop can't interleave with it.
+		err := s.store.InTx(ctx, func(tx *store.Store) error {
+			list, err := rebalanceScope(ctx, tx, orgID, old, targetColumnID)
+			if err != nil {
+				return fmt.Errorf("rebalance: %w", err)
+			}
+			newPos = rebalanceDropSlot(list, ticketID, nextID, nextPos)
+			if err := tx.RenumberTicketPositions(ctx, orgID, ticketIDs(list)); err != nil {
+				return fmt.Errorf("rebalance: %w", err)
+			}
+			return tx.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos)
+		})
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	if newCol != nil {
-		colDone := isDone(newCol.Name)
-		if colDone && old.ClosedAt == nil {
-			_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
-			s.unblockOnClose(ctx, orgID, ticketID, actorID)
-		} else if !colDone && old.ClosedAt != nil {
-			_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
-		}
+		s.applyColumnTransition(ctx, orgID, ticketID, actorID,
+			decideColumnTransition(fromCol, newCol.Name, old.ClosedAt != nil))
 
 		// Drag is how most tickets move, so it must leave the same trail as the
 		// status dropdown (MoveToColumn) — ticket_history is the audit log.
@@ -283,23 +285,70 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 		return nil, err
 	}
 
-	colDone := isDone(newCol.Name)
-	wasDone := oldCol != nil && isDone(oldCol.Name)
-	if colDone && old.ClosedAt == nil {
-		_, _ = s.store.CloseTicket(ctx, orgID, ticketID, "done")
-		s.unblockOnClose(ctx, orgID, ticketID, actorID)
-	} else if !colDone && wasDone {
-		_, _ = s.store.ReopenTicket(ctx, orgID, ticketID)
-	}
-
-	actorName := s.actorName(ctx, orgID, actorID)
 	oldName := ""
 	if oldCol != nil {
 		oldName = oldCol.Name
 	}
+	s.applyColumnTransition(ctx, orgID, ticketID, actorID,
+		decideColumnTransition(oldName, newCol.Name, old.ClosedAt != nil))
+
+	actorName := s.actorName(ctx, orgID, actorID)
 	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "column", oldName, newCol.Name)
 
 	return s.store.GetTicket(ctx, orgID, ticketID)
+}
+
+// applyColumnTransition closes or reopens a ticket after a column move, with
+// the same history entries as the explicit Close and Reopen actions.
+func (s *TicketService) applyColumnTransition(ctx context.Context, orgID, ticketID, actorID uuid.UUID, tr columnTransition) {
+	switch tr {
+	case transitionClose:
+		if _, err := s.store.CloseTicket(ctx, orgID, ticketID, "done"); err != nil {
+			return
+		}
+		_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, s.actorName(ctx, orgID, actorID), "closed", "", "done")
+		s.unblockOnClose(ctx, orgID, ticketID, actorID)
+	case transitionReopen:
+		if _, err := s.store.ReopenTicket(ctx, orgID, ticketID); err != nil {
+			return
+		}
+		_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, s.actorName(ctx, orgID, actorID), "reopened", "", "")
+	}
+}
+
+// rebalanceScope is the list a drop renumbers: the one the user is looking at,
+// in position order. Renumbering any other set would interleave its new
+// positions with tickets the view also shows and scramble the order.
+//   - a ticket in a sprint: that sprint's tickets in the target column (the
+//     Sprint Board column, and the per-column order of the planning list);
+//   - a backlog ticket on a Scrum board: the whole backlog, every column;
+//   - anything else (Kanban, Blank): the target column.
+func rebalanceScope(ctx context.Context, st *store.Store, orgID uuid.UUID, t *model.Ticket, targetColumnID uuid.UUID) ([]model.Ticket, error) {
+	col := targetColumnID
+	if col == uuid.Nil {
+		col = t.ColumnID
+	}
+	if t.SprintID != nil {
+		all, err := st.ListSprintTickets(ctx, orgID, *t.SprintID)
+		if err != nil {
+			return nil, err
+		}
+		var inCol []model.Ticket
+		for _, x := range all {
+			if x.ColumnID == col {
+				inCol = append(inCol, x)
+			}
+		}
+		return inCol, nil
+	}
+	board, err := st.GetBoard(ctx, orgID, t.BoardID)
+	if err != nil {
+		return nil, err
+	}
+	if board.Mode.IsScrum() {
+		return st.ListBacklogTickets(ctx, orgID, t.BoardID)
+	}
+	return st.ListTicketsByColumn(ctx, orgID, col)
 }
 
 func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, actorID uuid.UUID, priority model.Priority) (*model.Ticket, error) {

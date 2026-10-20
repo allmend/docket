@@ -187,6 +187,23 @@ func (s *Store) MoveTicket(ctx context.Context, orgID, ticketID, columnID uuid.U
 	return noRowsIfUnaffected(tag, err)
 }
 
+// RenumberTicketPositions sets the tickets' positions to 1000, 2000, … in the
+// order given, in one statement. IDs from another org are skipped. Column and
+// updated_at are untouched: a rebalance changes no ticket the user can see.
+func (s *Store) RenumberTicketPositions(ctx context.Context, orgID uuid.UUID, ids []uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := s.primary.Exec(ctx,
+		`UPDATE tickets t
+		 SET position = x.ord * 1000
+		 FROM unnest($2::uuid[]) WITH ORDINALITY AS x(id, ord)
+		 WHERE t.org_id = $1 AND t.id = x.id`,
+		orgID, ids,
+	)
+	return err
+}
+
 func (s *Store) UpdateTicket(ctx context.Context,
 	orgID, ticketID uuid.UUID,
 	title, body string, priority model.Priority, assigneeID *uuid.UUID,

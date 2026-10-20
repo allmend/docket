@@ -26,19 +26,56 @@ func nextPosition(prevPos, nextPos float64) (pos float64, needsRebalance bool) {
 }
 
 // rebalanceDropSlot returns the position that keeps a dropped ticket directly
-// in front of its former next-neighbour once the column has been renumbered to
-// multiples of 1000. tickets is the column in position order *before* the
-// renumber; the neighbour is identified by its pre-renumber position nextPos
-// (skipping the dragged ticket itself, whose stale position may collide in the
-// degenerate gaps that trigger a rebalance). When the neighbour can't be found
-// — stale client data — the ticket goes to the end of the column.
-func rebalanceDropSlot(tickets []model.Ticket, ticketID uuid.UUID, nextPos float64) float64 {
+// in front of its former next-neighbour once the list has been renumbered to
+// multiples of 1000. tickets is the list in position order *before* the
+// renumber. The neighbour is identified by nextID when the client sent it, and
+// otherwise by its pre-renumber position nextPos. The dragged ticket itself is
+// skipped: its stale position may collide in the degenerate gaps that trigger
+// a rebalance. When the neighbour can't be found (stale client data) the
+// ticket goes to the end of the list.
+func rebalanceDropSlot(tickets []model.Ticket, ticketID, nextID uuid.UUID, nextPos float64) float64 {
 	for i, t := range tickets {
-		if t.ID != ticketID && t.Position == nextPos {
+		if t.ID == ticketID {
+			continue
+		}
+		if (nextID != uuid.Nil && t.ID == nextID) || (nextID == uuid.Nil && t.Position == nextPos) {
 			return float64((i+1)*1000) - 500
 		}
 	}
 	return float64((len(tickets) + 1) * 1000)
+}
+
+// ticketIDs lists the tickets' IDs in order — the order a rebalance assigns
+// them 1000, 2000, …, which is the order rebalanceDropSlot counts in.
+func ticketIDs(tickets []model.Ticket) []uuid.UUID {
+	ids := make([]uuid.UUID, len(tickets))
+	for i, t := range tickets {
+		ids[i] = t.ID
+	}
+	return ids
+}
+
+// columnTransition is what a column move does to a ticket's open/closed
+// state. Drag and the status dropdown share it, so they can't disagree:
+// entering Done closes an open ticket, leaving Done reopens a closed one, and
+// a ticket closed outside Done (with a reason such as "won't do") stays closed
+// while it moves between other columns.
+type columnTransition int
+
+const (
+	transitionNone columnTransition = iota
+	transitionClose
+	transitionReopen
+)
+
+func decideColumnTransition(fromName, toName string, closed bool) columnTransition {
+	switch {
+	case isDone(toName) && !closed:
+		return transitionClose
+	case !isDone(toName) && isDone(fromName) && closed:
+		return transitionReopen
+	}
+	return transitionNone
 }
 
 // toggleNthCheckbox flips the Nth acceptance-criteria item, counting from 0 the

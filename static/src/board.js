@@ -29,17 +29,26 @@ import Sortable from "sortablejs";
 // neighbourPositions reads the fractional positions either side of a dropped
 // card so the server can place it between them. With visibleOnly, hidden rows
 // are skipped — the backlog renders a normal and a refine row for the same
-// ticket, and only one of them is ever visible.
+// ticket, and only one of them is ever visible. nextID names the ticket below
+// the drop, so the server can find the slot again if it has to rebalance —
+// positions alone can tie across columns.
 function neighbourPositions(listEl, ticketEl, visibleOnly = false) {
   let siblings = Array.from(listEl.querySelectorAll("[data-ticket-id]"));
   if (visibleOnly) siblings = siblings.filter((el) => el.offsetParent !== null);
   const idx = siblings.indexOf(ticketEl);
+  const next = idx < siblings.length - 1 ? siblings[idx + 1] : null;
   return {
     siblings,
     idx,
     prevPos: idx > 0 ? parseFloat(siblings[idx - 1].dataset.position || "0") : 0,
-    nextPos: idx < siblings.length - 1 ? parseFloat(siblings[idx + 1].dataset.position || "0") : 0,
+    nextPos: next ? parseFloat(next.dataset.position || "0") : 0,
+    nextID: next ? next.dataset.ticketId : "",
   };
+}
+
+// dropParams builds the form body for /move and /sprint-place.
+function dropParams(fields, { prevPos, nextPos, nextID }) {
+  return new URLSearchParams({ ...fields, prev_pos: String(prevPos), next_pos: String(nextPos), next_id: nextID || "" });
 }
 
 // avatarColor mirrors the Go func in internal/api/templatefuncs.go — keep the
@@ -250,16 +259,11 @@ function board(boardID, sprintID) {
       const fromEl = evt.from;
       const toColumnID = toEl.dataset.columnId;
       const fromColumnID = fromEl.dataset.columnId;
-      const { prevPos, nextPos } = neighbourPositions(toEl, ticketEl);
+      const slot = neighbourPositions(toEl, ticketEl);
 
       if (toColumnID === "backlog" && fromColumnID === "backlog") {
         // Reorder within the backlog — persist position only.
-        const ticketColumnID = ticketEl.dataset.ticketColumnId;
-        const params = new URLSearchParams({
-          column_id: ticketColumnID,
-          prev_pos: String(prevPos),
-          next_pos: String(nextPos),
-        });
+        const params = dropParams({ column_id: ticketEl.dataset.ticketColumnId }, slot);
         fetch(`/tickets/${ticketID}/move`, { method: "POST", body: params })
           .then((res) => {
             if (!res.ok) console.error("backlog reorder failed", res.status);
@@ -274,7 +278,7 @@ function board(boardID, sprintID) {
             if (!columnID) return res; // no column to move to, skip position update
             return fetch(`/tickets/${ticketID}/move`, {
               method: "POST",
-              body: new URLSearchParams({ column_id: columnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
+              body: dropParams({ column_id: columnID }, slot),
             });
           })
           .then((res) => {
@@ -288,12 +292,7 @@ function board(boardID, sprintID) {
       } else if (this.sprintID) {
         // Moving into a sprint column — always use sprint-place so sprint_id is set
         // regardless of whether the ticket came from the backlog or another sprint column.
-        const params = new URLSearchParams({
-          sprint_id: this.sprintID,
-          column_id: toColumnID,
-          prev_pos: String(prevPos),
-          next_pos: String(nextPos),
-        });
+        const params = dropParams({ sprint_id: this.sprintID, column_id: toColumnID }, slot);
         fetch(`/tickets/${ticketID}/sprint-place`, { method: "POST", body: params })
           .then((res) => {
             if (!res.ok) { console.error("sprint-place failed", res.status); return res; }
@@ -305,11 +304,7 @@ function board(boardID, sprintID) {
           });
       } else {
         // Kanban / blank board — plain column move.
-        const params = new URLSearchParams({
-          column_id: toColumnID,
-          prev_pos: String(prevPos),
-          next_pos: String(nextPos),
-        });
+        const params = dropParams({ column_id: toColumnID }, slot);
         fetch(`/tickets/${ticketID}/move`, { method: "POST", body: params })
           .then((res) => {
             if (!res.ok) { console.error("move failed", res.status); return res; }
@@ -476,12 +471,13 @@ function backlogList() {
         // Backlog → sprint: place immediately, warn only if the sprint is active.
         const sprintID = evt.to.dataset.sprintId;
         const sprintStatus = evt.to.dataset.sprintStatus;
-        const { siblings, idx, prevPos, nextPos } = neighbourPositions(evt.to, ticketEl, true);
+        const slot = neighbourPositions(evt.to, ticketEl, true);
+        const { siblings, idx } = slot;
         const nextTick = idx < siblings.length - 1 ? siblings[idx + 1] : null;
         const prevTick = idx > 0 ? siblings[idx - 1] : null;
         const columnID = (nextTick || prevTick)?.dataset.ticketColumnId || evt.to.dataset.firstColumnId || "";
         const isActive = sprintStatus === "active";
-        const params = new URLSearchParams({ sprint_id: sprintID, column_id: columnID, prev_pos: String(prevPos), next_pos: String(nextPos) });
+        const params = dropParams({ sprint_id: sprintID, column_id: columnID }, slot);
         if (isActive) params.set("unplanned", "1");
         fetch(`/tickets/${ticketID}/sprint-place`, { method: "POST", body: params })
           .then((res) => {
@@ -496,7 +492,7 @@ function backlogList() {
         const sprintStatus = evt.from.dataset.sprintStatus;
         const isActive = sprintStatus === "active";
         const ticketColumnID = ticketEl.dataset.ticketColumnId;
-        const { prevPos, nextPos } = neighbourPositions(evt.to, ticketEl, true);
+        const slot = neighbourPositions(evt.to, ticketEl, true);
         fetch(`/tickets/${ticketID}/sprint`, {
           method: "POST",
           body: new URLSearchParams({ sprint_id: "" }),
@@ -504,7 +500,7 @@ function backlogList() {
           if (!res.ok) { console.error("sprint-unassign failed", res.status); return null; }
           return fetch(`/tickets/${ticketID}/move`, {
             method: "POST",
-            body: new URLSearchParams({ column_id: ticketColumnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
+            body: dropParams({ column_id: ticketColumnID }, slot),
           });
         }).then((res) => {
           if (!res || !res.ok) { if (res) console.error("position failed", res.status); return; }
@@ -516,10 +512,10 @@ function backlogList() {
       } else {
         // Reorder within the same list, backlog or sprint.
         const ticketColumnID = ticketEl.dataset.ticketColumnId;
-        const { prevPos, nextPos } = neighbourPositions(evt.to, ticketEl, true);
+        const slot = neighbourPositions(evt.to, ticketEl, true);
         fetch(`/tickets/${ticketID}/move`, {
           method: "POST",
-          body: new URLSearchParams({ column_id: ticketColumnID, prev_pos: String(prevPos), next_pos: String(nextPos) }),
+          body: dropParams({ column_id: ticketColumnID }, slot),
         }).then((res) => {
           if (!res.ok) { console.error("reorder failed", res.status); return; }
           const pos = res.headers.get("X-New-Position");
