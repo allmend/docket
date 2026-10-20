@@ -15,7 +15,7 @@
     <div class="flex items-end justify-between mb-6">
       <div>
         <h1 class="text-[24px] leading-8 font-semibold tracking-tightish text-base-950">Dashboard</h1>
-        <div class="mono text-[14px] text-base-700 mt-0.5">{{formatDate (now)}}{{if .NavActiveSprint}} · {{.NavActiveSprint.Name}} · day {{.NavActiveSprint.DayNumber}} / {{.NavActiveSprint.TotalDays}}{{end}}</div>
+        <div class="mono text-[14px] text-base-700 mt-0.5">{{localTime now "day"}}{{if .NavActiveSprint}} · {{.NavActiveSprint.Name}} · day {{.NavActiveSprint.DayNumber}} / {{.NavActiveSprint.TotalDays}}{{end}}</div>
       </div>
     </div>
 

@@ -32,13 +32,15 @@ func templateFuncs() template.FuncMap {
 		"daysBetween": daysBetween,
 		"now":         func() time.Time { return time.Now() },
 		"isToday":     isToday,
-		"formatDate":  func(t time.Time) string { return t.Format("Monday, 2 Jan 2006") },
 		"hashColor":   hashColor,
 		"avatarColor": avatarColor,
 		// The HTML variant on purpose — see timeAgoHTML. Every relative timestamp
 		// gets the exact time as a hover tooltip without touching call sites.
 		"timeAgo": timeAgoHTML,
-		"dict":    dict,
+		// Absolute timestamps: server-formatted fallback, converted to the
+		// viewer's local time in the browser (see localizeTimes in base.html).
+		"localTime": localTimeHTML,
+		"dict":      dict,
 
 		"priorityColor": priorityColor,
 		"priorityLabel": priorityLabel,
@@ -227,8 +229,8 @@ func hashColor(s string) string {
 // missed and no future {{timeAgo …}} can forget it. Safe as template.HTML: the
 // only interpolated value is a fixed-format RFC 3339 string, escaped anyway.
 //
-// The timestamp is rendered in the server's zone; RFC 3339 carries the offset,
-// so it is unambiguous even though it isn't the viewer's local time.
+// The tooltip is rendered in the server's zone; the browser replaces it with
+// the viewer's local time (localizeTimes in base.html).
 func timeAgoHTML(t time.Time) template.HTML {
 	if t.IsZero() {
 		return ""
@@ -238,6 +240,35 @@ func timeAgoHTML(t time.Time) template.HTML {
 		`<time datetime="%s" title="%s">%s</time>`,
 		stamp, stamp, template.HTMLEscapeString(timeAgo(t)),
 	))
+}
+
+// localTimeLayouts are the absolute formats templates may ask for. The key is
+// also the data-local value the browser uses to re-render the same shape in
+// the viewer's own time zone.
+var localTimeLayouts = map[string]string{
+	"datetime": "2 Jan 15:04",
+	"date":     "2 Jan 2006",
+	"day":      "Monday, 2 Jan 2006",
+}
+
+// localTimeHTML renders an absolute timestamp as a <time> element. The text is
+// the server-zone value, which is what a viewer without JavaScript sees; the
+// browser rewrites it in the viewer's local time, since a server in UTC shows
+// a Stockholm user times two hours off.
+func localTimeHTML(t time.Time, kind string) (template.HTML, error) {
+	layout, ok := localTimeLayouts[kind]
+	if !ok {
+		return "", fmt.Errorf("localTime: unknown format %q", kind)
+	}
+	if t.IsZero() {
+		return "", nil
+	}
+	return template.HTML(fmt.Sprintf(
+		`<time datetime="%s" data-local="%s">%s</time>`,
+		template.HTMLEscapeString(t.Format(time.RFC3339)),
+		kind,
+		template.HTMLEscapeString(t.Format(layout)),
+	)), nil
 }
 
 func timeAgo(t time.Time) string {

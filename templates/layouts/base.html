@@ -644,6 +644,38 @@
         if (sc) sc.scrollTop = 0;
       }
     });
+
+    // Timestamps are rendered on the server, in the server's zone. Rewrite them
+    // in the viewer's local time: <time data-local="datetime|date|day"> gets new
+    // text in the same shape, and every <time datetime> (relative "3h ago" ones
+    // included) gets a local-time tooltip. Runs on load and on every htmx swap.
+    (function() {
+      var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      function pad(n) { return n < 10 ? '0' + n : '' + n; }
+      function fmt(d, kind) {
+        var hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+        var dm = d.getDate() + ' ' + MONTHS[d.getMonth()];
+        if (kind === 'datetime') return dm + ' ' + hm;
+        if (kind === 'date') return dm + ' ' + d.getFullYear();
+        if (kind === 'day') return DAYS[d.getDay()] + ', ' + dm + ' ' + d.getFullYear();
+        return dm + ' ' + d.getFullYear() + ' ' + hm;
+      }
+      function localizeTimes(root) {
+        if (!root || !root.querySelectorAll) return;
+        root.querySelectorAll('time[datetime]:not([data-localized])').forEach(function(el) {
+          var d = new Date(el.getAttribute('datetime'));
+          if (isNaN(d.getTime())) return;
+          var kind = el.getAttribute('data-local');
+          if (kind) el.textContent = fmt(d, kind);
+          el.title = fmt(d, 'full');
+          el.setAttribute('data-localized', '');
+        });
+      }
+      window.localizeTimes = localizeTimes;
+      localizeTimes(document);
+      document.body.addEventListener('htmx:load', function(e) { localizeTimes(e.target); });
+    })();
   </script>
 </body>
 </html>

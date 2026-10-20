@@ -71,7 +71,7 @@
               {{end}}
             </div>
             {{if .ClosedAt}}
-            <div class="mono text-[13px] text-base-600 mt-0.5">{{.ClosedAt.Format "2 Jan 2006"}}</div>
+            <div class="mono text-[13px] text-base-600 mt-0.5">{{localTime .ClosedAt "date"}}</div>
             {{end}}
           </div>
         </div>

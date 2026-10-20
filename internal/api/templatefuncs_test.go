@@ -200,6 +200,34 @@ func TestTimeAgoHTMLZeroTime(t *testing.T) {
 	}
 }
 
+// TestLocalTimeHTML checks the absolute-timestamp element: server-zone text as
+// the no-JS fallback, RFC 3339 for the browser, and the format kind the
+// browser re-renders in local time.
+func TestLocalTimeHTML(t *testing.T) {
+	ts := time.Date(2026, 10, 20, 21, 5, 0, 0, time.UTC)
+	cases := map[string]string{
+		"datetime": "20 Oct 21:05",
+		"date":     "20 Oct 2026",
+		"day":      "Tuesday, 20 Oct 2026",
+	}
+	for kind, text := range cases {
+		got, err := localTimeHTML(ts, kind)
+		if err != nil {
+			t.Fatalf("%s: %v", kind, err)
+		}
+		want := `<time datetime="2026-10-20T21:05:00Z" data-local="` + kind + `">` + text + `</time>`
+		if string(got) != want {
+			t.Errorf("%s:\n got %s\nwant %s", kind, got, want)
+		}
+	}
+	if _, err := localTimeHTML(ts, "nope"); err == nil {
+		t.Error("unknown format should be a render error, not silently blank")
+	}
+	if got, _ := localTimeHTML(time.Time{}, "date"); got != "" {
+		t.Errorf("zero time rendered %q, want empty", got)
+	}
+}
+
 // TestTimeAgoFuncIsHTMLVariant pins the wiring: templates must get the tooltip
 // version. Reverting the FuncMap entry to the plain timeAgo would silently drop
 // the tooltip from every relative timestamp in the app.

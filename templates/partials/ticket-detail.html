@@ -185,9 +185,9 @@
 
       <!-- Timestamps -->
       <div class="pt-3 border-t border-base-300 space-y-1 mono text-[13px] text-base-700">
-        <div class="flex justify-between"><span class="text-base-600">created</span><span>{{$t.CreatedAt.Format "2 Jan 15:04"}}</span></div>
+        <div class="flex justify-between"><span class="text-base-600">created</span><span>{{localTime $t.CreatedAt "datetime"}}</span></div>
         <div class="flex justify-between"><span class="text-base-600">updated</span><span>{{timeAgo $t.UpdatedAt}}</span></div>
-        {{if $closed}}<div class="flex justify-between"><span class="text-base-600">closed</span><span class="text-success">{{$closed.Format "2 Jan 15:04"}}</span></div>{{end}}
+        {{if $closed}}<div class="flex justify-between"><span class="text-base-600">closed</span><span class="text-success">{{localTime $closed "datetime"}}</span></div>{{end}}
       </div>
     </aside>
   </div>
