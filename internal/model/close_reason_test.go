@@ -33,12 +33,12 @@ func TestParseCloseReason(t *testing.T) {
 
 func TestCloseReasonLabel(t *testing.T) {
 	cases := map[string]string{
-		"done":         "Done",
-		"duplicate":    "Duplicate",
-		"not_relevant": "Not relevant",
-		"wont_do":      "Won't do",
-		"Closed":       "",
-		"":             "",
+		"done":                          "Done",
+		"duplicate":                     "Duplicate",
+		"not_relevant":                  "Not relevant",
+		"wont_do":                       "Won't do",
+		"Closed":                        "",
+		"":                              "",
 		"merged into the parent ticket": "merged into the parent ticket",
 	}
 	for stored, want := range cases {
