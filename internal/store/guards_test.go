@@ -316,7 +316,7 @@ func TestTicketSubresourceReads_OrgIsolation(t *testing.T) {
 	userA := seedUser(t, orgA.ID, "alice")
 	ticket := seedTicket(t, orgA.ID, userA.ID, "ticket")
 
-	if err := s.AppendHistory(ctx, ticket.ID, userA.ID, "alice", "title", "old", "new"); err != nil {
+	if err := s.AppendHistory(ctx, orgA.ID, ticket.ID, userA.ID, "alice", "title", "old", "new"); err != nil {
 		t.Fatalf("append history: %v", err)
 	}
 	if err := s.AddTicketAssignee(ctx, orgA.ID, ticket.ID, userA.ID); err != nil {

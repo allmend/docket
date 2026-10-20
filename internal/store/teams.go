@@ -120,12 +120,15 @@ func (s *Store) DeleteTeam(ctx context.Context, orgID, teamID uuid.UUID) error {
 	return err
 }
 
-// NextTicketNumber atomically increments the team counter and returns the new value.
-func (s *Store) NextTicketNumber(ctx context.Context, teamID uuid.UUID) (int, error) {
+// NextTicketNumber atomically increments the team counter and returns the new
+// value. A team outside orgID is pgx.ErrNoRows and its counter is untouched.
+func (s *Store) NextTicketNumber(ctx context.Context, orgID, teamID uuid.UUID) (int, error) {
 	var n int
 	err := s.primary.QueryRow(ctx,
-		`UPDATE teams SET ticket_counter = ticket_counter + 1 WHERE id = $1 RETURNING ticket_counter`,
-		teamID,
+		`UPDATE teams SET ticket_counter = ticket_counter + 1
+		 WHERE org_id = $1 AND id = $2
+		 RETURNING ticket_counter`,
+		orgID, teamID,
 	).Scan(&n)
 	return n, err
 }

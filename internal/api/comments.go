@@ -52,7 +52,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 
 	h.stampCommentEditable(r, comment)
 
-	_ = h.comments.AppendHistory(r.Context(), ticketID, userID, comment.AuthorName, "comment", "", "")
+	_ = h.comments.AppendHistory(r.Context(), orgID, ticketID, userID, comment.AuthorName, "comment", "", "")
 
 	if h.notifications != nil {
 		actorName := comment.AuthorName

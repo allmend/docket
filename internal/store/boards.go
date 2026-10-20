@@ -106,15 +106,16 @@ func (s *Store) GetColumn(ctx context.Context, orgID, columnID uuid.UUID) (*mode
 
 // GetColumnMeta returns the column name and its team's key in one query.
 // Used for populating metric labels without multiple round-trips.
-// Returns empty strings (not an error) if the column has no board or team.
-func (s *Store) GetColumnMeta(ctx context.Context, columnID uuid.UUID) (colName, teamKey string, err error) {
+// The team key is empty if the board has no team; a column outside orgID is
+// pgx.ErrNoRows.
+func (s *Store) GetColumnMeta(ctx context.Context, orgID, columnID uuid.UUID) (colName, teamKey string, err error) {
 	err = s.replica.QueryRow(ctx,
 		`SELECT c.name, COALESCE(te.key, '')
 		 FROM columns c
 		 JOIN boards b ON b.id = c.board_id
 		 LEFT JOIN teams te ON te.id = b.team_id
-		 WHERE c.id = $1`,
-		columnID,
+		 WHERE c.org_id = $1 AND c.id = $2`,
+		orgID, columnID,
 	).Scan(&colName, &teamKey)
 	return
 }

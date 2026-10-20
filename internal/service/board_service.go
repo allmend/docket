@@ -410,7 +410,7 @@ func (s *BoardService) CloseSprint(ctx context.Context, orgID, sprintID, actorID
 			return fmt.Errorf("list resolved blocking links: %w", err)
 		}
 		for _, l := range cleared {
-			if err := tx.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, ""); err != nil {
+			if err := tx.AppendHistory(ctx, orgID, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, ""); err != nil {
 				return fmt.Errorf("record cleared link: %w", err)
 			}
 		}

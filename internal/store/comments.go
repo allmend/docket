@@ -81,13 +81,16 @@ func (s *Store) DeleteComment(ctx context.Context, orgID, commentID uuid.UUID) e
 	return err
 }
 
-func (s *Store) AppendHistory(ctx context.Context, ticketID, actorID uuid.UUID, actorName, field, oldValue, newValue string) error {
-	_, err := s.primary.Exec(ctx,
+// AppendHistory records one change on a ticket. ticket_history has no org_id of
+// its own, so the insert only proceeds when the ticket belongs to orgID;
+// otherwise nothing is written and it returns pgx.ErrNoRows.
+func (s *Store) AppendHistory(ctx context.Context, orgID, ticketID, actorID uuid.UUID, actorName, field, oldValue, newValue string) error {
+	return noRowsIfUnaffected(s.primary.Exec(ctx,
 		`INSERT INTO ticket_history (ticket_id, actor_id, actor_name, field, old_value, new_value)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		ticketID, actorID, actorName, field, oldValue, newValue,
-	)
-	return err
+		 SELECT $2, $3, $4, $5, $6, $7
+		 WHERE EXISTS (SELECT 1 FROM tickets WHERE org_id = $1 AND id = $2)`,
+		orgID, ticketID, actorID, actorName, field, oldValue, newValue,
+	))
 }
 
 // ListHistory returns a ticket's history. ticket_history has no org_id of its

@@ -87,7 +87,7 @@ func (s *TicketService) CreateTicketInTeam(ctx context.Context,
 	if !priority.Valid() {
 		return nil, fmt.Errorf("%w: unknown priority %q", ErrInvalidInput, priority)
 	}
-	number, err := s.store.NextTicketNumber(ctx, teamID)
+	number, err := s.store.NextTicketNumber(ctx, orgID, teamID)
 	if err != nil {
 		return nil, fmt.Errorf("next ticket number: %w", err)
 	}
@@ -120,7 +120,7 @@ func (s *TicketService) CreateTicket(ctx context.Context,
 
 	var number int
 	if board.TeamID != nil {
-		number, err = s.store.NextTicketNumber(ctx, *board.TeamID)
+		number, err = s.store.NextTicketNumber(ctx, orgID, *board.TeamID)
 		if err != nil {
 			return nil, fmt.Errorf("next ticket number: %w", err)
 		}
@@ -178,7 +178,7 @@ func (s *TicketService) UpdateTicket(ctx context.Context,
 	actorName := s.actorName(ctx, orgID, actorID)
 
 	for _, c := range ticketFieldChanges(old, updated) {
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, c.Field, c.Old, c.New)
+		_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, c.Field, c.Old, c.New)
 	}
 
 	return updated, nil
@@ -229,7 +229,7 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 	// Capture from-column info before the move for the transition counter.
 	var fromCol, fromTeam string
 	if old.ColumnID != uuid.Nil {
-		fromCol, fromTeam, _ = s.store.GetColumnMeta(ctx, old.ColumnID)
+		fromCol, fromTeam, _ = s.store.GetColumnMeta(ctx, orgID, old.ColumnID)
 	}
 
 	if err := s.store.MoveTicket(ctx, orgID, ticketID, targetColumnID, newPos); err != nil {
@@ -248,10 +248,10 @@ func (s *TicketService) MoveTicket(ctx context.Context,
 		// Drag is how most tickets move, so it must leave the same trail as the
 		// status dropdown (MoveToColumn) — ticket_history is the audit log.
 		if c, ok := columnMoveChange(old.ColumnID, fromCol, newCol); ok {
-			_ = s.store.AppendHistory(ctx, ticketID, actorID, s.actorName(ctx, orgID, actorID), c.Field, c.Old, c.New)
+			_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, s.actorName(ctx, orgID, actorID), c.Field, c.Old, c.New)
 		}
 
-		toCol, toTeam, _ := s.store.GetColumnMeta(ctx, targetColumnID)
+		toCol, toTeam, _ := s.store.GetColumnMeta(ctx, orgID, targetColumnID)
 		team := fromTeam
 		if team == "" {
 			team = toTeam
@@ -297,7 +297,7 @@ func (s *TicketService) MoveToColumn(ctx context.Context, orgID, ticketID, colum
 	if oldCol != nil {
 		oldName = oldCol.Name
 	}
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "column", oldName, newCol.Name)
+	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "column", oldName, newCol.Name)
 
 	return s.store.GetTicket(ctx, orgID, ticketID)
 }
@@ -316,7 +316,7 @@ func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, act
 	}
 	if old != nil && old.Priority != priority {
 		actorName := s.actorName(ctx, orgID, actorID)
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "priority", string(old.Priority), string(priority))
+		_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "priority", string(old.Priority), string(priority))
 	}
 	return t, nil
 }
@@ -343,7 +343,7 @@ func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actor
 		}
 		if oldVal != newVal {
 			actorName := s.actorName(ctx, orgID, actorID)
-			_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "story_points", oldVal, newVal)
+			_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "story_points", oldVal, newVal)
 		}
 	}
 	return t, nil
@@ -355,7 +355,7 @@ func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorI
 		return nil, err
 	}
 	actorName := s.actorName(ctx, orgID, actorID)
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "closed", "", reason)
+	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "closed", "", reason)
 	s.unblockOnClose(ctx, orgID, ticketID, actorID)
 	return t, nil
 }
@@ -370,8 +370,8 @@ func (s *TicketService) unblockOnClose(ctx context.Context, orgID, ticketID, act
 	}
 	actorName := s.actorName(ctx, orgID, actorID)
 	for _, l := range links {
-		_ = s.store.AppendHistory(ctx, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, "")
-		_ = s.store.AppendHistory(ctx, l.FromTicketID, actorID, actorName, "link_cleared", "blocks "+l.ToDisplayID, "")
+		_ = s.store.AppendHistory(ctx, orgID, l.ToTicketID, actorID, actorName, "link_cleared", "blocked by "+l.FromDisplayID, "")
+		_ = s.store.AppendHistory(ctx, orgID, l.FromTicketID, actorID, actorName, "link_cleared", "blocks "+l.ToDisplayID, "")
 	}
 	_ = s.store.DeleteBlockingLinksFromTicket(ctx, orgID, ticketID)
 }
@@ -382,7 +382,7 @@ func (s *TicketService) ReopenTicket(ctx context.Context, orgID, ticketID, actor
 		return nil, err
 	}
 	actorName := s.actorName(ctx, orgID, actorID)
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "reopened", "", "")
+	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "reopened", "", "")
 	return t, nil
 }
 
@@ -404,7 +404,7 @@ func (s *TicketService) AddAssignee(ctx context.Context, orgID, ticketID, userID
 		return err
 	}
 	actorName := s.actorName(ctx, orgID, actorID)
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "assignee", "", added.Name)
+	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "assignee", "", added.Name)
 	if s.notifications != nil && userID != actorID {
 		s.notifications.Notify(ctx, orgID, userID, &ticketID, &actorID, actorName, "assigned")
 	}
@@ -423,7 +423,7 @@ func (s *TicketService) RemoveAssignee(ctx context.Context, orgID, ticketID, use
 	if removed != nil {
 		removedName = removed.Name
 	}
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, s.actorName(ctx, orgID, actorID), "assignee", removedName, "")
+	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, s.actorName(ctx, orgID, actorID), "assignee", removedName, "")
 	return nil
 }
 
@@ -457,7 +457,7 @@ func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, 
 	}
 	if old != nil && old.Title != title {
 		actorName := s.actorName(ctx, orgID, actorID)
-		_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "title", old.Title, title)
+		_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "title", old.Title, title)
 	}
 	return t, nil
 }
@@ -471,7 +471,7 @@ func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, a
 		return nil, err
 	}
 	actorName := s.actorName(ctx, orgID, actorID)
-	_ = s.store.AppendHistory(ctx, ticketID, actorID, actorName, "description", "(previous)", "(updated)")
+	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "description", "(previous)", "(updated)")
 	return t, nil
 }
 

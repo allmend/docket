@@ -44,7 +44,7 @@ func TestDeleteTeamCascades(t *testing.T) {
 	if _, err := s.CreateComment(ctx, org.ID, a.ID, user.ID, "hi"); err != nil {
 		t.Fatalf("create comment: %v", err)
 	}
-	if err := s.AppendHistory(ctx, a.ID, user.ID, "alice", "title", "", "a"); err != nil {
+	if err := s.AppendHistory(ctx, org.ID, a.ID, user.ID, "alice", "title", "", "a"); err != nil {
 		t.Fatalf("append history: %v", err)
 	}
 	if _, _, err := s.CreateLink(ctx, org.ID, a.ID, b.ID, model.RelationBlocks); err != nil {

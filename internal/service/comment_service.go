@@ -67,6 +67,6 @@ func (s *CommentService) ListHistory(ctx context.Context, orgID, ticketID uuid.U
 	return s.store.ListHistory(ctx, orgID, ticketID)
 }
 
-func (s *CommentService) AppendHistory(ctx context.Context, ticketID, actorID uuid.UUID, actorName, field, oldValue, newValue string) error {
-	return s.store.AppendHistory(ctx, ticketID, actorID, actorName, field, oldValue, newValue)
+func (s *CommentService) AppendHistory(ctx context.Context, orgID, ticketID, actorID uuid.UUID, actorName, field, oldValue, newValue string) error {
+	return s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, field, oldValue, newValue)
 }

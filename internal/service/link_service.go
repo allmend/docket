@@ -46,9 +46,9 @@ func (s *LinkService) CreateLink(ctx context.Context, orgID, viewTicketID, fromT
 	}
 
 	actorName := s.actorName(ctx, orgID, actorID)
-	_ = s.store.AppendHistory(ctx, fromTicketID, actorID, actorName, "link_added", "",
+	_ = s.store.AppendHistory(ctx, orgID, fromTicketID, actorID, actorName, "link_added", "",
 		s.linkLabel(ctx, orgID, fromTicketID, toTicketID, relation, fromTicketID))
-	_ = s.store.AppendHistory(ctx, toTicketID, actorID, actorName, "link_added", "",
+	_ = s.store.AppendHistory(ctx, orgID, toTicketID, actorID, actorName, "link_added", "",
 		s.linkLabel(ctx, orgID, fromTicketID, toTicketID, relation, toTicketID))
 
 	return link, nil
@@ -70,9 +70,9 @@ func (s *LinkService) DeleteLink(ctx context.Context, orgID, ticketID, linkID, a
 
 	if link != nil {
 		actorName := s.actorName(ctx, orgID, actorID)
-		_ = s.store.AppendHistory(ctx, link.FromTicketID, actorID, actorName, "link_removed",
+		_ = s.store.AppendHistory(ctx, orgID, link.FromTicketID, actorID, actorName, "link_removed",
 			s.linkLabel(ctx, orgID, link.FromTicketID, link.ToTicketID, link.Relation, link.FromTicketID), "")
-		_ = s.store.AppendHistory(ctx, link.ToTicketID, actorID, actorName, "link_removed",
+		_ = s.store.AppendHistory(ctx, orgID, link.ToTicketID, actorID, actorName, "link_removed",
 			s.linkLabel(ctx, orgID, link.FromTicketID, link.ToTicketID, link.Relation, link.ToTicketID), "")
 	}
 
