@@ -302,14 +302,30 @@ func (s *BoardService) DeleteColumn(ctx context.Context, orgID, columnID uuid.UU
 	if len(cols) <= 1 {
 		return fmt.Errorf("%w: a board needs at least one column", ErrInvalidInput)
 	}
-	n, err := s.store.CountTicketsInColumn(ctx, orgID, columnID)
-	if err != nil {
-		return err
+	// Tickets that left a sprint keep their column_id but show on no board; they
+	// move to the board's first remaining column so the delete can go ahead.
+	var fallback uuid.UUID
+	for _, c := range cols {
+		if c.ID != columnID {
+			fallback = c.ID
+			break
+		}
 	}
-	if n > 0 {
-		return fmt.Errorf("%w: move the column's %d ticket(s) out before deleting it", ErrInvalidInput, n)
-	}
-	return s.store.DeleteColumn(ctx, orgID, columnID)
+	return s.store.InTx(ctx, func(tx *store.Store) error {
+		counts, err := tx.CountColumnTickets(ctx, orgID, columnID)
+		if err != nil {
+			return err
+		}
+		if counts.Visible() > 0 {
+			return fmt.Errorf("%w: move the column's tickets out before deleting it (%s)", ErrInvalidInput, describeColumnTickets(counts))
+		}
+		if counts.Hidden > 0 {
+			if err := tx.ReassignColumnTickets(ctx, orgID, columnID, fallback); err != nil {
+				return err
+			}
+		}
+		return tx.DeleteColumn(ctx, orgID, columnID)
+	})
 }
 
 // --- Sprint service methods ---

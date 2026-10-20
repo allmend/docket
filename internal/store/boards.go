@@ -144,15 +144,49 @@ func (s *Store) MaxColumnPosition(ctx context.Context, orgID, boardID uuid.UUID)
 	return pos, err
 }
 
-// CountTicketsInColumn returns how many tickets sit in a column. Deleting a
-// column that still holds tickets would violate tickets.column_id's foreign key.
-func (s *Store) CountTicketsInColumn(ctx context.Context, orgID, columnID uuid.UUID) (int, error) {
-	var n int
+// ColumnTicketCounts is where a column's tickets are, as the board shows them.
+// Only the visible ones (Active and Planning sprints on a Scrum board, every
+// ticket on a Kanban or Blank board) stop the column being deleted. The rest
+// keep column_id after leaving a sprint but appear on no board.
+type ColumnTicketCounts struct {
+	ActiveSprint   int
+	PlanningSprint int
+	OnBoard        int // Kanban / Blank
+	Hidden         int // backlog, completed sprints
+}
+
+// Visible is the number of tickets the user can see in the column.
+func (c ColumnTicketCounts) Visible() int { return c.ActiveSprint + c.PlanningSprint + c.OnBoard }
+
+func (s *Store) CountColumnTickets(ctx context.Context, orgID, columnID uuid.UUID) (ColumnTicketCounts, error) {
+	var c ColumnTicketCounts
 	err := s.replica.QueryRow(ctx,
-		`SELECT COUNT(*) FROM tickets WHERE org_id = $1 AND column_id = $2`,
+		`SELECT
+		   COUNT(*) FILTER (WHERE b.mode = 'scrum' AND sp.status = 'active'),
+		   COUNT(*) FILTER (WHERE b.mode = 'scrum' AND sp.status = 'planning'),
+		   COUNT(*) FILTER (WHERE b.mode <> 'scrum'),
+		   COUNT(*) FILTER (WHERE b.mode = 'scrum' AND (sp.status IS NULL OR sp.status NOT IN ('active', 'planning')))
+		 FROM tickets t
+		 JOIN boards b ON b.id = t.board_id AND b.org_id = t.org_id
+		 LEFT JOIN sprints sp ON sp.id = t.sprint_id AND sp.org_id = t.org_id
+		 WHERE t.org_id = $1 AND t.column_id = $2`,
 		orgID, columnID,
-	).Scan(&n)
-	return n, err
+	).Scan(&c.ActiveSprint, &c.PlanningSprint, &c.OnBoard, &c.Hidden)
+	return c, err
+}
+
+// ReassignColumnTickets moves every ticket in one column to another column on
+// the same board, keeping positions. Used to empty a column of tickets that
+// aren't on the board (backlog, completed sprints) before deleting it.
+func (s *Store) ReassignColumnTickets(ctx context.Context, orgID, fromColumnID, toColumnID uuid.UUID) error {
+	_, err := s.primary.Exec(ctx,
+		`UPDATE tickets SET column_id = $3
+		 WHERE org_id = $1 AND column_id = $2
+		   AND EXISTS (SELECT 1 FROM columns f JOIN columns t2 ON t2.board_id = f.board_id
+		               WHERE f.id = $2 AND t2.id = $3 AND f.org_id = $1 AND t2.org_id = $1)`,
+		orgID, fromColumnID, toColumnID,
+	)
+	return err
 }
 
 func (s *Store) RenameColumn(ctx context.Context, orgID, columnID uuid.UUID, name string) (*model.Column, error) {

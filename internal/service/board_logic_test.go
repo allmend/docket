@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/allmend/docket/internal/model"
+	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
 )
 
@@ -156,5 +157,15 @@ func TestDailyParticipants(t *testing.T) {
 	}
 	if len(dailyParticipants(nil, nil)) != 0 {
 		t.Error("empty team with no work should have no participants")
+	}
+}
+
+func TestDescribeColumnTickets(t *testing.T) {
+	got := describeColumnTickets(store.ColumnTicketCounts{ActiveSprint: 2, PlanningSprint: 1, Hidden: 9})
+	if want := "2 in the active sprint, 1 in sprint planning"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+	if got := describeColumnTickets(store.ColumnTicketCounts{OnBoard: 3}); got != "3 on the board" {
+		t.Errorf("kanban: got %q", got)
 	}
 }
