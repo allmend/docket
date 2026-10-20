@@ -74,8 +74,8 @@ curl -O https://raw.githubusercontent.com/allmend/docket/main/deploy/docker-comp
 Create a `.env` file next to it:
 
 ```env
-JWT_SECRET=replace-with-a-long-random-string
-SEED_PASSWORD=changeme
+JWT_SECRET=<output of: openssl rand -hex 32>
+SEED_PASSWORD=<password for the initial admin>
 ```
 
 Then start:
@@ -94,7 +94,7 @@ Full list of environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `JWT_SECRET` | — | **Required.** Long random string for signing sessions. |
+| `JWT_SECRET` | — | **Required.** At least 32 random bytes for signing sessions (`openssl rand -hex 32`). Docket refuses to start with a shorter value or an example placeholder. |
 | `DATABASE_URL` | *(postgres service)* | PostgreSQL connection string. |
 | `HTTP_PORT` | `8081` | Port the app listens on. |
 | `METRICS_PORT` | `9412` | Prometheus metrics port. |
@@ -109,7 +109,7 @@ Full list of environment variables:
 | `SEED_USERNAME` | `admin` | Admin username, set on first run. |
 | `SEED_NAME` | `Admin` | Admin display name, set on first run. |
 | `SEED_EMAIL` | `admin@example.com` | Admin email, set on first run. |
-| `SEED_PASSWORD` | `changeme` | Admin password, set on first run. |
+| `SEED_PASSWORD` | — | Initial admin password. **Required on first start** (empty database); `changeme` is refused. Ignored afterwards. |
 
 `SEED_*` values only apply on the very first startup — once the org exists they are ignored.
 

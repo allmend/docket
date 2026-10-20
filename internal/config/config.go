@@ -48,10 +48,50 @@ func Load() (*Config, error) {
 	c.HealthAddr = env("HEALTH_ADDR", "0.0.0.0")
 	c.HealthPort = env("HEALTH_PORT", "9413")
 	c.ShutdownDelay = envDuration("SHUTDOWN_DELAY", 5*time.Second)
-	if c.JWTSecret == "" {
-		return nil, fmt.Errorf("JWT_SECRET is required")
+	if err := ValidateJWTSecret(c.JWTSecret); err != nil {
+		return nil, err
 	}
 	return c, nil
+}
+
+// MinJWTSecretLen is the shortest JWT_SECRET accepted: 32 bytes, the HS256 key size.
+const MinJWTSecretLen = 32
+
+// placeholderSecrets are values that ship in Docket's own examples. Anyone can
+// read them, so a deployment using one signs sessions with a public key.
+var placeholderSecrets = map[string]bool{
+	"replace-with-a-long-random-string": true,
+	"dev-secret-change-in-prod":         true,
+	"changeme":                          true,
+}
+
+// ValidateJWTSecret refuses an empty, placeholder or short JWT_SECRET. Anyone
+// holding the secret can forge a session for any user, so starting with a weak
+// one is worse than not starting.
+func ValidateJWTSecret(s string) error {
+	const hint = "generate one with: openssl rand -hex 32"
+	switch {
+	case s == "":
+		return fmt.Errorf("JWT_SECRET is required; %s", hint)
+	case placeholderSecrets[s]:
+		return fmt.Errorf("JWT_SECRET is still the example placeholder %q; %s", s, hint)
+	case len(s) < MinJWTSecretLen:
+		return fmt.Errorf("JWT_SECRET is %d bytes, at least %d are required; %s", len(s), MinJWTSecretLen, hint)
+	}
+	return nil
+}
+
+// ValidateSeedPassword refuses to create the first admin with the example
+// password. It only applies on a fresh database, where the seed actually runs.
+// An empty value means SEED_PASSWORD was not set.
+func ValidateSeedPassword(pw string) error {
+	switch {
+	case pw == "":
+		return fmt.Errorf("SEED_PASSWORD is required on first start: it becomes the initial admin's password")
+	case placeholderSecrets[pw]:
+		return fmt.Errorf("SEED_PASSWORD is still the example value %q; set a real password for the initial admin", pw)
+	}
+	return nil
 }
 
 // envBool reads a boolean env var. Anything strconv.ParseBool accepts works

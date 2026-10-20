@@ -3,9 +3,9 @@
 # Copy this file somewhere, create a .env file next to it (see below), then:
 #   docker compose up -d
 #
-# Minimum .env:
-#   JWT_SECRET=replace-with-a-long-random-string
-#   SEED_PASSWORD=changeme
+# Minimum .env (Docket refuses to start with the placeholders below):
+#   JWT_SECRET=<at least 32 random bytes: openssl rand -hex 32>
+#   SEED_PASSWORD=<initial admin password, needed on first start only>
 #
 # Optional overrides (defaults shown):
 #   HTTP_PORT=8081
@@ -34,7 +34,7 @@ services:
       SEED_USERNAME: ${SEED_USERNAME:-admin}
       SEED_NAME: ${SEED_NAME:-Admin}
       SEED_EMAIL: ${SEED_EMAIL:-admin@example.com}
-      SEED_PASSWORD: ${SEED_PASSWORD:-changeme}
+      SEED_PASSWORD: ${SEED_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy

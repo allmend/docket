@@ -96,7 +96,10 @@ func main() {
 
 	// Auto-seed: create default org + admin user on first run.
 	// Silently skips if org already exists (idempotent).
-	autoSeed(ctx, authSvc, cfg)
+	if err := autoSeed(ctx, authSvc, cfg); err != nil {
+		slog.Error("refusing to start", "err", err)
+		os.Exit(1)
+	}
 
 	switch *mode {
 	case "api", "all":
@@ -279,14 +282,20 @@ func runMigrations(dsn string) error {
 // names an existing user: change it, or drop the seed env vars after first boot,
 // and the next restart quietly created an "admin" admin with password
 // "changeme".
-func autoSeed(ctx context.Context, authSvc *service.AuthService, cfg *config.Config) {
+//
+// On a fresh database it refuses an unset or example SEED_PASSWORD: the seed
+// would otherwise create an admin whose password is in Docket's own docs.
+func autoSeed(ctx context.Context, authSvc *service.AuthService, cfg *config.Config) error {
 	exists, err := authSvc.OrgExists(ctx)
 	if err != nil {
 		slog.Error("auto-seed: checking for an existing org", "err", err)
-		return
+		return nil
 	}
 	if exists {
-		return
+		return nil
+	}
+	if err := config.ValidateSeedPassword(os.Getenv("SEED_PASSWORD")); err != nil {
+		return err
 	}
 
 	orgName := getEnvOr("SEED_ORG_NAME", "Allmend")
@@ -294,17 +303,15 @@ func autoSeed(ctx context.Context, authSvc *service.AuthService, cfg *config.Con
 	username := getEnvOr("SEED_USERNAME", "admin")
 	name := getEnvOr("SEED_NAME", "Admin")
 	email := getEnvOr("SEED_EMAIL", "admin@example.com")
-	password := getEnvOr("SEED_PASSWORD", "changeme")
-	if os.Getenv("SEED_PASSWORD") == "" {
-		slog.Warn("SEED_PASSWORD not set — using default 'changeme'. Change the admin password before exposing this instance.")
-	}
+	password := os.Getenv("SEED_PASSWORD")
 
 	if _, err := authSvc.CreateOrgWithAdmin(ctx, orgName, orgSlug, username, name, email, password); err != nil {
 		slog.Error("auto-seed failed", "err", err)
-		return
+		return nil
 	}
 	slog.Info("auto-seed: created org and admin user",
 		"org_slug", orgSlug, "username", username)
+	return nil
 }
 
 func getEnvOr(key, fallback string) string {
