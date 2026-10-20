@@ -15,6 +15,7 @@ import (
 
 	"github.com/allmend/docket/internal/api"
 	"github.com/allmend/docket/internal/config"
+	"github.com/allmend/docket/internal/health"
 	appMiddleware "github.com/allmend/docket/internal/middleware"
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
@@ -29,6 +30,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(runHealthcheck(os.Args[2:]))
+	}
+
 	mode := flag.String("mode", "all", "Run mode: all | api | worker")
 	migrateOnly := flag.Bool("migrate-only", false, "Run migrations and exit")
 	flag.Parse()
@@ -47,12 +52,20 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
+	// The health listener outlives ctx: during the shutdown drain it must keep
+	// answering, with /readyz failing, rather than refuse connections.
+	checker := &health.Checker{}
+	healthCtx, stopHealth := context.WithCancel(context.Background())
+	defer stopHealth()
+	startHealthServer(healthCtx, cfg, checker)
+
 	// Run migrations.
 	if err := runMigrations(cfg.DatabaseURL); err != nil && !errors.Is(err, migrate.ErrNoChange) {
 		slog.Error("migrations", "err", err)
 		os.Exit(1)
 	}
 	slog.Info("migrations ok")
+	checker.MarkMigrated()
 
 	if *migrateOnly {
 		return
@@ -65,6 +78,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer primary.Close()
+	checker.SetPing(primary.Ping)
 
 	st := store.New(primary, primary) // replica = primary until read replica is provisioned
 
@@ -86,7 +100,7 @@ func main() {
 
 	switch *mode {
 	case "api", "all":
-		if err := startAPI(ctx, cfg, authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc); err != nil {
+		if err := startAPI(ctx, cfg, checker, authSvc, teamSvc, boardSvc, ticketSvc, commentSvc, linkSvc, notifSvc, retroSvc, metricsSvc, tokenSvc); err != nil {
 			slog.Error("api server", "err", err)
 			os.Exit(1)
 		}
@@ -102,6 +116,7 @@ func main() {
 func startAPI(
 	ctx context.Context,
 	cfg *config.Config,
+	checker *health.Checker,
 	authSvc *service.AuthService,
 	teamSvc *service.TeamService,
 	boardSvc *service.BoardService,
@@ -187,6 +202,12 @@ func startAPI(
 
 	go func() {
 		<-ctx.Done()
+		// Fail readiness first and keep serving for ShutdownDelay, so the
+		// orchestrator takes this replica out of rotation before it stops
+		// accepting connections.
+		checker.Drain()
+		slog.Info("draining", "delay", cfg.ShutdownDelay.String())
+		time.Sleep(cfg.ShutdownDelay)
 		shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := srv.Shutdown(shutCtx); err != nil {

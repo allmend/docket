@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Config struct {
@@ -22,6 +23,14 @@ type Config struct {
 	// over HTTPS. True unless explicitly disabled: turning it off on a network
 	// that is not trusted exposes sessions to anyone watching the wire.
 	CookieSecure bool
+	// HealthAddr/HealthPort is the listener for /livez and /readyz. It binds
+	// wide by default: kubelet probes reach the pod IP, and the endpoints
+	// expose nothing but pass/fail.
+	HealthAddr string
+	HealthPort string
+	// ShutdownDelay is how long the server keeps serving after SIGTERM with
+	// /readyz failing, so the orchestrator stops routing to it first.
+	ShutdownDelay time.Duration
 }
 
 func Load() (*Config, error) {
@@ -36,6 +45,9 @@ func Load() (*Config, error) {
 		Mode:         env("MODE", "all"),
 		CookieSecure: envBool("COOKIE_SECURE", true),
 	}
+	c.HealthAddr = env("HEALTH_ADDR", "0.0.0.0")
+	c.HealthPort = env("HEALTH_PORT", "9413")
+	c.ShutdownDelay = envDuration("SHUTDOWN_DELAY", 5*time.Second)
 	if c.JWTSecret == "" {
 		return nil, fmt.Errorf("JWT_SECRET is required")
 	}
@@ -54,6 +66,20 @@ func envBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return b
+}
+
+// envDuration reads a Go duration ("5s", "0"). An unset or unparseable value
+// keeps the fallback.
+func envDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil || d < 0 {
+		return fallback
+	}
+	return d
 }
 
 func env(key, fallback string) string {

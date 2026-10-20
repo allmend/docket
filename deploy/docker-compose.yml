@@ -22,6 +22,7 @@ services:
     ports:
       - "8081:8081"
       - "9412:9412"   # Prometheus metrics — restrict this port in production
+      # Health (9413) stays unpublished; the healthcheck below runs inside.
     environment:
       DATABASE_URL: postgres://docket:docket@postgres:5432/docket?sslmode=disable
       HTTP_PORT: "8081"
@@ -37,8 +38,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    # No container healthcheck: the image is distroless (no shell, no wget),
-    # so exec-based checks cannot run. Probe http://host:8081/login externally.
+    # The image is distroless (no shell, no curl), so the binary checks itself:
+    # `docket healthcheck` exits 0 when /readyz on the health port answers 200.
+    healthcheck:
+      test: ["CMD", "/docket", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   postgres:
     image: postgres:16-alpine

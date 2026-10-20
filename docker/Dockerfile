@@ -28,8 +28,12 @@ COPY --from=builder /app/migrations  /migrations
 COPY --from=builder /app/templates   /templates
 COPY --from=builder /app/static/dist /static/dist
 
-EXPOSE 8081
+EXPOSE 8081 9413
 USER nonroot:nonroot
+
+# Distroless has no curl; the binary probes its own /readyz on the health port.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["/docket", "healthcheck"]
 
 ENTRYPOINT ["/docket"]
 CMD ["--mode=all"]

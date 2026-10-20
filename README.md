@@ -100,6 +100,9 @@ Full list of environment variables:
 | `METRICS_PORT` | `9412` | Prometheus metrics port. |
 | `COOKIE_SECURE` | `true` | Marks session cookies `Secure`. Browsers only store those over HTTPS, so serving Docket on plain HTTP with this left on makes login fail silently — the credentials are accepted and the cookie is thrown away. Set `false` only on a network you trust. |
 | `METRICS_ADDR` | `127.0.0.1` | Interface the metrics port binds to. `/metrics` is unauthenticated, so it stays on loopback unless something needs to scrape it across the network — Kubernetes needs `0.0.0.0`. |
+| `HEALTH_PORT` | `9413` | Port for `/livez` and `/readyz`. Keep it off any Service or public route; probes reach it directly. |
+| `HEALTH_ADDR` | `0.0.0.0` | Interface the health port binds to. Wide by default: the endpoints only report pass/fail, and kubelet probes come in on the pod IP. |
+| `SHUTDOWN_DELAY` | `5s` | After SIGTERM, keep serving this long with `/readyz` failing so the load balancer drains the replica before it stops. `0s` in local dev. |
 | `MODE` | `all` | `all`, `api`, or `worker`. Single-instance deployments use `all`. |
 | `SEED_ORG_NAME` | `My Team` | Organisation name, set on first run. |
 | `SEED_ORG_SLUG` | `myteam` | Organisation slug, set on first run. |
@@ -142,6 +145,29 @@ VictoriaMetrics operator the equivalent is a `VMPodScrape` of the same shape.
 Scraping requires `METRICS_ADDR=0.0.0.0` (set in the Deployment). The default is
 loopback, because `/metrics` is unauthenticated — keep the port off any Service
 and fence it with the NetworkPolicy.
+
+**Health checks** live on their own port (`9413`), never the app port:
+
+| Endpoint | Checks | Probe |
+|---|---|---|
+| `/livez` | The process answers. Never touches the database, so a Postgres outage doesn't restart every pod. | liveness |
+| `/readyz` | Migrations finished, Postgres answers a ping within 1s, not shutting down. | readiness, startup |
+
+Add `?verbose` to see each check:
+
+```bash
+kubectl -n docket port-forward deploy/docket 9413 &
+curl -s 'localhost:9413/readyz?verbose'
+# [+]migrations ok
+# [+]database ok
+# [+]shutdown ok
+# readyz ok
+```
+
+On SIGTERM a pod fails `/readyz` at once, keeps serving for `SHUTDOWN_DELAY`, then
+shuts down, so rolling updates drop no requests. The image is distroless, so the
+Docker healthcheck runs the binary itself: `docket healthcheck` (add `--live` for
+`/livez`).
 
 ---
 

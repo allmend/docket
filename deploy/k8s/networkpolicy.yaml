@@ -5,6 +5,11 @@
 # Optional but recommended. Requires a CNI that enforces NetworkPolicy (Cilium,
 # Calico); with one that ignores it, this file is decoration. Adjust the two
 # namespace selectors to match where your gateway and Prometheus actually run.
+#
+# The health port (9413) needs no rule here: kubelet probes come from the node
+# itself, which Calico and Cilium allow by default. If your CNI enforces policy
+# on host traffic too (e.g. Cilium host firewall), allow the node to reach the
+# "health" port, or every pod will stay NotReady.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

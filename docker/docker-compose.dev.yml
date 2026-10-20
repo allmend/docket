@@ -32,6 +32,8 @@ services:
       - ../.env
     environment:
       DATABASE_URL: postgres://docket:docket@postgres:5432/docket?sslmode=disable
+      # Air restarts on every save; don't wait out the production drain delay.
+      SHUTDOWN_DELAY: "0s"
     volumes:
       # Mount the full source tree so Air + Tailwind watch live edits
       - ../:/app

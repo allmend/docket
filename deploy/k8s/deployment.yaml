@@ -19,6 +19,9 @@ spec:
         # Remove if you manage rollouts manually.
         kubectl.kubernetes.io/restartPolicy: Always
     spec:
+      # Must exceed SHUTDOWN_DELAY (5s) plus the longest request (30s write
+      # timeout), or the kubelet kills the pod mid-drain.
+      terminationGracePeriodSeconds: 45
       securityContext:
         runAsNonRoot: true
         runAsUser: 65532   # distroless nonroot
@@ -35,6 +38,11 @@ spec:
               protocol: TCP
             - name: metrics
               containerPort: 9412
+              protocol: TCP
+            # /livez and /readyz for the kubelet only — not in the Service or
+            # the HTTPRoute, so they never reach the internet.
+            - name: health
+              containerPort: 9413
               protocol: TCP
           env:
             - name: MODE
@@ -64,19 +72,28 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+          # Startup covers migrations: up to 60s before liveness takes over,
+          # so a slow migration is not mistaken for a hung process.
+          startupProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 2
+            failureThreshold: 30
+          # Liveness never checks the database: a Postgres outage must make
+          # pods NotReady, not restart all of them at once.
           livenessProbe:
             httpGet:
-              path: /login
-              port: http
-            initialDelaySeconds: 5
-            periodSeconds: 30
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /login
-              port: http
-            initialDelaySeconds: 5
+              path: /livez
+              port: health
             periodSeconds: 10
             failureThreshold: 3
+          # Readiness pings Postgres and fails during the shutdown drain.
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            periodSeconds: 5
+            failureThreshold: 2
       # Pull from GHCR — public images don't need imagePullSecrets.
       # If you fork to a private registry, add an imagePullSecret here.
