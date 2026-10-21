@@ -486,7 +486,43 @@ func (s *TicketService) CloseTicket(ctx context.Context, orgID, ticketID, actorI
 	actorName := s.actorName(ctx, orgID, actorID)
 	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "closed", "", reason)
 	s.unblockOnClose(ctx, orgID, ticketID, actorID)
+	// Finished work goes to Done, as if dragged there. Other reasons
+	// (duplicate, won't do, …) close the ticket where it is: Done means
+	// delivered, and where non-delivered closed work should live is still an
+	// open design question.
+	if reason == model.CloseReasonDone {
+		if moved, err := s.moveForState(ctx, orgID, t, actorID, true); err == nil && moved != nil {
+			t = moved
+		}
+	}
 	return t, nil
+}
+
+// moveForState puts a ticket where its state belongs: closed as done in the
+// board's Done column, reopened out of it into the first other column.
+// It returns nil when the ticket is already there or the board has no
+// suitable column (a Blank board without Done keeps closed tickets in place).
+func (s *TicketService) moveForState(ctx context.Context, orgID uuid.UUID, t *model.Ticket, actorID uuid.UUID, closed bool) (*model.Ticket, error) {
+	cols, err := s.store.ListColumns(ctx, orgID, t.BoardID)
+	if err != nil {
+		return nil, err
+	}
+	target := targetColumnForState(cols, t.ColumnID, closed)
+	if target == nil {
+		return nil, nil
+	}
+	from := ""
+	for _, c := range cols {
+		if c.ID == t.ColumnID {
+			from = c.Name
+		}
+	}
+	maxPos, _ := s.store.MaxTicketPositionInColumn(ctx, orgID, target.ID)
+	if err := s.store.MoveTicket(ctx, orgID, t.ID, target.ID, maxPos+1000); err != nil {
+		return nil, err
+	}
+	_ = s.store.AppendHistory(ctx, orgID, t.ID, actorID, s.actorName(ctx, orgID, actorID), "column", from, target.Name)
+	return s.store.GetTicket(ctx, orgID, t.ID)
 }
 
 // unblockOnClose clears outbound "blocks" links when a ticket closes, so the
@@ -512,6 +548,9 @@ func (s *TicketService) ReopenTicket(ctx context.Context, orgID, ticketID, actor
 	}
 	actorName := s.actorName(ctx, orgID, actorID)
 	_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "reopened", "", "")
+	if moved, err := s.moveForState(ctx, orgID, t, actorID, false); err == nil && moved != nil {
+		t = moved
+	}
 	return t, nil
 }
 

@@ -184,10 +184,10 @@ func (s *Store) MetricsSprintStats(ctx context.Context, orgID uuid.UUID) ([]Spri
 		LEFT JOIN LATERAL (
 			SELECT
 				COUNT(*)                                              AS committed_tickets,
-				COUNT(*) FILTER (WHERE LOWER(c.name) = 'done')        AS completed_tickets,
+				COUNT(*) FILTER (WHERE LOWER(c.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done')        AS completed_tickets,
 				COALESCE(SUM(t.story_points), 0)::float8              AS committed_points,
 				COALESCE(SUM(t.story_points)
-				         FILTER (WHERE LOWER(c.name) = 'done'), 0)::float8 AS completed_points
+				         FILTER (WHERE LOWER(c.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done'), 0)::float8 AS completed_points
 			FROM tickets t
 			LEFT JOIN columns c ON c.id = t.column_id
 			WHERE t.org_id = sp.org_id AND t.sprint_id = sp.id

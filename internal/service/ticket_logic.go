@@ -173,3 +173,27 @@ func ticketFieldChanges(old, updated *model.Ticket) []fieldChange {
 	}
 	return changes
 }
+
+// targetColumnForState picks the column a ticket should move to when it is
+// closed (the Done column) or reopened (the first column that isn't Done, by
+// position). Nil means stay: it is already in a fitting column, or the board
+// has none.
+func targetColumnForState(cols []model.Column, current uuid.UUID, closed bool) *model.Column {
+	isDone := func(c model.Column) bool { return strings.EqualFold(c.Name, "done") }
+	for _, c := range cols {
+		if c.ID == current && isDone(c) == closed {
+			return nil
+		}
+	}
+	var pick *model.Column
+	for i := range cols {
+		c := cols[i]
+		if isDone(c) != closed {
+			continue
+		}
+		if pick == nil || c.Position < pick.Position {
+			pick = &cols[i]
+		}
+	}
+	return pick
+}

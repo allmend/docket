@@ -272,3 +272,27 @@ func TestParseTicketRef(t *testing.T) {
 		}
 	}
 }
+
+func TestTargetColumnForState(t *testing.T) {
+	backlog := model.Column{ID: uuid.New(), Name: "Backlog", Position: 1000}
+	doing := model.Column{ID: uuid.New(), Name: "In Progress", Position: 2000}
+	done := model.Column{ID: uuid.New(), Name: "DONE", Position: 3000}
+	// Out of order, as nothing guarantees ListColumns' order here.
+	cols := []model.Column{doing, done, backlog}
+
+	if got := targetColumnForState(cols, doing.ID, true); got == nil || got.ID != done.ID {
+		t.Errorf("close from In Progress: got %v, want Done", got)
+	}
+	if got := targetColumnForState(cols, done.ID, true); got != nil {
+		t.Errorf("close in Done: got %v, want stay", got)
+	}
+	if got := targetColumnForState(cols, done.ID, false); got == nil || got.ID != backlog.ID {
+		t.Errorf("reopen from Done: got %v, want the first column", got)
+	}
+	if got := targetColumnForState(cols, doing.ID, false); got != nil {
+		t.Errorf("reopen outside Done: got %v, want stay", got)
+	}
+	if got := targetColumnForState([]model.Column{backlog, doing}, doing.ID, true); got != nil {
+		t.Errorf("board without Done: got %v, want stay", got)
+	}
+}

@@ -588,9 +588,9 @@ func (s *Store) fillSprintLiveStats(ctx context.Context, orgID uuid.UUID, sp *mo
 	s.replica.QueryRow(ctx,
 		`SELECT
 		    COUNT(*),
-		    COUNT(*) FILTER (WHERE LOWER(c.name) = 'done'),
+		    COUNT(*) FILTER (WHERE LOWER(c.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done'),
 		    COALESCE(SUM(t.story_points), 0),
-		    COALESCE(SUM(t.story_points) FILTER (WHERE LOWER(c.name) = 'done'), 0)
+		    COALESCE(SUM(t.story_points) FILTER (WHERE LOWER(c.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done'), 0)
 		 FROM tickets t
 		 LEFT JOIN columns c ON c.id = t.column_id
 		 WHERE t.org_id = $1 AND t.sprint_id = $2`,
@@ -777,7 +777,7 @@ func (s *Store) SnapshotSprintStats(ctx context.Context, orgID, sprintID uuid.UU
 		    completed_tickets = (
 		        SELECT COUNT(*) FROM tickets t
 		        JOIN columns c ON c.id = t.column_id
-		        WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c.name) = 'done'
+		        WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done'
 		    ),
 		    committed_points = (
 		        SELECT COALESCE(SUM(story_points), 0) FROM tickets
@@ -787,7 +787,7 @@ func (s *Store) SnapshotSprintStats(ctx context.Context, orgID, sprintID uuid.UU
 		        SELECT COALESCE(SUM(t.story_points), 0) FROM tickets t
 		        JOIN columns c ON c.id = t.column_id
 		        WHERE t.org_id = $1 AND t.sprint_id = $2
-		          AND LOWER(c.name) = 'done' AND t.story_points IS NOT NULL
+		          AND LOWER(c.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done' AND t.story_points IS NOT NULL
 		    ),
 		    updated_at = NOW()
 		 WHERE org_id = $1 AND id = $2`,
@@ -796,7 +796,10 @@ func (s *Store) SnapshotSprintStats(ctx context.Context, orgID, sprintID uuid.UU
 	return err
 }
 
-// ListSprintTicketsForReview returns all tickets in a sprint partitioned into done/not-done.
+// ListSprintTicketsForReview returns a sprint's completed tickets (in Done and
+// closed as done) and the ones returning to the backlog (not in Done). Tickets
+// closed for another reason (duplicate, won't do, …) sit in Done but are in
+// neither list: they were neither delivered nor carried over.
 func (s *Store) ListSprintTicketsForReview(ctx context.Context, orgID, sprintID uuid.UUID) (completed, returning []model.Ticket, err error) {
 	scan := func(q string) ([]model.Ticket, error) {
 		rows, err := s.replica.Query(ctx, q, orgID, sprintID)
@@ -817,7 +820,7 @@ func (s *Store) ListSprintTicketsForReview(ctx context.Context, orgID, sprintID 
 
 	doneQ := `SELECT ` + ticketCols + ticketJoins + `
 		JOIN columns c2 ON c2.id = t.column_id
-		WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c2.name) = 'done'
+		WHERE t.org_id = $1 AND t.sprint_id = $2 AND LOWER(c2.name) = 'done' AND COALESCE(t.close_reason, 'done') = 'done'
 		ORDER BY t.position`
 
 	returnQ := `SELECT ` + ticketCols + ticketJoins + `
