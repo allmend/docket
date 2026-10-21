@@ -146,6 +146,8 @@ func promEscape(s string) string {
 
 // --- helpers ---
 
+const priorityError = `invalid priority: expected one of "" (none), low, medium, high, critical`
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -269,9 +271,10 @@ func (h *Handler) v1UpdateTeam(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Pointers tell an omitted field (keep) from an explicit "" (clear).
 	var body struct {
-		Name        string `json:"name"`
-		Description string `json:"description"`
+		Name        string  `json:"name"`
+		Description *string `json:"description"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid JSON")
@@ -280,8 +283,12 @@ func (h *Handler) v1UpdateTeam(w http.ResponseWriter, r *http.Request) {
 	if body.Name == "" {
 		body.Name = team.Name
 	}
+	description := team.Description
+	if body.Description != nil {
+		description = *body.Description
+	}
 
-	updated, err := h.teams.UpdateTeam(r.Context(), orgID, team.ID, body.Name, body.Description)
+	updated, err := h.teams.UpdateTeam(r.Context(), orgID, team.ID, body.Name, description)
 	if err != nil {
 		apiServiceError(w, err, "failed to update team")
 		return
@@ -353,11 +360,11 @@ func (h *Handler) v1CreateTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		BoardID  string `json:"board_id"`
-		ColumnID string `json:"column_id"`
-		Title    string `json:"title"`
-		Body     string `json:"body"`
-		Priority string `json:"priority"`
+		BoardID  string  `json:"board_id"`
+		ColumnID string  `json:"column_id"`
+		Title    string  `json:"title"`
+		Body     string  `json:"body"`
+		Priority *string `json:"priority"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		apiError(w, http.StatusBadRequest, "invalid JSON")
@@ -379,12 +386,13 @@ func (h *Handler) v1CreateTicket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	priority := model.Priority(body.Priority)
-	if priority == "" {
-		priority = model.PriorityMedium
+	// An omitted priority defaults to medium; an explicit "" means none.
+	priority := model.PriorityMedium
+	if body.Priority != nil {
+		priority = model.Priority(*body.Priority)
 	}
 	if !priority.Valid() {
-		apiError(w, http.StatusBadRequest, "invalid priority: expected one of low, medium, high, critical")
+		apiError(w, http.StatusBadRequest, priorityError)
 		return
 	}
 
@@ -449,8 +457,8 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 
 	var body struct {
 		Title      string  `json:"title"`
-		Body       string  `json:"body"`
-		Priority   string  `json:"priority"`
+		Body       *string `json:"body"`
+		Priority   *string `json:"priority"`
 		AssigneeID *string `json:"assignee_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -461,15 +469,17 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	if body.Title == "" {
 		body.Title = ticket.Title
 	}
-	if body.Body == "" {
-		body.Body = ticket.Body
+	// Omitted fields keep their value; an explicit "" clears body or priority.
+	text := ticket.Body
+	if body.Body != nil {
+		text = *body.Body
 	}
-	priority := model.Priority(body.Priority)
-	if priority == "" {
-		priority = ticket.Priority
+	priority := ticket.Priority
+	if body.Priority != nil {
+		priority = model.Priority(*body.Priority)
 	}
 	if !priority.Valid() {
-		apiError(w, http.StatusBadRequest, "invalid priority: expected one of low, medium, high, critical")
+		apiError(w, http.StatusBadRequest, priorityError)
 		return
 	}
 
@@ -484,7 +494,7 @@ func (h *Handler) v1UpdateTicket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actorID := service.UserIDFromContext(r.Context())
-	updated, err := h.tickets.UpdateTicket(r.Context(), orgID, ticket.ID, actorID, body.Title, body.Body, priority, assigneeID)
+	updated, err := h.tickets.UpdateTicket(r.Context(), orgID, ticket.ID, actorID, body.Title, text, priority, assigneeID)
 	if err != nil {
 		apiServiceError(w, err, "failed to update ticket")
 		return
