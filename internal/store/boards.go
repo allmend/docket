@@ -833,29 +833,33 @@ func (s *Store) ListSprintTicketsForReview(ctx context.Context, orgID, sprintID 
 	return completed, returning, err
 }
 
-// ListSprintTicketsSummary returns lightweight ticket rows for a sprint, used by the roadmap.
-func (s *Store) ListSprintTicketsSummary(ctx context.Context, orgID, sprintID uuid.UUID) ([]model.RoadmapTicket, error) {
+// ListBoardSprintTicketsSummary returns lightweight ticket rows for every
+// sprint on a board, keyed by sprint, in position order — one query for the
+// whole roadmap.
+func (s *Store) ListBoardSprintTicketsSummary(ctx context.Context, orgID, boardID uuid.UUID) (map[uuid.UUID][]model.RoadmapTicket, error) {
 	rows, err := s.replica.Query(ctx, `
-		SELECT t.id, t.title, t.priority, COALESCE(tm.key, ''), t.number,
+		SELECT t.sprint_id, t.id, t.title, t.priority, COALESCE(tm.key, ''), t.number,
 		       (t.closed_at IS NOT NULL OR LOWER(c.name) = 'done') AS is_done
 		FROM tickets t
+		JOIN sprints sp ON sp.id = t.sprint_id AND sp.org_id = t.org_id
 		LEFT JOIN teams tm ON tm.id = t.team_id
 		LEFT JOIN columns c ON c.id = t.column_id
-		WHERE t.org_id = $1 AND t.sprint_id = $2
+		WHERE t.org_id = $1 AND sp.board_id = $2
 		ORDER BY t.position
-	`, orgID, sprintID)
+	`, orgID, boardID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var out []model.RoadmapTicket
+	out := make(map[uuid.UUID][]model.RoadmapTicket)
 	for rows.Next() {
+		var sprintID uuid.UUID
 		var t model.RoadmapTicket
-		if err := rows.Scan(&t.ID, &t.Title, &t.Priority, &t.TeamKey, &t.Number, &t.IsDone); err != nil {
+		if err := rows.Scan(&sprintID, &t.ID, &t.Title, &t.Priority, &t.TeamKey, &t.Number, &t.IsDone); err != nil {
 			return nil, err
 		}
-		out = append(out, t)
+		out[sprintID] = append(out[sprintID], t)
 	}
 	return out, rows.Err()
 }

@@ -124,12 +124,18 @@ func (s *RetroService) ListRetros(ctx context.Context, orgID, boardID uuid.UUID)
 		ids[i] = rb.ID
 	}
 	counts, _ := s.store.BulkCountRetroCards(ctx, orgID, ids)
+	// One query for every sprint on the board instead of one per retro.
+	sprints, _ := s.store.ListSprints(ctx, orgID, boardID)
+	sprintByID := make(map[uuid.UUID]*model.Sprint, len(sprints))
+	for i := range sprints {
+		sprintByID[sprints[i].ID] = &sprints[i]
+	}
 
 	var items []model.RetroListItem
 	for _, rb := range boards {
 		item := model.RetroListItem{RetroBoard: rb, ClosedAt: rb.ClosedAt}
 		if rb.SprintID != nil {
-			if sp, err := s.store.GetSprint(ctx, orgID, *rb.SprintID); err == nil {
+			if sp, ok := sprintByID[*rb.SprintID]; ok {
 				item.SprintName = sp.Name
 				item.Sprint = sp
 			}

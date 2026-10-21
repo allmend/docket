@@ -730,10 +730,10 @@ func (s *BoardService) GetRoadmap(ctx context.Context, orgID, boardID uuid.UUID)
 		return nil, err
 	}
 
+	bySprint, _ := s.store.ListBoardSprintTicketsSummary(ctx, orgID, boardID)
 	views := make([]model.RoadmapSprintView, 0, len(sprints))
 	for _, sp := range sprints {
-		tickets, _ := s.store.ListSprintTicketsSummary(ctx, orgID, sp.ID)
-		views = append(views, model.RoadmapSprintView{Sprint: sp, Tickets: tickets})
+		views = append(views, model.RoadmapSprintView{Sprint: sp, Tickets: bySprint[sp.ID]})
 	}
 	return views, nil
 }
