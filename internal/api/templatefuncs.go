@@ -5,6 +5,7 @@ import (
 	"hash/fnv"
 	"html/template"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -56,8 +57,24 @@ func templateFuncs() template.FuncMap {
 
 		// Build version, so no template has to hardcode (and then forget) it.
 		"version": func() string { return version.Version },
+		// Where the running build's source lives, for the AGPL source offer.
+		"sourceURL": func() string { return sourceURL(version.Version) },
 	}
 }
+
+// SourceRepo is Docket's public source repository.
+const SourceRepo = "https://github.com/allmend/docket"
+
+// sourceURL links to the exact release a build came from, so the source offer
+// matches what is running. Dev and untagged builds link to the repository.
+func sourceURL(v string) string {
+	if releaseVersion.MatchString(v) {
+		return SourceRepo + "/tree/v" + v
+	}
+	return SourceRepo
+}
+
+var releaseVersion = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 
 // priorityColor maps a ticket priority to its color-bar utility class.
 // These classes are safelisted in tailwind.config.js since they no longer

@@ -37,6 +37,7 @@
         <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 px-3 mb-2">Account</div>
         <a href="?tab=tokens" class="block px-3 py-1.5 rounded text-[14px] {{if eq .Tab "tokens"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">API tokens</a>
         <a href="?tab=members" class="block px-3 py-1.5 rounded text-[14px] {{if eq .Tab "members"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">Members</a>
+        <a href="?tab=about" class="block px-3 py-1.5 rounded text-[14px] {{if eq .Tab "about"}}text-base-950 bg-base-200 border-l-2 border-primary-500 -ml-[1px]{{else}}text-base-700 hover:text-base-900 hover:bg-base-200{{end}} cursor-pointer">About</a>
         <div class="h-px bg-base-300 my-1.5 mx-3"></div>
         <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Integrations</a>
         <a class="block px-3 py-1.5 rounded text-[14px] text-base-500 cursor-not-allowed select-none">Billing</a>
@@ -179,8 +180,27 @@
         {{end}}
 
         {{else}}
-        {{/* ── Org settings: tokens and members ── */}}
-        {{if eq .Tab "members"}}
+        {{/* ── Org settings: tokens, members, about ── */}}
+        {{if eq .Tab "about"}}
+        <div class="mb-4">
+          <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">About</h2>
+          <div class="mono text-[14px] text-base-700 mt-0.5">The software running this instance</div>
+        </div>
+        <dl class="grid grid-cols-[140px_1fr] gap-y-2.5 text-[14px] bg-base-200 border border-base-300 rounded px-4 py-4 max-w-[640px]">
+          <dt class="text-base-600">Version</dt>
+          <dd class="mono text-base-900">v{{version}}</dd>
+          <dt class="text-base-600">Licence</dt>
+          <dd class="text-base-900"><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener" class="text-primary-400 hover:text-primary-300">GNU AGPL v3.0</a></dd>
+          <dt class="text-base-600">Source code</dt>
+          <dd class="mono text-base-900 break-all"><a href="{{sourceURL}}" target="_blank" rel="noopener" class="text-primary-400 hover:text-primary-300">{{sourceURL}}</a></dd>
+          <dt class="text-base-600">Copyright</dt>
+          <dd class="text-base-900">© 2026 the Docket contributors</dd>
+        </dl>
+        <p class="text-[13px] text-base-600 mt-3 max-w-[640px] leading-relaxed">
+          Docket is free software. If you run a modified version for others over a network, the AGPL
+          requires you to offer its users your modified source.
+        </p>
+        {{else if eq .Tab "members"}}
         <div class="flex items-end justify-between mb-4">
           <div>
             <h2 class="text-[17px] font-semibold tracking-tightish text-base-950">Members</h2>

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `docs/operations.md`: how startup migration works, an upgrade checklist, rolling back, backups, and recovering a dirty database.
+- Settings → About shows the running version, the licence and a link to the exact source release. The login page carries a copyright and source line.
 - Docket logs its version and mode at startup (`starting docket`).
 
 ### Changed

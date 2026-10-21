@@ -29,3 +29,18 @@ func TestHashCacheFollowsContent(t *testing.T) {
 		t.Error("a missing file should hash to \"missing\"")
 	}
 }
+
+func TestSourceURL(t *testing.T) {
+	cases := map[string]string{
+		"0.19.0":            SourceRepo + "/tree/v0.19.0",
+		"0.19.0-3-gabc1234": SourceRepo,
+		"0.19.0-dirty":      SourceRepo,
+		"abc1234":           SourceRepo,
+		"":                  SourceRepo,
+	}
+	for in, want := range cases {
+		if got := sourceURL(in); got != want {
+			t.Errorf("sourceURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
