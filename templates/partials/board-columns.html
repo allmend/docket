@@ -189,6 +189,17 @@
       {{template "board-card" (dict "Ticket" . "IsDone" $isDone)}}
       {{end}}
     </div>
+    {{if $isDone}}
+    {{if .HiddenDone}}
+    <a href="?done=all" class="block px-3 py-2 border-t border-base-300 mono text-[13px] text-base-600 hover:text-primary-400">
+      {{.HiddenDone}} older · show all
+    </a>
+    {{else if $.ShowAllDone}}
+    <a href="?" class="block px-3 py-2 border-t border-base-300 mono text-[13px] text-base-600 hover:text-primary-400">
+      show the last 14 days only
+    </a>
+    {{end}}
+    {{end}}
   </div>
   {{end}}
   {{template "add-column-card" $team}}

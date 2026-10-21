@@ -17,7 +17,7 @@
 
   {{/* Columns area — HTMX polling target */}}
   <div id="board-columns"
-       hx-get="/boards/{{$board.ID}}/columns"
+       hx-get="/boards/{{$board.ID}}/columns{{if .ShowAllDone}}?done=all{{end}}"
        hx-trigger="boardUpdated from:body, every 30s"
        hx-swap="innerHTML"
        class="flex-1 min-h-0 overflow-y-auto">

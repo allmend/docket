@@ -1,6 +1,8 @@
 package api
 
 import (
+	"time"
+
 	"net/http"
 	"strings"
 
@@ -83,10 +85,18 @@ func (h *Handler) boardViewData(r *http.Request, view *model.BoardView) map[stri
 	if view.ActiveSprint != nil {
 		sprintID = view.ActiveSprint.ID.String()
 	}
+	// Kanban and Blank boards show recent Done tickets only, unless ?done=all.
+	// Scrum Done columns are bounded by the sprint already.
+	showAllDone := r.URL.Query().Get("done") == "all"
+	columns := view.Columns
+	if !view.Board.Mode.IsScrum() && !showAllDone {
+		columns = model.TrimDoneColumns(columns, time.Now(), model.RecentDoneWindow)
+	}
 	return h.pageData(r, map[string]any{
 		"Board":               view.Board,
 		"Team":                view.Team,
-		"Columns":             view.Columns,
+		"Columns":             columns,
+		"ShowAllDone":         showAllDone,
 		"ActiveSprint":        view.ActiveSprint,
 		"Sprints":             view.Sprints,
 		"SprintViews":         view.SprintViews,

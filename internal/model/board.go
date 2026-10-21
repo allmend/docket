@@ -286,6 +286,35 @@ type ColumnView struct {
 	Tickets   []Ticket
 	IsBacklog bool // true for the virtual backlog column shown on scrum sprint boards
 	IsDone    bool // true if column name matches "done" (case-insensitive)
+	// HiddenDone counts done tickets TrimDoneColumns left out.
+	HiddenDone int
+}
+
+// RecentDoneWindow is how far back a Kanban board's Done column reaches by
+// default. Kanban never ends, so without it Done grows forever.
+const RecentDoneWindow = 14 * 24 * time.Hour
+
+// TrimDoneColumns keeps, in each done column, only tickets closed after
+// now-window, and records how many it left out. A ticket in Done without a
+// closed time (data from before closing was tracked) is kept.
+func TrimDoneColumns(cols []ColumnView, now time.Time, window time.Duration) []ColumnView {
+	cutoff := now.Add(-window)
+	out := make([]ColumnView, len(cols))
+	for i, cv := range cols {
+		out[i] = cv
+		if !cv.IsDone {
+			continue
+		}
+		kept := make([]Ticket, 0, len(cv.Tickets))
+		for _, t := range cv.Tickets {
+			if t.ClosedAt == nil || t.ClosedAt.After(cutoff) {
+				kept = append(kept, t)
+			}
+		}
+		out[i].Tickets = kept
+		out[i].HiddenDone = len(cv.Tickets) - len(kept)
+	}
+	return out
 }
 
 // TotalPoints sums story points across all tickets in this column. Returns "" when zero.

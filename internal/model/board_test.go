@@ -202,3 +202,31 @@ func TestSprintScheduleLabelNeverNegative(t *testing.T) {
 		}
 	}
 }
+
+func TestTrimDoneColumns(t *testing.T) {
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	recent, old := now.Add(-24*time.Hour), now.Add(-30*24*time.Hour)
+	cols := []ColumnView{
+		{Column: Column{Name: "In Progress"}, Tickets: []Ticket{{Title: "wip"}}},
+		{Column: Column{Name: "Done"}, IsDone: true, Tickets: []Ticket{
+			{Title: "recent", ClosedAt: &recent},
+			{Title: "old", ClosedAt: &old},
+			{Title: "legacy"},
+		}},
+	}
+	got := TrimDoneColumns(cols, now, RecentDoneWindow)
+	if len(got[0].Tickets) != 1 || got[0].HiddenDone != 0 {
+		t.Errorf("non-done column changed: %+v", got[0])
+	}
+	if len(got[1].Tickets) != 2 || got[1].HiddenDone != 1 {
+		t.Fatalf("done column: kept %d hidden %d, want 2 and 1", len(got[1].Tickets), got[1].HiddenDone)
+	}
+	for _, tk := range got[1].Tickets {
+		if tk.Title == "old" {
+			t.Error("ticket closed 30 days ago was kept")
+		}
+	}
+	if len(cols[1].Tickets) != 3 {
+		t.Error("input slice was modified")
+	}
+}
