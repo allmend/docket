@@ -135,9 +135,10 @@ func (h *Handler) CreateTicket(w http.ResponseWriter, r *http.Request) {
 		"BoardTags": []model.Tag{},
 		// A ticket this new has no links and is never in a started sprint, but
 		// the keys must still be present — the drawer template reads them.
-		"Links":        []model.TicketLink{},
-		"SprintActive": false,
-		"CurrentUser":  h.auth.GetCurrentUser(r.Context()),
+		"Links":            []model.TicketLink{},
+		"SprintActive":     false,
+		"ActivityDeferred": false,
+		"CurrentUser":      h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -186,9 +187,10 @@ func (h *Handler) CreateBacklogTicket(w http.ResponseWriter, r *http.Request) {
 		"BoardTags": []model.Tag{},
 		// A ticket this new has no links and is never in a started sprint, but
 		// the keys must still be present — the drawer template reads them.
-		"Links":        []model.TicketLink{},
-		"SprintActive": false,
-		"CurrentUser":  h.auth.GetCurrentUser(r.Context()),
+		"Links":            []model.TicketLink{},
+		"SprintActive":     false,
+		"ActivityDeferred": false,
+		"CurrentUser":      h.auth.GetCurrentUser(r.Context()),
 	})
 }
 
@@ -199,9 +201,16 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	comments, _ := h.comments.ListComments(r.Context(), orgID, ticket.ID)
-	h.stampCommentsEditable(r, comments)
-	history, _ := h.comments.ListHistory(r.Context(), orgID, ticket.ID)
+	// The drawer paints without its activity, which grows with the ticket's
+	// age; #ticket-activity then fetches this URL with ?with=activity on load.
+	deferActivity := r.URL.Query().Get("with") != "activity"
+	activity := []model.ActivityItem{}
+	if !deferActivity {
+		comments, _ := h.comments.ListComments(r.Context(), orgID, ticket.ID)
+		h.stampCommentsEditable(r, comments)
+		history, _ := h.comments.ListHistory(r.Context(), orgID, ticket.ID)
+		activity = model.MergeActivity(history, comments)
+	}
 	assignees, _ := h.tickets.ListAssignees(r.Context(), orgID, ticket.ID)
 	columns, _ := h.boards.ListColumns(r.Context(), orgID, ticket.BoardID)
 	links, _ := h.links.ListLinks(r.Context(), orgID, ticket.ID)
@@ -217,16 +226,17 @@ func (h *Handler) TicketQuickView(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, "ticket-detail.html", map[string]any{
-		"Ticket":       ticket,
-		"Activity":     model.MergeActivity(history, comments),
-		"Assignees":    assignees,
-		"Columns":      columns,
-		"Links":        links,
-		"Tags":         tags,
-		"BoardTags":    boardTags,
-		"DodItems":     dodItems,
-		"SprintActive": sprintActive,
-		"CurrentUser":  h.auth.GetCurrentUser(r.Context()),
+		"Ticket":           ticket,
+		"Activity":         activity,
+		"ActivityDeferred": deferActivity,
+		"Assignees":        assignees,
+		"Columns":          columns,
+		"Links":            links,
+		"Tags":             tags,
+		"BoardTags":        boardTags,
+		"DodItems":         dodItems,
+		"SprintActive":     sprintActive,
+		"CurrentUser":      h.auth.GetCurrentUser(r.Context()),
 	})
 }
 

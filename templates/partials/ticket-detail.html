@@ -76,13 +76,20 @@
         {{/* Pattern A: re-fetch the drawer and keep only this node. Status/priority/
              points/assignee/label changes all write history, so the stream has to
              refresh on boardUpdated the same way the board behind the drawer does. */}}
+        {{/* The drawer opens without activity (ActivityDeferred) and loads it
+             here on "load"; the loaded copy only listens for boardUpdated, so
+             it never re-triggers itself. */}}
         <div id="ticket-activity" class="relative pl-5 space-y-3"
-             hx-get="/tickets/{{$t.ID}}/quick"
+             hx-get="/tickets/{{$t.ID}}/quick?with=activity"
              hx-select="#ticket-activity"
              hx-swap="outerHTML"
-             hx-trigger="boardUpdated from:body">
+             hx-trigger="{{if .ActivityDeferred}}load, {{end}}boardUpdated from:body">
           <span class="absolute left-[5.5px] top-1.5 bottom-1.5 w-px bg-base-300"></span>
+          {{if .ActivityDeferred}}
+          <div class="mono text-[13px] text-base-600">Loading activity…</div>
+          {{else}}
           {{template "ticket-activity" (dict "Activity" .Activity "Ring" "ring-base-200")}}
+          {{end}}
 
         </div>
 
