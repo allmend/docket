@@ -17,7 +17,7 @@
 
 services:
   app:
-    image: ghcr.io/allmend/docket:0.19.0  # pin; see docs/operations.md
+    image: ghcr.io/allmend/docket:0.19.1  # pin; see docs/operations.md
     restart: unless-stopped
     ports:
       - "8081:8081"

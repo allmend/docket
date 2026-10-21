@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.1] - 2026-10-21
+
 ### Fixed
 - Closing a ticket as **Done** with the Close button moves it into the board's Done column, as dragging it there always did. Before, it was closed in place and never appeared in Done. Other close reasons (duplicate, won't do, not relevant, other) still close the ticket where it is. Reopening a ticket that is in Done moves it to the board's first column.
 - A migration moves tickets already closed as done into their board's Done column. Boards without a Done column, and tickets closed for other reasons, are left alone.
@@ -411,7 +413,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
-[Unreleased]: https://github.com/allmend/docket/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/allmend/docket/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/allmend/docket/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/allmend/docket/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/allmend/docket/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/allmend/docket/compare/v0.16.0...v0.17.0

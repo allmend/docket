@@ -25,7 +25,7 @@ every `MODE`. Migrations are the SQL files in `migrations/`, baked into the imag
   ```yaml
   initContainers:
     - name: migrate
-      image: ghcr.io/allmend/docket:0.19.0   # same tag as the app container
+      image: ghcr.io/allmend/docket:0.19.1   # same tag as the app container
       args: ["--migrate-only"]
       envFrom:
         - secretRef:
@@ -55,7 +55,7 @@ what makes the upgrade and rollback advice below hold:
    the target. Required config changes are listed at the top of a release.
 2. **Back up the database** (see below). Migrations are tested, but a backup is
    the only undo for a migration that destroys data.
-3. **Pin the version.** Use an exact tag (`ghcr.io/allmend/docket:0.19.0`), not
+3. **Pin the version.** Use an exact tag (`ghcr.io/allmend/docket:0.19.1`), not
    `latest`. Tags available:
 
    | Tag | Moves? | Use |
@@ -67,7 +67,7 @@ what makes the upgrade and rollback advice below hold:
 4. **Apply and watch the rollout:**
 
    ```bash
-   kubectl -n docket set image deploy/docket docket=ghcr.io/allmend/docket:0.19.0
+   kubectl -n docket set image deploy/docket docket=ghcr.io/allmend/docket:0.19.1
    kubectl -n docket rollout status deploy/docket
    kubectl -n docket logs deploy/docket | grep -E '"msg":"(starting docket|migrations)'
    ```
