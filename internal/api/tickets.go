@@ -808,7 +808,19 @@ func (h *Handler) UpdateTicketBody(w http.ResponseWriter, r *http.Request) {
 	if !parseForm(w, r) {
 		return
 	}
-	ticket, err := h.tickets.UpdateTicketBody(r.Context(), orgID, ticketID, userID, r.FormValue("body"))
+	mine := r.FormValue("body")
+	ticket, err := h.tickets.UpdateTicketBody(r.Context(), orgID, ticketID, userID, mine, r.FormValue("base_version"))
+	if errors.Is(err, service.ErrEditConflict) {
+		// Someone saved in between. Show their version next to the text being
+		// saved instead of overwriting it; saving again from there is a
+		// deliberate overwrite, since the form now carries their version.
+		current, _, ok := h.ticketFromPath(w, r)
+		if !ok {
+			return
+		}
+		h.render(w, "ticket-body-conflict.html", map[string]any{"Ticket": current, "Mine": mine})
+		return
+	}
 	if err != nil {
 		serviceError(w, err, "failed to update description")
 		return

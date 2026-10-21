@@ -8,6 +8,9 @@
         hx-swap="outerHTML"
         hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
         class="space-y-3">
+    {{/* The description this editor started from; the save is refused if it
+         changed in the meantime (see ticket-body-conflict.html). */}}
+    <input type="hidden" name="base_version" value="{{bodyVersion .Body}}" />
     {{template "rich-editor" (dict "Name" "body" "Value" .Body "Placeholder" "Write a description… (@username, #TICKET-ID)" "Rows" "8")}}
     <div class="flex items-center gap-2 justify-end">
       <button type="button" data-esc-cancel

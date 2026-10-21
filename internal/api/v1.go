@@ -164,6 +164,8 @@ func apiServiceError(w http.ResponseWriter, err error, fallback string) {
 	switch {
 	case errors.Is(err, service.ErrTicketClosed):
 		apiError(w, http.StatusConflict, "ticket is closed")
+	case errors.Is(err, service.ErrEditConflict):
+		apiError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, service.ErrForbidden):
 		apiError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, service.ErrInvalidInput):

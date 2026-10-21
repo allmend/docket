@@ -16,6 +16,10 @@ import (
 // assignment, reopen, close and delete stay legal on a closed ticket.
 var ErrTicketClosed = errors.New("ticket is closed")
 
+// ErrEditConflict means someone else saved the field being edited since the
+// editor loaded it, so saving would silently overwrite their change.
+var ErrEditConflict = errors.New("edited by someone else in the meantime")
+
 // ErrInvalidInput marks a request the service rejected on validation grounds
 // (unknown priority, sprint ending before it starts). Handlers map it to 400.
 var ErrInvalidInput = errors.New("invalid input")

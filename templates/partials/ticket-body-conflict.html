@@ -1,0 +1,46 @@
+{{define "ticket-body-conflict"}}
+{{/* Shown instead of saving when the description changed while it was being
+     edited. Their version is rendered read-only; the editor keeps the text
+     being saved. base_version is now theirs, so Save overwrites on purpose. */}}
+{{$t := .Ticket}}
+<section id="ticket-body-section" class="space-y-3">
+  <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">Description</div>
+
+  <div class="flex items-start gap-2 bg-warn/10 border border-warn/30 text-warn rounded px-3 py-2.5 text-[14px]">
+    <svg class="h-4 w-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    </svg>
+    <div>Someone else saved this description while you were editing. Their version is below; yours is in the editor and hasn't been saved. Merge what you need, then save, or discard yours.</div>
+  </div>
+
+  <div>
+    <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 mb-1">Saved version</div>
+    <div class="prose prose-sm prose-invert max-w-none text-[15px] leading-[22px] text-base-800 [&_a]:text-primary-400 [&_a]:hover:underline bg-base-200/60 border border-base-300 rounded px-3 py-2 max-h-[280px] overflow-y-auto">
+      {{if $t.Body}}{{$t.BodyHTML}}{{else}}<span class="text-base-600 italic text-[14px]">The description was cleared.</span>{{end}}
+    </div>
+  </div>
+
+  <form hx-put="/tickets/{{$t.ID}}/body"
+        hx-target="#ticket-body-section"
+        hx-swap="outerHTML"
+        hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
+        class="space-y-3">
+    <input type="hidden" name="base_version" value="{{bodyVersion $t.Body}}" />
+    <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600">Your version</div>
+    {{template "rich-editor" (dict "Name" "body" "Value" .Mine "Placeholder" "Write a description… (@username, #TICKET-ID)" "Rows" "8")}}
+    <div class="flex items-center gap-2 justify-end">
+      <button type="button" data-esc-cancel
+              hx-get="/tickets/{{$t.ID}}/body/view"
+              hx-target="#ticket-body-section"
+              hx-swap="outerHTML"
+              class="px-3 py-1.5 text-[14px] text-base-800 hover:text-base-950 hover:bg-base-250 rounded">
+        Discard mine
+      </button>
+      <button type="submit"
+              class="bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium text-[14px] px-3 py-1.5 rounded shadow-lift">
+        Save mine
+      </button>
+    </div>
+  </form>
+</section>
+{{end}}

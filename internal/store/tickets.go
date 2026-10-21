@@ -230,13 +230,22 @@ func (s *Store) UpdateTicketTitle(ctx context.Context, orgID, ticketID uuid.UUID
 	return &t, err
 }
 
-func (s *Store) UpdateTicketBody(ctx context.Context, orgID, ticketID uuid.UUID, body string) (*model.Ticket, error) {
+// bodyVersionSQL is model.BodyVersion computed in Postgres: the first 8 bytes
+// of the body's SHA-256, hex encoded.
+const bodyVersionSQL = `left(encode(sha256(convert_to(body, 'UTF8')), 'hex'), 16)`
+
+// UpdateTicketBody replaces a ticket's description. A non-empty baseVersion
+// (model.BodyVersion of the text the editor started from) makes the write
+// conditional: when the stored body has changed since, nothing is written and
+// pgx.ErrNoRows comes back, the same as for a missing ticket.
+func (s *Store) UpdateTicketBody(ctx context.Context, orgID, ticketID uuid.UUID, body, baseVersion string) (*model.Ticket, error) {
 	var t model.Ticket
 	err := scanTicket(s.primary.QueryRow(ctx,
 		`UPDATE tickets SET body = $3, updated_at = NOW()
 		 WHERE org_id = $1 AND id = $2
+		   AND ($4 = '' OR `+bodyVersionSQL+` = $4 OR body = $3)
 		 RETURNING `+ticketColsReturning,
-		orgID, ticketID, body,
+		orgID, ticketID, body, baseVersion,
 	), &t)
 	return &t, err
 }

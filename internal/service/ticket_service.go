@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 type TicketService struct {
@@ -586,11 +588,19 @@ func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, 
 	return t, nil
 }
 
-func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, actorID uuid.UUID, body string) (*model.Ticket, error) {
+// UpdateTicketBody saves a ticket description. baseVersion is the
+// model.BodyVersion the editor started from; when someone else saved a
+// different description since, it returns ErrEditConflict and writes nothing.
+// An empty baseVersion saves unconditionally.
+func (s *TicketService) UpdateTicketBody(ctx context.Context, orgID, ticketID, actorID uuid.UUID, body, baseVersion string) (*model.Ticket, error) {
 	if err := assertTicketOpen(ctx, s.store, orgID, ticketID); err != nil {
 		return nil, err
 	}
-	t, err := s.store.UpdateTicketBody(ctx, orgID, ticketID, body)
+	t, err := s.store.UpdateTicketBody(ctx, orgID, ticketID, body, baseVersion)
+	if errors.Is(err, pgx.ErrNoRows) && baseVersion != "" {
+		// The ticket exists (assertTicketOpen found it), so the guard refused.
+		return nil, ErrEditConflict
+	}
 	if err != nil {
 		return nil, err
 	}

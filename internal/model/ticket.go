@@ -1,6 +1,8 @@
 package model
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"html/template"
 	"strings"
@@ -117,4 +119,13 @@ func (p Priority) Valid() bool {
 		return true
 	}
 	return false
+}
+
+// BodyVersion fingerprints a ticket description. The description editor sends
+// the version it started from, and a save is refused when the stored body no
+// longer matches it: someone else saved in between. It must stay byte-identical
+// to bodyVersionSQL in the store, which computes the same value in Postgres.
+func BodyVersion(body string) string {
+	sum := sha256.Sum256([]byte(body))
+	return hex.EncodeToString(sum[:8])
 }
