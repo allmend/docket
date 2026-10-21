@@ -7,13 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Upgrade notes
+- **`JWT_SECRET` must be at least 32 bytes and not an example value**, or Docket refuses to start. Generate one with `openssl rand -hex 32`. On a fresh database `SEED_PASSWORD` must also be set to something other than `changeme`.
+- **Update your Deployment** from `deploy/k8s/deployment.yaml`: probes now use the health port `9413`, and the termination grace period covers the drain. Previous probes hit `/login` on the app port.
+- This release adds two migrations. From this release on, an older image started against a newer schema logs a warning and runs instead of crash-looping; rolling back to 0.15.0 or earlier still crash-loops.
+
+### Security
+- Logging out ends the whole session on every device that shares it, and a refresh token replayed after its grace window revokes the session and logs a warning. Existing sessions keep working.
+- Docket refuses to start with a missing, short or placeholder `JWT_SECRET`, or with an example `SEED_PASSWORD` on a fresh database.
+- Column lookups, ticket numbering and ticket history are scoped to the caller's organisation in the store as well as above it.
+
 ### Added
 - Health endpoints on their own port (`9413`, set with `HEALTH_PORT`/`HEALTH_ADDR`): `/livez` reports that the process answers and never touches the database; `/readyz` checks that migrations finished, Postgres answers within a second, and the pod isn't shutting down. `?verbose` lists each check. The port is not part of the Service or the public route.
 - `docket healthcheck` (`--live` for `/livez`) so the distroless image has a working Docker `HEALTHCHECK`; `deploy/docker-compose.yml` uses it.
+- Closing a ticket asks for a reason: Done, Duplicate, Not relevant, Won't do, or Other with a note. The closed banner and the activity show it.
+- The New Ticket dialog has a Track picker.
+- Workspace settings has a Columns tab to add, rename, reorder and delete columns on any board.
+- Kanban and Blank workspace dashboards show the board's flow: open, in progress, done in the last 7 days, open points, and open tickets per column.
+- The Daily Scrum works on Kanban and Blank boards, over the work in progress.
 
 ### Changed
 - On SIGTERM a replica fails `/readyz` immediately and keeps serving for `SHUTDOWN_DELAY` (default `5s`) before it stops, so rolling updates drain instead of dropping requests.
-- The Kubernetes manifests probe the health port: a startup probe covers migrations, liveness uses `/livez`, readiness uses `/readyz`, and the termination grace period covers the drain. **Update your Deployment** from `deploy/k8s/deployment.yaml`: previous probes hit `/login` on the app port.
+- The Kubernetes manifests probe the health port: a startup probe covers migrations, liveness uses `/livez`, readiness uses `/readyz`, and the termination grace period covers the drain.
+- `.env.example`, the README, `deploy/docker-compose.yml` and `deploy/k8s/secret.yaml` document the secret requirements; compose no longer defaults `SEED_PASSWORD` to `changeme`.
+- The refinement view is called "Backlog Refinement" everywhere.
+- The board's always-visible "+ Add column" card is replaced by a small link to the Columns settings.
+- On a Scrum board with no active sprint, the Daily Scrum explains why and links to Sprint Planning.
+- On the Backlog page the active sprint is a drop target: dragging a ticket in warns that it is unplanned work. Tickets can be dragged between sprints.
+- The roadmap and retrospective list load faster on boards with many sprints.
+
+### Fixed
+- Timestamps and their tooltips show in your browser's local time instead of the server's (UTC).
+- Ticket and user picker searches match `%` and `_` literally.
+- Whoever creates a workspace becomes a member of it. Existing workspaces get their creator added.
+- Tickets in a sprint can be dragged back to the backlog after a page reload.
+- Blocked and depends-on markers show in the backlog, sprint planning and sprint sections, and stay on a ticket after it is dragged.
+- Repeatedly dragging tickets to the top of the backlog no longer drops them in a random spot.
+- A ticket closed with a reason no longer reopens when it is dragged between columns; only leaving Done reopens it.
+- A column that looks empty on the Sprint Board can be deleted. If visible tickets block it, the message says where they are.
 
 ## [0.15.0] - 2026-10-16
 
