@@ -1,4 +1,4 @@
-.PHONY: dev build migrate js js-watch css css-watch vet test test-short assets vendor rebuild docker-up docker-down dev-docker dev-docker-down
+.PHONY: dev build migrate js js-watch css css-watch vet test test-short assets budget vendor rebuild docker-up docker-down dev-docker dev-docker-down
 
 # Stamped into the binary and shown in the UI. Falls back to the literal in
 # internal/version when git has no tag to describe.
@@ -56,3 +56,7 @@ dev-docker:
 
 dev-docker-down:
 	docker compose -f docker/docker-compose.dev.yml down
+
+# Gzipped asset size gate, also run in CI.
+budget:
+	sh scripts/budget.sh
