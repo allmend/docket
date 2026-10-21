@@ -352,10 +352,13 @@ func (h *Handler) BoardRoadmap(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "roadmap not found", http.StatusInternalServerError)
 		return
 	}
+	upcoming, completed := model.SplitRoadmap(sprints)
 	h.render(w, "roadmap.html", h.pageData(r, map[string]any{
-		"Board":   board,
-		"Team":    team,
-		"Sprints": sprints,
+		"Board":     board,
+		"Team":      team,
+		"Sprints":   sprints,
+		"Upcoming":  upcoming,
+		"Completed": completed,
 	}))
 }
 

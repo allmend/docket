@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -352,6 +353,44 @@ func (t RoadmapTicket) DisplayID() string {
 type RoadmapSprintView struct {
 	Sprint  Sprint
 	Tickets []RoadmapTicket
+}
+
+func sprintRecency(s Sprint) time.Time {
+	switch {
+	case s.EndDate != nil:
+		return *s.EndDate
+	case s.StartDate != nil:
+		return *s.StartDate
+	}
+	return s.CreatedAt
+}
+
+// SplitRoadmap orders a roadmap for reading: the active sprint, then planned
+// sprints soonest first (undated ones last, in creation order); completed
+// sprints separately, most recent first. The input is in creation order.
+func SplitRoadmap(views []RoadmapSprintView) (upcoming, completed []RoadmapSprintView) {
+	for _, v := range views {
+		if v.Sprint.Status.IsCompleted() {
+			completed = append(completed, v)
+		} else {
+			upcoming = append(upcoming, v)
+		}
+	}
+	sort.SliceStable(upcoming, func(i, j int) bool {
+		a, b := upcoming[i].Sprint, upcoming[j].Sprint
+		if a.Status.IsActive() != b.Status.IsActive() {
+			return a.Status.IsActive()
+		}
+		if (a.StartDate == nil) != (b.StartDate == nil) {
+			return a.StartDate != nil
+		}
+		return a.StartDate != nil && a.StartDate.Before(*b.StartDate)
+	})
+	// Newest first, by end date, else start date, else creation time.
+	sort.SliceStable(completed, func(i, j int) bool {
+		return sprintRecency(completed[i].Sprint).After(sprintRecency(completed[j].Sprint))
+	})
+	return upcoming, completed
 }
 
 // DodItem is one checklist item in a board's Definition of Done.

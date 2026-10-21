@@ -230,3 +230,34 @@ func TestTrimDoneColumns(t *testing.T) {
 		t.Error("input slice was modified")
 	}
 }
+
+func TestSplitRoadmap(t *testing.T) {
+	day := func(d int) *time.Time { v := time.Date(2026, 1, d, 0, 0, 0, 0, time.UTC); return &v }
+	sp := func(name string, st SprintStatus, start, end *time.Time) RoadmapSprintView {
+		return RoadmapSprintView{Sprint: Sprint{Name: name, Status: st, StartDate: start, EndDate: end}}
+	}
+	// Creation order, as ListSprints returns it.
+	in := []RoadmapSprintView{
+		sp("S1", SprintStatusCompleted, day(1), day(14)),
+		sp("S2", SprintStatusCompleted, day(15), day(28)),
+		sp("later-undated", SprintStatusPlanning, nil, nil),
+		sp("S3", SprintStatusActive, day(29), nil),
+		sp("S5", SprintStatusPlanning, day(30), nil),
+		sp("S4", SprintStatusPlanning, day(29), nil),
+		sp("old-undated", SprintStatusCompleted, nil, nil),
+	}
+	up, done := SplitRoadmap(in)
+	names := func(vs []RoadmapSprintView) string {
+		var out []string
+		for _, v := range vs {
+			out = append(out, v.Sprint.Name)
+		}
+		return strings.Join(out, ",")
+	}
+	if got, want := names(up), "S3,S4,S5,later-undated"; got != want {
+		t.Errorf("upcoming = %s, want %s", got, want)
+	}
+	if got, want := names(done), "S2,S1,old-undated"; got != want {
+		t.Errorf("completed = %s, want %s", got, want)
+	}
+}

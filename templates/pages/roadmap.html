@@ -20,11 +20,36 @@
 
     {{if .Sprints}}
     <div class="space-y-3">
-      {{range .Sprints}}
-      {{$sp := .Sprint}}
-      {{$tickets := .Tickets}}
+      {{range .Upcoming}}{{template "roadmap-sprint" (dict "View" . "Open" true)}}{{end}}
+    </div>
+    {{if .Completed}}
+    {{/* Completed sprints are history: folded away, newest first. */}}
+    <div x-data="{open:false}" class="mt-6">
+      <button type="button" @click="open=!open"
+              class="flex items-center gap-2 mono text-[13px] uppercase tracking-[0.18em] text-base-600 hover:text-base-900 mb-3">
+        <svg class="w-3 h-3 shrink-0 transition-transform" :class="open ? 'rotate-90' : ''" viewBox="0 0 12 12" fill="none"><path d="M4.5 3l3 3-3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Completed sprints · {{len .Completed}}
+      </button>
+      <div x-show="open" x-cloak class="space-y-3">
+        {{range .Completed}}{{template "roadmap-sprint" (dict "View" . "Open" false)}}{{end}}
+      </div>
+    </div>
+    {{end}}
+    {{else}}
+    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
+      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No sprints</div>
+      <p class="text-[14px] text-base-700">Create your first sprint to start planning.</p>
+    </div>
+    {{end}}
+  </div>
+</div>
+{{end}}
+
+{{define "roadmap-sprint"}}
+      {{$sp := .View.Sprint}}
+      {{$tickets := .View.Tickets}}
       {{$done := 0}}{{range $tickets}}{{if .IsDone}}{{$done = add $done 1}}{{end}}{{end}}
-      <div x-data="{open:true}" class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
+      <div x-data="{open: $el.dataset.open === 'true'}" data-open="{{.Open}}" class="bg-base-200 border border-base-300 rounded-md overflow-hidden">
         <!-- Sprint header -->
         <div @click="open=!open"
              class="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-base-250/40 border-b border-base-300">
@@ -66,14 +91,4 @@
           {{end}}
         </div>
       </div>
-      {{end}}
-    </div>
-    {{else}}
-    <div class="bg-base-200 border border-base-300 rounded-md py-16 text-center">
-      <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No sprints</div>
-      <p class="text-[14px] text-base-700">Create your first sprint to start planning.</p>
-    </div>
-    {{end}}
-  </div>
-</div>
 {{end}}
