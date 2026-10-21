@@ -51,6 +51,10 @@ type Ticket struct {
 	IsWaiting     bool    `json:"is_waiting"`          // depends on a ticket still open
 	WaitingOn     string  `json:"waiting_on"`          // display ID of that dependency
 
+	// Links is filled only for the single-ticket API read, read outward from
+	// this ticket (a ticket something blocks lists "blocked_by").
+	Links []TicketLink `json:"links,omitempty"`
+
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

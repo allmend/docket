@@ -48,7 +48,49 @@ func (s *TicketService) GetByRefWithTags(ctx context.Context, orgID uuid.UUID, t
 	if err := s.LoadTags(ctx, orgID, ticket); err != nil {
 		return nil, err
 	}
+	one := []model.Ticket{*ticket}
+	if err := s.markLinks(ctx, orgID, one); err != nil {
+		return nil, err
+	}
+	*ticket = one[0]
+	links, err := s.store.ListLinks(ctx, orgID, ticket.ID)
+	if err != nil {
+		return nil, fmt.Errorf("list links: %w", err)
+	}
+	ticket.Links = links
 	return ticket, nil
+}
+
+// markLinks sets the blocked / waiting markers the board shows, with one pair
+// of bulk queries per board the tickets are on (a team has one board today).
+func (s *TicketService) markLinks(ctx context.Context, orgID uuid.UUID, tickets []model.Ticket) error {
+	done := map[uuid.UUID]bool{}
+	for _, t := range tickets {
+		if done[t.BoardID] {
+			continue
+		}
+		done[t.BoardID] = true
+		blockedBy, err := s.store.BulkGetBlockedBy(ctx, orgID, t.BoardID)
+		if err != nil {
+			return fmt.Errorf("bulk blocked: %w", err)
+		}
+		waitingOn, err := s.store.BulkGetWaitingOn(ctx, orgID, t.BoardID)
+		if err != nil {
+			return fmt.Errorf("bulk waiting: %w", err)
+		}
+		for i := range tickets {
+			if tickets[i].BoardID != t.BoardID {
+				continue
+			}
+			if b, ok := blockedBy[tickets[i].ID]; ok {
+				tickets[i].IsBlocked, tickets[i].BlockedBy = true, b
+			}
+			if d, ok := waitingOn[tickets[i].ID]; ok {
+				tickets[i].IsWaiting, tickets[i].WaitingOn = true, d
+			}
+		}
+	}
+	return nil
 }
 
 // LoadTags populates Tags on a single ticket.
@@ -74,6 +116,9 @@ func (s *TicketService) ListByTeam(ctx context.Context, orgID, teamID uuid.UUID)
 	}
 	for i := range tickets {
 		tickets[i].Tags = tagsByTicket[tickets[i].ID]
+	}
+	if err := s.markLinks(ctx, orgID, tickets); err != nil {
+		return nil, err
 	}
 	return tickets, nil
 }
