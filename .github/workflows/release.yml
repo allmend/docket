@@ -47,6 +47,25 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
 
+      # Start the image before publishing it: "the files are in the image"
+      # is not "the image runs". Same build, loaded locally; the push below
+      # reuses its layers from the cache.
+      - name: Build image for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          load: true
+          provenance: false
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+          tags: docket:smoke
+          cache-from: type=gha
+
+      - name: Smoke test
+        run: sh scripts/smoke.sh docket:smoke
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:

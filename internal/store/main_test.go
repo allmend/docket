@@ -40,8 +40,13 @@ func TestMain(m *testing.M) {
 
 	code, err := runWithContainer(m)
 	if err != nil {
-		// Container couldn't start (e.g. Docker unavailable in CI without a
-		// daemon). Don't fail the build — run the package so requireStore skips.
+		// Container couldn't start (no Docker daemon). Locally that skips the
+		// store tests; CI sets DOCKET_TEST_REQUIRE_DB so a broken Docker setup
+		// fails the build instead of passing with every store test skipped.
+		if os.Getenv("DOCKET_TEST_REQUIRE_DB") != "" {
+			fmt.Fprintln(os.Stderr, "store tests need Postgres:", err)
+			os.Exit(1)
+		}
 		testStoreSkip = "Postgres testcontainer unavailable: " + err.Error()
 		os.Exit(m.Run())
 	}

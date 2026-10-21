@@ -19,8 +19,8 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Vet
-        run: go vet ./...
+      - name: Vet and gofmt
+        run: make vet
 
       - name: Build
         run: go build ./...
@@ -38,3 +38,10 @@ jobs:
 
       - name: Asset size budget
         run: make budget
+
+      # Store tests start Postgres with testcontainers (Docker is on the
+      # runner). DOCKET_TEST_REQUIRE_DB makes them fail instead of skip.
+      - name: Test
+        env:
+          DOCKET_TEST_REQUIRE_DB: "1"
+        run: go test -count=1 ./...

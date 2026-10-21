@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CI runs the full test suite, including the Postgres store tests, and fails when they can't run instead of skipping them. `make vet` also fails on unformatted Go code.
+- Releases start the built image against a throwaway Postgres and check `/readyz`, `/livez` and the login page before publishing it. `make smoke` runs the same check locally.
+
 ## [0.18.0] - 2026-10-21
 
 ### Changed

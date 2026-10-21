@@ -1,4 +1,4 @@
-.PHONY: dev build migrate js js-watch css css-watch vet test test-short assets budget vendor rebuild docker-up docker-down dev-docker dev-docker-down
+.PHONY: dev build migrate js js-watch css css-watch vet test test-short assets budget vendor rebuild docker-up docker-down dev-docker dev-docker-down smoke
 
 # Stamped into the binary and shown in the UI. Falls back to the literal in
 # internal/version when git has no tag to describe.
@@ -37,6 +37,7 @@ css-watch:
 
 vet:
 	go vet ./...
+	@test -z "$$(gofmt -l cmd internal)" || { echo "gofmt needed:"; gofmt -l cmd internal; exit 1; }
 
 test:
 	go test ./...
@@ -60,3 +61,9 @@ dev-docker-down:
 # Gzipped asset size gate, also run in CI.
 budget:
 	sh scripts/budget.sh
+
+# Build the release image and start it against a throwaway Postgres, as the
+# release workflow does before publishing.
+smoke:
+	docker build -f docker/Dockerfile -t docket:smoke .
+	sh scripts/smoke.sh docket:smoke
