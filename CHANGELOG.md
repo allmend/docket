@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-21
+
+### Changed
+- Static assets have content-hashed URLs and are cached by the browser for a year, so moving between pages fetches no CSS or JavaScript. A new release changes the URLs, so nobody runs stale assets after an upgrade.
+- The ticket drawer opens without waiting for comments and history; the activity loads right after. Tickets with a long history open as fast as new ones.
+
+### Development
+- CI fails when the gzipped static assets exceed the size budget (`make budget`, 84 KiB today), printing each file's size.
+
 ## [0.17.0] - 2026-10-21
 
 ### Added
@@ -376,7 +385,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
-[Unreleased]: https://github.com/allmend/docket/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/allmend/docket/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/allmend/docket/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/allmend/docket/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/allmend/docket/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/allmend/docket/compare/v0.14.3...v0.15.0
