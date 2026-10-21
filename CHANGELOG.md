@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Keyboard navigation: `g` then `b` (board), `l` (backlog), `d` (dashboard), `r` (roadmap) for the current workspace, and `g i` (inbox), `g m` (my issues), `g s` (settings). `?` lists every shortcut.
 - While you type a title in New Ticket, up to three similar open tickets appear below it, so a duplicate is noticed before it is filed. Matching uses the existing full-text index and accepts other forms of a word ("password" finds "passwords").
 - Saving a ticket description that someone else changed while you were editing no longer overwrites their change. Docket shows their saved version next to yours, so you can merge them and save, or discard yours.
 - `docs/operations.md`: how startup migration works, an upgrade checklist, rolling back, backups, and recovering a dirty database.

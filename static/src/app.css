@@ -74,6 +74,13 @@
 /* .mono — IBM Plex Mono with slashed-zero + tabular figures.
    Used on IDs, counts, timestamps, branch names, uppercase labels.
    Applied as a utility class, not via font-mono, so feature-settings travel with it. */
+@layer components {
+  /* A key in the shortcut list. */
+  .kbd {
+    @apply inline-block mono text-[12px] text-base-800 bg-base-250 border border-base-350 rounded-sm px-1.5 py-0.5 leading-none min-w-[1.5em] text-center;
+  }
+}
+
 @layer utilities {
   .mono {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;

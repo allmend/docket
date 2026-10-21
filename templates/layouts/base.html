@@ -14,16 +14,19 @@
 {{/* Compute default workspace for new-ticket modal */}}
 {{$ntTeamID   := ""}}
 {{$ntTeamName := ""}}
+{{$navSlug    := ""}}
 {{if .NavTeam}}
   {{$ntTeamID   = printf "%s" .NavTeam.ID}}
   {{$ntTeamName = .NavTeam.Name}}
+  {{$navSlug    = .NavTeam.Slug}}
 {{else if .NavTeams}}
   {{$first := index .NavTeams 0}}
   {{$ntTeamID   = printf "%s" $first.Team.ID}}
   {{$ntTeamName = $first.Team.Name}}
+  {{$navSlug    = $first.Team.Slug}}
 {{end}}
 
-<body class="bg-base-100 text-base-900 font-sans antialiased selection:bg-primary-500/30 selection:text-base-950 h-screen flex flex-col overflow-hidden"
+<body data-nav-slug="{{$navSlug}}" class="bg-base-100 text-base-900 font-sans antialiased selection:bg-primary-500/30 selection:text-base-950 h-screen flex flex-col overflow-hidden"
       x-data="{ ticketModal: false, newTicketModal: false,
         escKey() {
           // An open popover (assignee/tracks add, [data-popup]) closes first,
@@ -717,6 +720,61 @@
       window.localizeTimes = localizeTimes;
       localizeTimes(document);
       document.body.addEventListener('htmx:load', function(e) { localizeTimes(e.target); });
+    })();
+  </script>
+  {{/* Keyboard shortcuts, opened with "?". A native <dialog>: Escape and the
+       backdrop close it without any state of ours. */}}
+  <dialog id="shortcuts" class="bg-base-200 border border-base-300 rounded-lg shadow-pop p-0 w-[520px] max-w-[92vw] text-base-900 backdrop:bg-base-100/70"
+          onclick="if (event.target === this) this.close()">
+    <header class="h-11 px-4 flex items-center border-b border-base-300">
+      <span class="text-[14px] font-semibold tracking-tightish text-base-950">Keyboard shortcuts</span>
+      <form method="dialog" class="ml-auto"><button class="mono text-[13px] text-base-600 hover:text-base-900" aria-label="Close">esc</button></form>
+    </header>
+    <div class="grid grid-cols-2 gap-x-8 gap-y-1.5 p-4 text-[14px]">
+      <div class="col-span-2 mono text-[12px] uppercase tracking-[0.18em] text-base-600 mt-1">Anywhere</div>
+      <div class="flex justify-between"><span>New ticket</span><kbd class="kbd">n</kbd></div>
+      <div class="flex justify-between"><span>Search</span><span><kbd class="kbd">/</kbd> <kbd class="kbd">⌘K</kbd></span></div>
+      <div class="flex justify-between"><span>This list</span><kbd class="kbd">?</kbd></div>
+      <div class="flex justify-between"><span>Back / close</span><kbd class="kbd">esc</kbd></div>
+      <div class="col-span-2 mono text-[12px] uppercase tracking-[0.18em] text-base-600 mt-3">Go to (current workspace)</div>
+      <div class="flex justify-between"><span>Board</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">b</kbd></span></div>
+      <div class="flex justify-between"><span>Backlog</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">l</kbd></span></div>
+      <div class="flex justify-between"><span>Dashboard</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">d</kbd></span></div>
+      <div class="flex justify-between"><span>Roadmap</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">r</kbd></span></div>
+      <div class="flex justify-between"><span>Inbox</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">i</kbd></span></div>
+      <div class="flex justify-between"><span>My issues</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">m</kbd></span></div>
+      <div class="flex justify-between"><span>Settings</span><span><kbd class="kbd">g</kbd> <kbd class="kbd">s</kbd></span></div>
+      <div class="col-span-2 mono text-[12px] uppercase tracking-[0.18em] text-base-600 mt-3">In lists and forms</div>
+      <div class="flex justify-between"><span>Next / previous</span><span><kbd class="kbd">j</kbd> <kbd class="kbd">k</kbd></span></div>
+      <div class="flex justify-between"><span>Submit</span><kbd class="kbd">⌘↵</kbd></div>
+    </div>
+    <p class="px-4 pb-4 text-[13px] text-base-600"><kbd class="kbd">j</kbd> <kbd class="kbd">k</kbd> work in Backlog Refinement and the Daily Scrum; arrows and Enter in search results.</p>
+  </dialog>
+
+  <script>
+    // "?" opens the shortcut list; "g" then a letter navigates. Ignored while
+    // typing, with a modifier held, or while a dialog or the drawer is open.
+    (function() {
+      var GO = { b: 'board', l: 'backlog', d: '', r: 'roadmap' };
+      var GLOBAL = { i: '/inbox', m: '/my-issues', s: '/settings' };
+      var pendingG = 0;
+      function typing() {
+        var a = document.activeElement;
+        return a && (['INPUT','TEXTAREA','SELECT'].includes(a.tagName) || a.isContentEditable);
+      }
+      document.addEventListener('keydown', function(e) {
+        if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || typing()) return;
+        if (document.querySelector('dialog[open]')) return;
+        if (e.key === '?') { e.preventDefault(); document.getElementById('shortcuts').showModal(); return; }
+        if (pendingG && Date.now() - pendingG < 1200) {
+          pendingG = 0;
+          var slug = document.body.dataset.navSlug;
+          var url = GLOBAL[e.key] || (slug && e.key in GO ? '/workspaces/' + slug + (GO[e.key] ? '/' + GO[e.key] : '') : null);
+          if (url) { e.preventDefault(); window.location = url; }
+          return;
+        }
+        if (e.key === 'g') pendingG = Date.now();
+      });
     })();
   </script>
 </body>
