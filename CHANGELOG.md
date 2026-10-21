@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docket logs its version and mode at startup (`starting docket`).
 
 ### Changed
+- Pages are prefetched when you hover a link, so most navigations open instantly in Chromium-based browsers (others ignore it). Links whose GET changes something, such as the Inbox, which marks notifications read, are never prefetched.
 - CI runs the full test suite, including the Postgres store tests, and fails when they can't run instead of skipping them. `make vet` also fails on unformatted Go code.
 - IBM Plex is served by Docket itself instead of Google Fonts: no third-party requests, and the UI looks the same on networks without internet access. The fonts (SIL Open Font License, `static/dist/fonts/OFL.txt`) are cached for a year.
 - The example Kubernetes Deployment and Compose file pin an exact image version instead of `latest`.

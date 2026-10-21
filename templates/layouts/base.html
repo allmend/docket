@@ -9,6 +9,25 @@
   <link rel="stylesheet" href="{{asset "app.css"}}" />
   <script src="{{asset "htmx.min.js"}}"></script>
   <script src="{{asset "alpine.min.js"}}" defer></script>
+  {{/* Prefetch a page when its link is hovered (~200ms) or pressed, so the
+       click lands on a page that is already loaded. Browser-native and
+       ignored where unsupported; the browser skips it under Save-Data.
+       Excluded: GETs that write — /inbox marks notifications read, planning
+       (where /board redirects without an active sprint) creates a draft
+       sprint — plus logout, htmx-driven links and new-tab links. */}}
+  <script type="speculationrules">
+  {"prefetch": [{
+    "where": {"and": [
+      {"href_matches": "/*"},
+      {"not": {"href_matches": "/inbox"}},
+      {"not": {"href_matches": "/logout"}},
+      {"not": {"href_matches": "/workspaces/*/board"}},
+      {"not": {"href_matches": "/workspaces/*/planning"}},
+      {"not": {"selector_matches": "[hx-get], [hx-post], [target=_blank], [data-no-prefetch]"}}
+    ]},
+    "eagerness": "moderate"
+  }]}
+  </script>
 </head>
 
 {{/* Compute default workspace for new-ticket modal */}}
