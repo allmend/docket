@@ -527,6 +527,44 @@ func (s *Store) RemoveTicketAssignee(ctx context.Context, orgID, ticketID, userI
 	return err
 }
 
+// SimilarOpenTickets finds open tickets that share words with a title being
+// typed, best match first, to flag likely duplicates before one is filed.
+// Unlike SearchTickets it matches ANY of the title's words: a new title rarely
+// repeats every word of the ticket it duplicates. The title is stemmed with
+// the same 'english' config as search_vector, and the resulting lexemes are
+// OR-ed with 'simple', which leaves them as they are.
+func (s *Store) SimilarOpenTickets(ctx context.Context, orgID uuid.UUID, title string, limit int) ([]model.Ticket, error) {
+	rows, err := s.replica.Query(ctx,
+		`WITH q AS (
+		   SELECT to_tsquery('simple', array_to_string(array(
+		            SELECT quote_literal(l) FROM unnest(tsvector_to_array(to_tsvector('english', $2))) AS l
+		          ), ' | ')) AS query
+		 )
+		 SELECT `+ticketCols+ticketJoins+`, q
+		 WHERE t.org_id = $1
+		   AND t.closed_at IS NULL
+		   AND numnode(q.query) > 0
+		   AND t.search_vector @@ q.query
+		 ORDER BY ts_rank(t.search_vector, q.query) DESC, t.created_at DESC
+		 LIMIT $3`,
+		orgID, title, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tickets []model.Ticket
+	for rows.Next() {
+		var t model.Ticket
+		if err := scanTicket(rows, &t); err != nil {
+			return nil, err
+		}
+		tickets = append(tickets, t)
+	}
+	return tickets, rows.Err()
+}
+
 func (s *Store) SearchTickets(ctx context.Context, orgID uuid.UUID, query string) ([]model.Ticket, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT `+ticketCols+ticketJoins+`

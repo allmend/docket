@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -349,6 +350,18 @@ func (h *Handler) TicketEditForm(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.render(w, "ticket-edit-form.html", ticket)
+}
+
+// SimilarTickets lists open tickets resembling the title being typed in the
+// New Ticket dialog, as a hint that the ticket may already exist.
+func (h *Handler) SimilarTickets(w http.ResponseWriter, r *http.Request) {
+	orgID := service.OrgIDFromContext(r.Context())
+	tickets, err := h.tickets.SimilarOpen(r.Context(), orgID, r.URL.Query().Get("title"))
+	if err != nil {
+		slog.Error("similar tickets", "err", err, "org_id", orgID)
+		tickets = nil // a hint, not worth an error in the dialog
+	}
+	h.render(w, "ticket-similar.html", map[string]any{"Tickets": tickets})
 }
 
 // TicketBodyEditForm returns the description-only edit form fragment.

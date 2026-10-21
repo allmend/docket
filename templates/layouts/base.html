@@ -350,14 +350,16 @@
            navigates away, so a closed dialog would otherwise reopen pre-filled.
            elt === $el ignores htmx requests from inside the form (the editor). */}}
       <form hx-post="/tickets/new"
-            x-on:htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) { $el.reset(); priority = ''; trackColor = ''; if (addAnother) { $refs.ntTitle.focus() } else { newTicketModal = false } document.body.dispatchEvent(new CustomEvent('boardUpdated')) }"
+            x-on:htmx:after-request="if ($event.detail.elt === $el && $event.detail.successful) { $el.reset(); $refs.ntSimilar.innerHTML = ''; priority = ''; trackColor = ''; if (addAnother) { $refs.ntTitle.focus() } else { newTicketModal = false } document.body.dispatchEvent(new CustomEvent('boardUpdated')) }"
             @keydown.meta.enter.prevent="$el.requestSubmit()"
             @keydown.ctrl.enter.prevent="$el.requestSubmit()">
         <input type="hidden" name="team_id" :value="teamID" />
         <div class="p-5 space-y-3">
-          <input x-ref="ntTitle" type="text" name="title" required
+          <input x-ref="ntTitle" type="text" name="title" required autocomplete="off"
                  placeholder="Ticket title…"
+                 hx-get="/tickets/similar" hx-trigger="input changed delay:400ms" hx-target="#nt-similar" hx-sync="this:replace"
                  class="block w-full bg-transparent border-0 p-0 text-[20px] font-medium tracking-tightish text-base-950 placeholder:text-base-500 focus:outline-none focus:ring-0" />
+          <div id="nt-similar" x-ref="ntSimilar"></div>
           {{template "rich-editor" (dict "Name" "body" "Value" "" "Placeholder" "Add description — what & why. (@username, #TICKET-ID)" "Rows" "10")}}
           {{/* Native selects styled like the ticket drawer's, as in the New Ticket
                design: browser menu, arrow keys and type-ahead for free, and nothing

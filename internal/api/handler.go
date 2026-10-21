@@ -225,6 +225,7 @@ func (h *Handler) Routes(r chi.Router) {
 	a.get(model.TierRead, "/dashboard", h.Dashboard)
 	a.get(model.TierRead, "/me", h.ProfilePage)
 	a.post(model.TierWrite, "/tickets/new", h.CreateGlobalTicket)
+	a.get(model.TierRead, "/tickets/similar", h.SimilarTickets)
 	a.get(model.TierRead, "/my-issues", h.MyIssues)
 	a.get(model.TierRead, "/inbox", h.Inbox)
 	a.post(model.TierWrite, "/inbox/mark-read", h.MarkNotificationsRead)

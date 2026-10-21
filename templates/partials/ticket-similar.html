@@ -1,0 +1,20 @@
+{{define "ticket-similar"}}
+{{/* Likely duplicates for the title being typed in the New Ticket dialog.
+     Links open in a new tab so the half-written ticket isn't lost. */}}
+{{if .Tickets}}
+<div class="border border-base-300 bg-base-150 rounded px-3 py-2">
+  <div class="mono text-[12px] uppercase tracking-[0.18em] text-base-600 mb-1">Similar open tickets</div>
+  <ul class="space-y-0.5">
+    {{range .Tickets}}
+    <li>
+      <a href="/tickets/{{.DisplayID}}" target="_blank" rel="noopener"
+         class="flex items-center gap-2 text-[14px] text-base-800 hover:text-base-950 py-0.5">
+        <span class="mono text-[13px] text-primary-400 shrink-0">{{.DisplayID}}</span>
+        <span class="truncate">{{.Title}}</span>
+      </a>
+    </li>
+    {{end}}
+  </ul>
+</div>
+{{end}}
+{{end}}

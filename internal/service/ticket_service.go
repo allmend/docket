@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/allmend/docket/internal/metrics"
 	"github.com/allmend/docket/internal/model"
@@ -563,6 +564,17 @@ func (s *TicketService) GetUserByUsername(ctx context.Context, orgID uuid.UUID, 
 
 func (s *TicketService) DeleteTicket(ctx context.Context, orgID, ticketID uuid.UUID) error {
 	return s.store.DeleteTicket(ctx, orgID, ticketID)
+}
+
+// SimilarOpen returns up to three open tickets resembling a title being typed,
+// so a likely duplicate shows before it is filed. Very short titles match too
+// loosely to be useful and return nothing.
+func (s *TicketService) SimilarOpen(ctx context.Context, orgID uuid.UUID, title string) ([]model.Ticket, error) {
+	title = strings.TrimSpace(title)
+	if len([]rune(title)) < 4 {
+		return nil, nil
+	}
+	return s.store.SimilarOpenTickets(ctx, orgID, title, 3)
 }
 
 func (s *TicketService) Search(ctx context.Context, orgID uuid.UUID, query string) ([]model.Ticket, error) {
