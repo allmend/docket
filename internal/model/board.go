@@ -368,9 +368,13 @@ type DailyScrumGroup struct {
 
 // DailyScrumView is the full data for the Daily Scrum page.
 type DailyScrumView struct {
-	Board        Board
-	Team         *Team
-	ActiveSprint *Sprint
+	Board Board
+	Team  *Team
+	// HasWorkSet is false only on a Scrum board with no active sprint: there is
+	// nothing committed to talk about. Kanban and Blank boards always have one
+	// (their in-flight tickets).
+	HasWorkSet   bool
+	ActiveSprint *Sprint // nil on Kanban/Blank boards
 	Groups       []DailyScrumGroup
 	Unassigned   []DailyScrumTicket
 	AllAssignees []User

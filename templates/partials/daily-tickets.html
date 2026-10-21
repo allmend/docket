@@ -1,16 +1,26 @@
-{{define "daily-tickets"}}
-{{$board := .Board}}
-
-{{if not .ActiveSprint}}
-<div class="flex items-center justify-center h-full min-h-[300px]">
+{{/* daily-no-sprint is the stand-up's empty state on a Scrum board with no
+     active sprint: say why, and point at Sprint Planning. Takes the *Team. */}}
+{{define "daily-no-sprint"}}
+<div class="flex-1 flex items-center justify-center h-full min-h-[300px]">
   <div class="text-center">
     <div class="w-14 h-14 rounded-lg bg-base-150 border border-base-300 inline-flex items-center justify-center mb-4 mx-auto shadow-sunk">
       <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="#6e7681" stroke-width="1.4"><circle cx="8" cy="8" r="6.5"/><path d="M8 4.5V8l2.5 1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
     <div class="mono text-[13px] uppercase tracking-[0.18em] text-base-600 mb-1">No active sprint</div>
-    <p class="text-[14px] text-base-700">Start a sprint to run a daily scrum.</p>
+    <p class="text-[14px] text-base-700 max-w-[40ch] mx-auto">The Daily Scrum walks through the active sprint's work, and this board has no sprint running.</p>
+    {{if .}}
+    <a href="/workspaces/{{.Slug}}/planning"
+       class="mt-4 h-8 px-3.5 inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-400 text-[#062b1d] font-medium rounded text-[14px] shadow-lift">Go to Sprint Planning</a>
+    {{end}}
   </div>
 </div>
+{{end}}
+
+{{define "daily-tickets"}}
+{{$board := .Board}}
+
+{{if not .HasWorkSet}}
+{{template "daily-no-sprint" .Team}}
 {{else if and (not .Groups) (not .Unassigned)}}
 <div class="flex items-center justify-center h-full min-h-[300px]">
   <div class="text-center">

@@ -2,7 +2,9 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/store"
@@ -157,6 +159,31 @@ func TestDailyParticipants(t *testing.T) {
 	}
 	if len(dailyParticipants(nil, nil)) != 0 {
 		t.Error("empty team with no work should have no participants")
+	}
+}
+
+// A Kanban stand-up talks about work in flight: started, not finished.
+func TestInFlightTickets(t *testing.T) {
+	backlog, doing, review, done := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	cols := []model.Column{{ID: backlog, Name: "Backlog"}, {ID: doing, Name: "In Progress"}, {ID: review, Name: "In Review"}, {ID: done, Name: "Done"}}
+	now := time.Now()
+	tickets := []model.Ticket{
+		{Title: "not started", ColumnID: backlog},
+		{Title: "doing", ColumnID: doing},
+		{Title: "reviewing", ColumnID: review},
+		{Title: "finished", ColumnID: done, ClosedAt: &now},
+		{Title: "closed won't do", ColumnID: doing, ClosedAt: &now},
+	}
+	got := inFlightTickets(tickets, cols)
+	var titles []string
+	for _, tk := range got {
+		titles = append(titles, tk.Title)
+	}
+	if strings.Join(titles, ",") != "doing,reviewing" {
+		t.Errorf("in flight = %v, want [doing reviewing]", titles)
+	}
+	if inFlightTickets(tickets, nil) == nil {
+		t.Error("a board without columns should still list open tickets")
 	}
 }
 

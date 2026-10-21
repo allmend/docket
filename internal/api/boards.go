@@ -403,6 +403,7 @@ func (h *Handler) BoardDailyScrum(w http.ResponseWriter, r *http.Request) {
 	h.render(w, "daily.html", h.pageData(r, map[string]any{
 		"Board":        view.Board,
 		"Team":         view.Team,
+		"HasWorkSet":   view.HasWorkSet,
 		"ActiveSprint": view.ActiveSprint,
 		"Groups":       view.Groups,
 		"Unassigned":   view.Unassigned,
@@ -462,6 +463,8 @@ func (h *Handler) BoardDailyScrumTickets(w http.ResponseWriter, r *http.Request)
 		"Groups":       view.Groups,
 		"Unassigned":   view.Unassigned,
 		"Filters":      view.Filters,
+		"HasWorkSet":   view.HasWorkSet,
 		"ActiveSprint": view.ActiveSprint,
+		"Team":         view.Team,
 	})
 }

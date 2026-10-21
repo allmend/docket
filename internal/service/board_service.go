@@ -766,7 +766,9 @@ func (s *BoardService) ToggleDodCheck(ctx context.Context, orgID, ticketID, item
 	return s.store.ToggleDodCheck(ctx, orgID, ticketID, itemID, checked)
 }
 
-// GetDailyScrumView returns filtered sprint tickets grouped by assignee for the Daily Scrum page.
+// GetDailyScrumView returns the stand-up's work set, filtered and grouped by
+// assignee: the active sprint's tickets on a Scrum board, the in-flight
+// tickets on a Kanban or Blank board.
 func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uuid.UUID, filters model.DailyScrumFilters) (*model.DailyScrumView, error) {
 	board, err := s.store.GetBoard(ctx, orgID, boardID)
 	if err != nil {
@@ -786,15 +788,18 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 		allAssignees, _ = s.store.ListTeamMembers(ctx, orgID, team.ID)
 	}
 
-	activeSprint, _ := s.store.GetActiveSprint(ctx, orgID, boardID)
-	if activeSprint == nil {
-		return &model.DailyScrumView{
-			Board:        *board,
-			Team:         team,
-			AllAssignees: allAssignees,
-			AllTags:      allTags,
-			Filters:      filters,
-		}, nil
+	var activeSprint *model.Sprint
+	if board.Mode.IsScrum() {
+		activeSprint, _ = s.store.GetActiveSprint(ctx, orgID, boardID)
+		if activeSprint == nil {
+			return &model.DailyScrumView{
+				Board:        *board,
+				Team:         team,
+				AllAssignees: allAssignees,
+				AllTags:      allTags,
+				Filters:      filters,
+			}, nil
+		}
 	}
 
 	cols, err := s.store.ListColumns(ctx, orgID, boardID)
@@ -806,9 +811,18 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 		colNames[c.ID] = c.Name
 	}
 
-	tickets, err := s.store.ListSprintTickets(ctx, orgID, activeSprint.ID)
-	if err != nil {
-		return nil, fmt.Errorf("list sprint tickets: %w", err)
+	var tickets []model.Ticket
+	if activeSprint != nil {
+		tickets, err = s.store.ListSprintTickets(ctx, orgID, activeSprint.ID)
+		if err != nil {
+			return nil, fmt.Errorf("list sprint tickets: %w", err)
+		}
+	} else {
+		all, err := s.store.ListTicketsByBoard(ctx, orgID, boardID)
+		if err != nil {
+			return nil, fmt.Errorf("list tickets: %w", err)
+		}
+		tickets = inFlightTickets(all, cols)
 	}
 	assigneesByTicket, _ := s.store.BulkListTicketAssignees(ctx, orgID, boardID)
 	tagsByTicket, _ := s.store.BulkListTicketTags(ctx, orgID, boardID)
@@ -850,6 +864,7 @@ func (s *BoardService) GetDailyScrumView(ctx context.Context, orgID, boardID uui
 	return &model.DailyScrumView{
 		Board:        *board,
 		Team:         team,
+		HasWorkSet:   true,
 		ActiveSprint: activeSprint,
 		Groups:       result,
 		Unassigned:   unassigned,
