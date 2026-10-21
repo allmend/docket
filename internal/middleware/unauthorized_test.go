@@ -17,7 +17,7 @@ func unauthorizedHandler(t *testing.T) http.Handler {
 	}))
 }
 
-// TestUnauthorizedHTMXRequestRedirectsWholePage covers DKT-9. A 303 is followed
+// TestUnauthorizedHTMXRequestRedirectsWholePage: a 303 is followed
 // by htmx transparently, and the login page it returns gets swapped into
 // whatever element triggered the request — the board's 30s poll rendered a login
 // form inside #board-columns while the sidebar and nav stayed put. The response

@@ -25,10 +25,10 @@ func TestTicketRowsShareBlockerMarkersAndDragHandle(t *testing.T) {
 		t.Fatal("backlog.html missing from parsed set")
 	}
 
-	blocked := model.Ticket{ID: uuid.New(), TeamKey: "DKT", Number: 7, Title: "stuck", IsBlocked: true, BlockedBy: "DKT-1"}
-	waiting := model.Ticket{ID: uuid.New(), TeamKey: "DKT", Number: 8, Title: "later", IsWaiting: true, WaitingOn: "DKT-2"}
+	blocked := model.Ticket{ID: uuid.New(), TeamKey: "BE", Number: 7, Title: "stuck", IsBlocked: true, BlockedBy: "BE-1"}
+	waiting := model.Ticket{ID: uuid.New(), TeamKey: "BE", Number: 8, Title: "later", IsWaiting: true, WaitingOn: "BE-2"}
 	closedAt := time.Now()
-	done := model.Ticket{ID: uuid.New(), TeamKey: "DKT", Number: 9, Title: "done", ClosedAt: &closedAt, IsBlocked: true, BlockedBy: "DKT-3"}
+	done := model.Ticket{ID: uuid.New(), TeamKey: "BE", Number: 9, Title: "done", ClosedAt: &closedAt, IsBlocked: true, BlockedBy: "BE-3"}
 
 	render := func(name string, data any) string {
 		t.Helper()
@@ -49,10 +49,10 @@ func TestTicketRowsShareBlockerMarkersAndDragHandle(t *testing.T) {
 		},
 	}
 	for name, draw := range surfaces {
-		if html := draw(blocked); !strings.Contains(html, "Blocked by DKT-1") || !strings.Contains(html, "text-danger") {
+		if html := draw(blocked); !strings.Contains(html, "Blocked by BE-1") || !strings.Contains(html, "text-danger") {
 			t.Errorf("%s: blocked ticket has no red Blocked-by marker", name)
 		}
-		if html := draw(waiting); !strings.Contains(html, "Depends on DKT-2") || !strings.Contains(html, "text-warn") {
+		if html := draw(waiting); !strings.Contains(html, "Depends on BE-2") || !strings.Contains(html, "text-warn") {
 			t.Errorf("%s: waiting ticket has no amber Depends-on marker", name)
 		}
 	}
