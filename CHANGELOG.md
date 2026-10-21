@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-21
+
 ### Upgrade notes
 - **`JWT_SECRET` must be at least 32 bytes and not an example value**, or Docket refuses to start. Generate one with `openssl rand -hex 32`. On a fresh database `SEED_PASSWORD` must also be set to something other than `changeme`.
 - **Update your Deployment** from `deploy/k8s/deployment.yaml`: probes now use the health port `9413`, and the termination grace period covers the drain. Previous probes hit `/login` on the app port.
@@ -355,7 +357,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
-[Unreleased]: https://github.com/allmend/docket/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/allmend/docket/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/allmend/docket/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/allmend/docket/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/allmend/docket/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/allmend/docket/compare/v0.14.1...v0.14.2
