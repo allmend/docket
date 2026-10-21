@@ -75,7 +75,9 @@ func (h *Handler) CreateGlobalTicket(w http.ResponseWriter, r *http.Request) {
 	}
 	if raw := r.FormValue("story_points"); raw != "" {
 		if pts, err := strconv.ParseFloat(raw, 64); err == nil {
-			_, _ = h.tickets.UpdatePoints(r.Context(), orgID, ticket.ID, userID, &pts)
+			// The first estimate, not a re-estimate, even when filed straight
+			// into the active sprint.
+			_, _ = h.tickets.UpdatePoints(r.Context(), orgID, ticket.ID, userID, &pts, true)
 		}
 	}
 
@@ -524,7 +526,8 @@ func (h *Handler) UpdateTicketPoints(w http.ResponseWriter, r *http.Request) {
 		}
 		points = &n
 	}
-	if _, err := h.tickets.UpdatePoints(r.Context(), orgID, ticketID, userID, points); err != nil {
+	override := r.FormValue("override") == "true"
+	if _, err := h.tickets.UpdatePoints(r.Context(), orgID, ticketID, userID, points, override); err != nil {
 		serviceError(w, err, "failed to update story points")
 		return
 	}

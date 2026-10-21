@@ -148,7 +148,7 @@
                data-first-column-id="{{$.FirstColumnID}}"
                data-board-id="{{if $board}}{{$board.ID}}{{end}}">
             {{range $as.Columns}}{{$done := .IsDone}}{{range .Tickets}}
-            {{template "backlog-row" (dict "Ticket" . "Rank" 0 "Draggable" (and (not $done) (not .ClosedAt)))}}
+            {{template "backlog-row" (dict "Ticket" . "Rank" 0 "Draggable" (and (not $done) (not .ClosedAt)) "Override" true)}}
             {{end}}{{end}}
           </div>
         </div>
@@ -175,7 +175,7 @@
                  data-first-column-id="{{$.FirstColumnID}}"
                  data-board-id="{{if $board}}{{$board.ID}}{{end}}">
               {{range $sv.Tickets}}
-              {{template "backlog-row" (dict "Ticket" . "Rank" 0 "Draggable" (not .ClosedAt))}}
+              {{template "backlog-row" (dict "Ticket" . "Rank" 0 "Draggable" (not .ClosedAt) "Override" false)}}
               {{end}}
             </div>
           </div>

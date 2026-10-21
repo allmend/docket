@@ -24,6 +24,7 @@
       {{else if eq .Field "description"}}updated description
       {{else if eq .Field "priority"}}changed priority to <span class="text-base-900">{{.NewValue}}</span>
       {{else if eq .Field "story_points"}}estimated <span class="mono text-base-900">{{.NewValue}} pt</span>
+      {{else if eq .Field "story_points_override"}}re-estimated during the active sprint, {{.OldValue}} → <span class="mono text-base-900">{{.NewValue}} pt</span>
       {{else if eq .Field "column"}}moved to
         {{$cn := lower .NewValue}}
         <span class="inline-flex items-center h-5 px-1.5 rounded-sm mono text-[12px] uppercase tracking-wider

@@ -41,7 +41,7 @@ func TestTicketRowsShareBlockerMarkersAndDragHandle(t *testing.T) {
 
 	surfaces := map[string]func(model.Ticket) string{
 		"backlog-row": func(tk model.Ticket) string {
-			return render("backlog-row", map[string]any{"Ticket": tk, "Rank": 1, "Draggable": true})
+			return render("backlog-row", map[string]any{"Ticket": tk, "Rank": 1, "Draggable": true, "Override": false})
 		},
 		"backlog-planning-card": func(tk model.Ticket) string { return render("backlog-planning-card", tk) },
 		"board-card": func(tk model.Ticket) string {
@@ -57,14 +57,22 @@ func TestTicketRowsShareBlockerMarkersAndDragHandle(t *testing.T) {
 		}
 	}
 
-	if html := render("backlog-row", map[string]any{"Ticket": blocked, "Rank": 0, "Draggable": true}); !strings.Contains(html, "drag-handle") {
+	if html := render("backlog-row", map[string]any{"Ticket": blocked, "Rank": 0, "Draggable": true, "Override": false}); !strings.Contains(html, "drag-handle") {
 		t.Error("sprint row (rank 0) lost its drag handle")
 	} else if strings.Contains(html, "rank-label") {
 		t.Error("sprint row carries a backlog rank label; renumberRanks would count it")
 	}
-	if html := render("backlog-row", map[string]any{"Ticket": done, "Rank": 0, "Draggable": false}); strings.Contains(html, "drag-handle") {
+	if html := render("backlog-row", map[string]any{"Ticket": done, "Rank": 0, "Draggable": false, "Override": false}); strings.Contains(html, "drag-handle") {
 		t.Error("a done row should not be draggable")
 	} else if strings.Contains(html, "Blocked by") {
 		t.Error("a closed ticket should not show a blocker marker")
+	}
+
+	// Only the active sprint's rows offer the points override, and it says so.
+	if html := render("backlog-row", map[string]any{"Ticket": blocked, "Rank": 0, "Draggable": true, "Override": true}); !strings.Contains(html, `"override":"true"`) || !strings.Contains(html, "hx-confirm") {
+		t.Error("active-sprint row has no confirmed points override")
+	}
+	if html := render("backlog-row", map[string]any{"Ticket": blocked, "Rank": 1, "Draggable": true, "Override": false}); strings.Contains(html, "override") {
+		t.Error("a backlog row must not send the points override")
 	}
 }

@@ -53,7 +53,7 @@
       {{if .IsBacklog}}
       {{range .Tickets}}
       {{$i = add $i 1}}
-      {{template "backlog-row" (dict "Ticket" . "Rank" $i "Draggable" true)}}
+      {{template "backlog-row" (dict "Ticket" . "Rank" $i "Draggable" true "Override" false)}}
 
       <!-- Compact refine-mode row -->
       {{$ready := .StoryPoints}}
@@ -149,7 +149,9 @@
      same before and after a refresh; they used to have separate markup, and a
      ticket dropped into a sprint lost its drag handle on reload.
      Rank 0 means "not in the ranked backlog": no rank label (renumberRanks
-     counts .rank-label). Draggable false hides the handle, for done tickets. */}}
+     counts .rank-label). Draggable false hides the handle, for done tickets.
+     Override marks the active sprint, whose points are locked everywhere else:
+     here they can be changed, after a warning, as a recorded override. */}}
 {{define "backlog-row"}}
 {{$t := .Ticket}}
 <div class="backlog-ticket-row group flex items-center gap-3 px-4 h-12 hover:bg-base-250/40 cursor-pointer"
@@ -208,7 +210,22 @@
   </span>
 
   <!-- Estimate -->
-  {{if $t.StoryPoints}}
+  {{if and .Override (not $t.ClosedAt)}}
+  <select name="story_points" aria-label="Story points (override)"
+          hx-put="/tickets/{{$t.ID}}/points" hx-vals='{"override":"true"}' hx-trigger="change" hx-swap="none"
+          hx-confirm="This ticket is committed to the active sprint. Change its estimate anyway? The change is recorded as an override."
+          hx-on::after-request="if(event.detail.successful) document.body.dispatchEvent(new CustomEvent('boardUpdated'))"
+          @click.stop
+          class="w-[68px] shrink-0 h-6 py-0 pl-2 pr-6 rounded-sm border border-base-500 bg-base-200 text-base-700 mono text-[13px]">
+    <option value="">—</option>
+    <option value="1" {{if eq (deref $t.StoryPoints) "1"}}selected{{end}}>1</option>
+    <option value="2" {{if eq (deref $t.StoryPoints) "2"}}selected{{end}}>2</option>
+    <option value="3" {{if eq (deref $t.StoryPoints) "3"}}selected{{end}}>3</option>
+    <option value="5" {{if eq (deref $t.StoryPoints) "5"}}selected{{end}}>5</option>
+    <option value="8" {{if eq (deref $t.StoryPoints) "8"}}selected{{end}}>8</option>
+    <option value="13" {{if eq (deref $t.StoryPoints) "13"}}selected{{end}}>13</option>
+  </select>
+  {{else if $t.StoryPoints}}
   <span class="w-[68px] shrink-0 text-right mono text-[13px] text-base-700">{{deref $t.StoryPoints}} pt</span>
   {{else}}
   <button class="w-[68px] shrink-0 inline-flex items-center justify-center h-6 rounded-sm border border-dashed border-base-500 text-base-600 hover:text-base-900 hover:border-base-400 mono text-[13px]">— est</button>

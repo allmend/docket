@@ -236,3 +236,15 @@ func TestColumnMoveChange(t *testing.T) {
 		t.Errorf("change = %+v, want column To Do → Done", c)
 	}
 }
+
+func TestSamePoints(t *testing.T) {
+	one, two := 1.0, 2.0
+	for _, c := range []struct {
+		a, b *float64
+		want bool
+	}{{nil, nil, true}, {&one, nil, false}, {nil, &one, false}, {&one, &one, true}, {&one, &two, false}} {
+		if got := samePoints(c.a, c.b); got != c.want {
+			t.Errorf("samePoints(%v, %v) = %v, want %v", c.a, c.b, got, c.want)
+		}
+	}
+}

@@ -415,13 +415,26 @@ func (s *TicketService) UpdatePriority(ctx context.Context, orgID, ticketID, act
 	return t, nil
 }
 
-func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actorID uuid.UUID, points *float64) (*model.Ticket, error) {
+// UpdatePoints sets a ticket's estimate. Tickets in the active sprint are
+// committed work and are not re-estimated mid-sprint: changing their points
+// needs override, which the Backlog page's active-sprint section sends after a
+// warning, and is recorded as such in the history.
+func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actorID uuid.UUID, points *float64, override bool) (*model.Ticket, error) {
 	if points != nil && (*points < 0 || math.IsNaN(*points) || math.IsInf(*points, 0)) {
 		return nil, fmt.Errorf("%w: story points must be a non-negative number", ErrInvalidInput)
 	}
 	old, _ := s.store.GetTicket(ctx, orgID, ticketID)
 	if old != nil && old.ClosedAt != nil {
 		return nil, ErrTicketClosed
+	}
+	inActiveSprint := false
+	if old != nil && old.SprintID != nil {
+		if sp, err := s.store.GetSprint(ctx, orgID, *old.SprintID); err == nil {
+			inActiveSprint = sp.Status.IsActive()
+		}
+	}
+	if inActiveSprint && !override && !samePoints(old.StoryPoints, points) {
+		return nil, fmt.Errorf("%w: the ticket is in the active sprint; its points are locked unless overridden", ErrInvalidInput)
 	}
 	t, err := s.store.UpdateTicketPoints(ctx, orgID, ticketID, points)
 	if err != nil {
@@ -436,11 +449,22 @@ func (s *TicketService) UpdatePoints(ctx context.Context, orgID, ticketID, actor
 			newVal = fmt.Sprintf("%g", *points)
 		}
 		if oldVal != newVal {
+			field := "story_points"
+			if inActiveSprint {
+				field = "story_points_override"
+			}
 			actorName := s.actorName(ctx, orgID, actorID)
-			_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, "story_points", oldVal, newVal)
+			_ = s.store.AppendHistory(ctx, orgID, ticketID, actorID, actorName, field, oldVal, newVal)
 		}
 	}
 	return t, nil
+}
+
+func samePoints(a, b *float64) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return *a == *b
 }
 
 // CloseTicket closes a ticket with one of the picker's reasons (see
