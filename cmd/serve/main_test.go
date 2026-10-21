@@ -163,3 +163,17 @@ func TestCompressResponsesLeavesPlainClientsAlone(t *testing.T) {
 		t.Errorf("body = %q", rec.Body.String())
 	}
 }
+
+func TestStaticCaching(t *testing.T) {
+	h := staticCaching(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	for target, want := range map[string]string{
+		"/app.css?v=abc123": "public, max-age=31536000, immutable",
+		"/app.css":          "no-cache",
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, target, nil))
+		if got := rec.Header().Get("Cache-Control"); got != want {
+			t.Errorf("%s: Cache-Control %q, want %q", target, got, want)
+		}
+	}
+}

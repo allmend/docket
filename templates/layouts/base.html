@@ -9,9 +9,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/app.css" />
-  <script src="/static/htmx.min.js"></script>
-  <script src="/static/alpine.min.js" defer></script>
+  <link rel="stylesheet" href="{{asset "app.css"}}" />
+  <script src="{{asset "htmx.min.js"}}"></script>
+  <script src="{{asset "alpine.min.js"}}" defer></script>
 </head>
 
 {{/* Compute default workspace for new-ticket modal */}}
@@ -490,7 +490,7 @@
     </div>
   </div>
 
-  <script src="/static/board.js"></script>
+  <script src="{{asset "board.js"}}"></script>
   <script>
     // @username / #TICKET-ID autocomplete shared by every rich-editor instance.
     function mentionInput() {
@@ -626,7 +626,7 @@
       };
     }
   </script>
-  <script src="/static/editor.js"></script>
+  <script src="{{asset "editor.js"}}"></script>
   <script>
     // Close buttons inside fetched partials can use data-drawer-close attribute
     document.addEventListener('click', function(e) {

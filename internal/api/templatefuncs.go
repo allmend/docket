@@ -41,6 +41,8 @@ func templateFuncs() template.FuncMap {
 		// viewer's local time in the browser (see localizeTimes in base.html).
 		"localTime": localTimeHTML,
 		"dict":      dict,
+		// Content-hashed /static URL, cacheable forever (see assetURL).
+		"asset": assetURL,
 
 		"priorityColor": priorityColor,
 		"priorityLabel": priorityLabel,

@@ -166,7 +166,7 @@ func startAPI(
 	r.Use(compressResponses())
 
 	// Static assets — directory listings disabled, files only.
-	r.Handle("/static/*", http.StripPrefix("/static/", noDirListing(http.FileServer(http.Dir("static/dist")))))
+	r.Handle("/static/*", http.StripPrefix("/static/", staticCaching(noDirListing(http.FileServer(http.Dir(api.StaticDir))))))
 
 	// Public routes (no auth)
 	r.Get("/login", h.LoginPage)
@@ -264,6 +264,20 @@ func noDirListing(next http.Handler) http.Handler {
 		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
 			http.NotFound(w, r)
 			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// staticCaching lets browsers keep a content-hashed asset (?v=, see the asset
+// template func) forever: a new build changes its URL. Anything else, such as a
+// stale bookmark to /static/app.css, revalidates on every use.
+func staticCaching(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("v") != "" {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else {
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 		next.ServeHTTP(w, r)
 	})
