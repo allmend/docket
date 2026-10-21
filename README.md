@@ -103,7 +103,7 @@ Full list of environment variables:
 | `HEALTH_PORT` | `9413` | Port for `/livez` and `/readyz`. Keep it off any Service or public route; probes reach it directly. |
 | `HEALTH_ADDR` | `0.0.0.0` | Interface the health port binds to. Wide by default: the endpoints only report pass/fail, and kubelet probes come in on the pod IP. |
 | `SHUTDOWN_DELAY` | `5s` | After SIGTERM, keep serving this long with `/readyz` failing so the load balancer drains the replica before it stops. `0s` in local dev. |
-| `MODE` | `all` | `all`, `api`, or `worker`. Single-instance deployments use `all`. |
+| `MODE` | `all` | `all` or `api`. Single-instance deployments use `all`. `worker` is reserved for background jobs (email, webhooks) and currently does nothing. |
 | `SEED_ORG_NAME` | `My Team` | Organisation name, set on first run. |
 | `SEED_ORG_SLUG` | `myteam` | Organisation slug, set on first run. |
 | `SEED_USERNAME` | `admin` | Admin username, set on first run. |
@@ -224,7 +224,7 @@ Every `v*` tag triggers GitHub Actions to build the container image, push it to 
 
 ## Status
 
-Docket is at v0.9.0, alpha quality. The full Scrum workflow — boards, sprints, backlog, capacity, and the JSON API — is implemented and working. See [CHANGELOG.md](CHANGELOG.md) for known limitations before deploying.
+Docket is alpha quality and pre-1.0: minor releases may change behaviour and the API. Boards, sprints, backlog, capacity and a JSON API are implemented and in daily use. The latest release and its upgrade notes are in [CHANGELOG.md](CHANGELOG.md); read them before upgrading.
 
 ---
 

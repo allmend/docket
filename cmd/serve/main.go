@@ -81,7 +81,7 @@ func main() {
 	defer primary.Close()
 	checker.SetPing(primary.Ping)
 
-	st := store.New(primary, primary) // replica = primary until read replica is provisioned
+	st := store.New(primary, primary) // replica slot is unused today: reads also go to the primary
 
 	// Wire services.
 	authSvc := service.NewAuthService(st, cfg.JWTSecret)
