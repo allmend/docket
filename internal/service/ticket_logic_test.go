@@ -248,3 +248,27 @@ func TestSamePoints(t *testing.T) {
 		}
 	}
 }
+
+func TestParseTicketRef(t *testing.T) {
+	cases := []struct {
+		in   string
+		key  string
+		num  int
+		isOK bool
+	}{
+		{"BE-42", "BE", 42, true},
+		{"be-7", "BE", 7, true},
+		{"DKT2-1", "DKT2", 1, true},
+		{"BE-0", "", 0, false},
+		{"BE 42", "", 0, false},
+		{"42", "", 0, false},
+		{"-42", "", 0, false},
+		{"BE-42x", "", 0, false},
+	}
+	for _, c := range cases {
+		key, num, ok := parseTicketRef(c.in)
+		if key != c.key || num != c.num || ok != c.isOK {
+			t.Errorf("parseTicketRef(%q) = %q, %d, %v; want %q, %d, %v", c.in, key, num, ok, c.key, c.num, c.isOK)
+		}
+	}
+}

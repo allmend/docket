@@ -56,7 +56,7 @@ func templateFuncs() template.FuncMap {
 		"relationOptions": model.RelationOptions,
 
 		// Build version, so no template has to hardcode (and then forget) it.
-		"version": func() string { return version.Version },
+		"version":     func() string { return version.Version },
 		"bodyVersion": model.BodyVersion,
 		// Where the running build's source lives, for the AGPL source offer.
 		"sourceURL": func() string { return sourceURL(version.Version) },

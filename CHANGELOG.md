@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The example Kubernetes Deployment and Compose file pin an exact image version instead of `latest`.
 - Releases start the built image against a throwaway Postgres and check `/readyz`, `/livez` and the login page before publishing it. `make smoke` runs the same check locally.
 
+### Fixed
+- The search box in the top bar works. It was a placeholder that searched nothing. Results appear as you type and match word beginnings ("logi" finds "login"). Typing a ticket ID such as `BE-42` puts that ticket first. `/` or ⌘K/Ctrl+K focuses the box, the arrow keys move through the results, and Enter opens the highlighted one.
+
 ## [0.18.0] - 2026-10-21
 
 ### Changed

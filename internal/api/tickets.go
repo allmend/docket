@@ -699,8 +699,9 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 	orgID := service.OrgIDFromContext(r.Context())
 	query := r.URL.Query().Get("q")
 
-	tickets, err := h.tickets.Search(r.Context(), orgID, query)
+	tickets, err := h.tickets.Search(r.Context(), orgID, query, 8)
 	if err != nil {
+		slog.Error("search", "err", err, "org_id", orgID)
 		http.Error(w, "search failed", http.StatusInternalServerError)
 		return
 	}

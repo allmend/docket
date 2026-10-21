@@ -1,22 +1,19 @@
 {{define "search-results"}}
-<div class="max-w-[700px] mx-auto px-8 py-6">
-  {{if .Query}}
-  <div class="mono text-[13px] text-base-600 mb-4">Results for "{{.Query}}"</div>
-  {{end}}
+{{/* Top-bar search dropdown. Rows are plain links; the input's Alpine state
+     moves .is-active between them for arrow keys and Enter. */}}
+{{if .Query}}
+<div class="absolute top-full right-0 mt-1 w-[460px] max-w-[92vw] bg-base-250 border border-base-350 rounded shadow-pop z-50 py-1 overflow-hidden">
   {{if .Tickets}}
-  <div class="bg-base-200 border border-base-300 rounded-md overflow-hidden divide-y divide-base-300">
-    {{range .Tickets}}
-    <a href="/tickets/{{.DisplayID}}" class="flex items-center gap-3 px-4 h-11 hover:bg-base-250/40">
-      <span class="mono text-[13px] text-primary-400 shrink-0 w-[72px]">{{.DisplayID}}</span>
-      <span class="text-[15px] text-base-900 flex-1 truncate">{{.Title}}</span>
-      <span class="mono text-[11px] text-base-600 shrink-0">
-        {{priorityLabel .Priority.String}}
-      </span>
-    </a>
-    {{end}}
-  </div>
-  {{else if .Query}}
-  <div class="text-center mono text-[13px] text-base-600 py-8">No results for "{{.Query}}"</div>
+  {{range .Tickets}}
+  <a href="/tickets/{{.DisplayID}}" data-search-result
+     class="flex items-center gap-3 px-3 h-9 text-[14px] hover:bg-base-300 [&.is-active]:bg-base-300">
+    <span class="mono text-[13px] {{if .ClosedAt}}text-base-600 line-through{{else}}text-primary-400{{end}} shrink-0 w-[72px]">{{.DisplayID}}</span>
+    <span class="flex-1 truncate {{if .ClosedAt}}text-base-600{{else}}text-base-900{{end}}">{{.Title}}</span>
+  </a>
+  {{end}}
+  {{else}}
+  <div class="px-3 py-2 mono text-[13px] text-base-600">No tickets match "{{.Query}}"</div>
   {{end}}
 </div>
+{{end}}
 {{end}}

@@ -93,14 +93,35 @@
 
     <!-- Right: search + avatar -->
     <div class="ml-auto flex items-center gap-3 shrink-0">
-      <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 py-1 w-[340px] shadow-sunk">
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
-             class="text-base-600 shrink-0" aria-hidden="true">
-          <circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/>
-        </svg>
-        <input type="text" name="q" placeholder="Jump to ticket, sprint…"
-               class="bg-transparent text-[15px] mono text-base-900 placeholder:text-base-600 focus:outline-none flex-1 border-none shadow-none p-0" />
-        <kbd class="shrink-0 mono text-[13px] text-base-600 bg-base-250 border border-base-350 rounded-sm px-1.5 py-0.5 leading-none">⌘K</kbd>
+      {{/* Live ticket search. "/" or Cmd/Ctrl+K focuses it; arrows move through
+           the results and Enter opens the highlighted one (or the first). */}}
+      <div class="relative"
+           x-data="{ sel: -1,
+             rows() { return Array.from($el.querySelectorAll('[data-search-result]')) },
+             mark() { this.rows().forEach((r, i) => r.classList.toggle('is-active', i === this.sel)) },
+             move(d) { const n = this.rows().length; if (!n) return; this.sel = (this.sel + d + n) % n; this.mark() },
+             open() { const r = this.rows(); const t = r[this.sel] || r[0]; if (t) window.location = t.href },
+             clear() { $refs.results.innerHTML = ''; this.sel = -1 } }"
+           @keydown.slash.window="if (!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName) && !document.activeElement.isContentEditable) { $event.preventDefault(); $refs.q.focus(); $refs.q.select() }"
+           @keydown.meta.k.window.prevent="$refs.q.focus(); $refs.q.select()"
+           @keydown.ctrl.k.window.prevent="$refs.q.focus(); $refs.q.select()"
+           @click.outside="clear()"
+           @htmx:after-swap="sel = -1">
+        <div class="flex items-center gap-2 bg-base-150 border border-base-300 rounded px-2.5 py-1 w-[340px] shadow-sunk focus-within:border-primary-500">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+               class="text-base-600 shrink-0" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.5"/><path d="m13 13-3-3"/>
+          </svg>
+          <input x-ref="q" type="search" name="q" placeholder="Search tickets or jump to BE-42…" autocomplete="off"
+                 hx-get="/search" hx-trigger="input changed delay:200ms, focus" hx-target="#search-results" hx-sync="this:replace"
+                 @keydown.down.prevent="move(1)"
+                 @keydown.up.prevent="move(-1)"
+                 @keydown.enter.prevent="open()"
+                 @keydown.escape="clear()"
+                 class="bg-transparent text-[15px] mono text-base-900 placeholder:text-base-600 focus:outline-none flex-1 border-none shadow-none p-0 focus:ring-0 [&::-webkit-search-cancel-button]:hidden" />
+          <kbd class="shrink-0 mono text-[13px] text-base-600 bg-base-250 border border-base-350 rounded-sm px-1.5 py-0.5 leading-none">/</kbd>
+        </div>
+        <div id="search-results" x-ref="results"></div>
       </div>
       <a href="/me"
          class="w-7 h-7 rounded-sm text-[#0d1117] inline-flex items-center justify-center mono text-[13px] font-semibold shrink-0"

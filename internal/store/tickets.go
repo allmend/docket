@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"regexp"
+	"strings"
 
 	"github.com/allmend/docket/internal/model"
 	"github.com/google/uuid"
@@ -565,14 +567,20 @@ func (s *Store) SimilarOpenTickets(ctx context.Context, orgID uuid.UUID, title s
 	return tickets, rows.Err()
 }
 
-func (s *Store) SearchTickets(ctx context.Context, orgID uuid.UUID, query string) ([]model.Ticket, error) {
+// SearchTickets runs a full-text search over title and body. Whole words go
+// through websearch_to_tsquery (stemmed, so "passwords" finds "password"), and
+// every word also matches as a prefix, so search-as-you-type finds "login"
+// from "logi". Prefix-only matches rank below full-word ones.
+func (s *Store) SearchTickets(ctx context.Context, orgID uuid.UUID, query string, limit int) ([]model.Ticket, error) {
 	rows, err := s.replica.Query(ctx,
 		`SELECT `+ticketCols+ticketJoins+`
 		 WHERE t.org_id = $1
-		   AND t.search_vector @@ websearch_to_tsquery('english', $2)
-		 ORDER BY ts_rank(t.search_vector, websearch_to_tsquery('english', $2)) DESC
-		 LIMIT 50`,
-		orgID, query,
+		   AND (t.search_vector @@ websearch_to_tsquery('english', $2)
+		        OR ($3 <> '' AND t.search_vector @@ to_tsquery('simple', $3)))
+		 ORDER BY ts_rank(t.search_vector, websearch_to_tsquery('english', $2)) DESC,
+		          (t.closed_at IS NULL) DESC, t.updated_at DESC
+		 LIMIT $4`,
+		orgID, query, prefixTSQuery(query), limit,
 	)
 	if err != nil {
 		return nil, err
@@ -588,4 +596,18 @@ func (s *Store) SearchTickets(ctx context.Context, orgID uuid.UUID, query string
 		tickets = append(tickets, t)
 	}
 	return tickets, rows.Err()
+}
+
+var searchWord = regexp.MustCompile(`[\p{L}\p{N}]+`)
+
+// prefixTSQuery turns free text into a to_tsquery expression that requires
+// every word as a prefix: "logi pag" → 'logi':* & 'pag':*. Words are quoted,
+// so nothing the user types is parsed as tsquery syntax. Empty when the text
+// has no words.
+func prefixTSQuery(q string) string {
+	words := searchWord.FindAllString(strings.ToLower(q), 8)
+	for i, w := range words {
+		words[i] = "'" + w + "':*"
+	}
+	return strings.Join(words, " & ")
 }

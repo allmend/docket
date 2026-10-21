@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/allmend/docket/internal/metrics"
@@ -577,11 +579,48 @@ func (s *TicketService) SimilarOpen(ctx context.Context, orgID uuid.UUID, title 
 	return s.store.SimilarOpenTickets(ctx, orgID, title, 3)
 }
 
-func (s *TicketService) Search(ctx context.Context, orgID uuid.UUID, query string) ([]model.Ticket, error) {
+// Search finds tickets for the top-bar search. A query that is a ticket ref
+// ("BE-42", any case) puts that ticket first, so typing an ID jumps to it.
+func (s *TicketService) Search(ctx context.Context, orgID uuid.UUID, query string, limit int) ([]model.Ticket, error) {
+	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil, nil
 	}
-	return s.store.SearchTickets(ctx, orgID, query)
+	var exact *model.Ticket
+	if key, num, ok := parseTicketRef(query); ok {
+		if t, err := s.store.GetTicketByTeamRef(ctx, orgID, key, num); err == nil {
+			exact = t
+		}
+	}
+	found, err := s.store.SearchTickets(ctx, orgID, query, limit)
+	if err != nil {
+		return nil, err
+	}
+	if exact == nil {
+		return found, nil
+	}
+	out := []model.Ticket{*exact}
+	for _, t := range found {
+		if t.ID != exact.ID && len(out) < limit {
+			out = append(out, t)
+		}
+	}
+	return out, nil
+}
+
+var ticketRef = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9]*)-([0-9]+)$`)
+
+// parseTicketRef splits "be-42" into ("BE", 42).
+func parseTicketRef(q string) (key string, number int, ok bool) {
+	m := ticketRef.FindStringSubmatch(q)
+	if m == nil {
+		return "", 0, false
+	}
+	n, err := strconv.Atoi(m[2])
+	if err != nil || n <= 0 {
+		return "", 0, false
+	}
+	return strings.ToUpper(m[1]), n, true
 }
 
 func (s *TicketService) UpdateTicketTitle(ctx context.Context, orgID, ticketID, actorID uuid.UUID, title string) (*model.Ticket, error) {

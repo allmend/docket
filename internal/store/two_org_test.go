@@ -158,7 +158,7 @@ func TestTwoOrgs_ReadPathsNeverCrossOrgs(t *testing.T) {
 		v9, err := st.ListTeamMembersForOrg(ctx, org)
 		check("ListTeamMembersForOrg", v9, err)
 		for _, q := range []string{"ORG", "ticket", b.marker, "BRA-1"} {
-			s1, err := st.SearchTickets(ctx, org, q)
+			s1, err := st.SearchTickets(ctx, org, q, 50)
 			check("SearchTickets "+q, s1, err)
 			s2, err := st.SearchTicketsForMention(ctx, org, q)
 			check("SearchTicketsForMention "+q, s2, err)
