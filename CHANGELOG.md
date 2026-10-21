@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `docs/operations.md`: how startup migration works, an upgrade checklist, rolling back, backups, and recovering a dirty database.
+- Docket logs its version and mode at startup (`starting docket`).
+
 ### Changed
 - CI runs the full test suite, including the Postgres store tests, and fails when they can't run instead of skipping them. `make vet` also fails on unformatted Go code.
+- The example Kubernetes Deployment and Compose file pin an exact image version instead of `latest`.
 - Releases start the built image against a throwaway Postgres and check `/readyz`, `/livez` and the login page before publishing it. `make smoke` runs the same check locally.
 
 ## [0.18.0] - 2026-10-21

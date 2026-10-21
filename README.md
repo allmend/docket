@@ -169,6 +169,10 @@ shuts down, so rolling updates drop no requests. The image is distroless, so the
 Docker healthcheck runs the binary itself: `docket healthcheck` (add `--live` for
 `/livez`).
 
+**Upgrades, backups and recovery** are in [docs/operations.md](docs/operations.md):
+how startup migration works, the upgrade checklist, rolling back, and fixing a
+dirty database.
+
 ---
 
 ## Local development

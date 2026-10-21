@@ -21,6 +21,7 @@ import (
 	"github.com/allmend/docket/internal/model"
 	"github.com/allmend/docket/internal/service"
 	"github.com/allmend/docket/internal/store"
+	"github.com/allmend/docket/internal/version"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
@@ -49,6 +50,7 @@ func main() {
 	if cfg.Mode != "" {
 		*mode = cfg.Mode
 	}
+	slog.Info("starting docket", "version", version.Version, "mode", *mode)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()

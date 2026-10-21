@@ -29,9 +29,10 @@ spec:
         fsGroup: 65532
       containers:
         - name: docket
-          # Pin to a specific version in production — avoid using :latest.
-          image: ghcr.io/allmend/docket:latest
-          imagePullPolicy: Always
+          # An exact version: you decide when to upgrade. See
+          # docs/operations.md for the tags and the upgrade checklist.
+          image: ghcr.io/allmend/docket:0.19.0
+          imagePullPolicy: IfNotPresent
           ports:
             - name: http
               containerPort: 8081
