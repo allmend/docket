@@ -243,3 +243,5 @@ Issues and pull requests welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for 
 [AGPL-3.0](LICENSE) — free software, no feature gating, self-hosting is free forever. Hosting Docket as a service for others carries the AGPL's source-disclosure obligations and may not use the Docket name — see [COMMERCIAL.md](COMMERCIAL.md) for the full picture and commercial licensing.
 
 Copyright © 2026 the Docket contributors.
+
+IBM Plex Sans and IBM Plex Mono are © IBM Corp., used under the [SIL Open Font License 1.1](static/dist/fonts/OFL.txt).

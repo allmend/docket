@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - CI runs the full test suite, including the Postgres store tests, and fails when they can't run instead of skipping them. `make vet` also fails on unformatted Go code.
+- IBM Plex is served by Docket itself instead of Google Fonts: no third-party requests, and the UI looks the same on networks without internet access. The fonts (SIL Open Font License, `static/dist/fonts/OFL.txt`) are cached for a year.
 - The example Kubernetes Deployment and Compose file pin an exact image version instead of `latest`.
 - Releases start the built image against a throwaway Postgres and check `/readyz`, `/livez` and the login page before publishing it. `make smoke` runs the same check locally.
 
