@@ -91,3 +91,49 @@ func TestCountColumnTicketsAndReassign(t *testing.T) {
 		t.Fatalf("delete emptied column: %v", err)
 	}
 }
+
+func TestFlowSummary(t *testing.T) {
+	s := requireStore(t)
+	resetDB(t)
+	ctx := context.Background()
+
+	org := seedOrg(t, "org-a")
+	other := seedOrg(t, "org-b")
+	user := seedUser(t, org.ID, "alice")
+	open := seedTicket(t, org.ID, user.ID, "open") // "To Do", 1000
+	done, err := s.CreateColumn(ctx, org.ID, open.BoardID, "Done", 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pts := 3.0
+	if _, err := s.UpdateTicketPoints(ctx, org.ID, open.ID, &pts); err != nil {
+		t.Fatal(err)
+	}
+	finished, err := s.CreateTicket(ctx, org.ID, open.BoardID, done.ID, user.ID, nil, 2, "finished", "", model.PriorityMedium, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CloseTicket(ctx, org.ID, finished.ID, "done"); err != nil {
+		t.Fatal(err)
+	}
+
+	f, err := s.FlowSummary(ctx, org.ID, open.BoardID)
+	if err != nil {
+		t.Fatalf("flow: %v", err)
+	}
+	want := []model.FlowColumn{{Name: "To Do", Open: 1, OpenPoints: 3}, {Name: "Done", Open: 0}}
+	if len(f.Columns) != len(want) || f.Columns[0] != want[0] || f.Columns[1] != want[1] {
+		t.Fatalf("columns = %+v, want %+v", f.Columns, want)
+	}
+	if f.DoneLast7d != 1 {
+		t.Errorf("DoneLast7d = %d, want 1", f.DoneLast7d)
+	}
+
+	foreign, err := s.FlowSummary(ctx, other.ID, open.BoardID)
+	if err != nil {
+		t.Fatalf("foreign flow: %v", err)
+	}
+	if len(foreign.Columns) != 0 || foreign.DoneLast7d != 0 {
+		t.Errorf("another org sees this board's flow: %+v", foreign)
+	}
+}

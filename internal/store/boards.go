@@ -175,6 +175,43 @@ func (s *Store) CountColumnTickets(ctx context.Context, orgID, columnID uuid.UUI
 	return c, err
 }
 
+// FlowSummary loads a board's open tickets per column, in board order, and how
+// many tickets closed in the last 7 days. Two queries regardless of size.
+func (s *Store) FlowSummary(ctx context.Context, orgID, boardID uuid.UUID) (*model.FlowSummary, error) {
+	rows, err := s.replica.Query(ctx,
+		`SELECT c.name,
+		        COUNT(t.id) FILTER (WHERE t.closed_at IS NULL),
+		        COALESCE(SUM(t.story_points) FILTER (WHERE t.closed_at IS NULL), 0)::float8
+		 FROM columns c
+		 LEFT JOIN tickets t ON t.column_id = c.id AND t.org_id = c.org_id
+		 WHERE c.org_id = $1 AND c.board_id = $2
+		 GROUP BY c.id, c.name, c.position
+		 ORDER BY c.position`,
+		orgID, boardID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	f := &model.FlowSummary{}
+	for rows.Next() {
+		var c model.FlowColumn
+		if err := rows.Scan(&c.Name, &c.Open, &c.OpenPoints); err != nil {
+			return nil, err
+		}
+		f.Columns = append(f.Columns, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	err = s.replica.QueryRow(ctx,
+		`SELECT COUNT(*) FROM tickets
+		 WHERE org_id = $1 AND board_id = $2 AND closed_at >= NOW() - INTERVAL '7 days'`,
+		orgID, boardID,
+	).Scan(&f.DoneLast7d)
+	return f, err
+}
+
 // ReassignColumnTickets moves every ticket in one column to another column on
 // the same board, keeping positions. Used to empty a column of tickets that
 // aren't on the board (backlog, completed sprints) before deleting it.

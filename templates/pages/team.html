@@ -81,6 +81,52 @@
         </div>
       </section>
 
+      {{else if .Flow}}
+      {{$flow := .Flow}}
+      <!-- Flow: Kanban / Blank boards have no sprints, so show open work instead -->
+      <section class="bg-base-200 border border-base-300 rounded-md">
+        <div class="flex items-center justify-between px-5 py-3 border-b border-base-300">
+          <div class="flex items-center gap-2.5">
+            <span class="mono text-[13px] uppercase tracking-[0.18em] text-base-600">flow</span>
+            <span class="text-[15px] font-medium text-base-950">{{$board.Name}}</span>
+          </div>
+          <a href="/workspaces/{{$team.Slug}}/board" class="mono text-[13px] text-base-600 hover:text-primary-400">Board →</a>
+        </div>
+
+        <!-- Stat strip -->
+        <div class="grid grid-cols-4 divide-x divide-base-300 border-b border-base-300">
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-base-950">{{$flow.Open}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">open</div>
+          </div>
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-base-950">{{$flow.InProgress}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">in progress</div>
+          </div>
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-primary-400">{{$flow.DoneLast7d}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">done · 7 days</div>
+          </div>
+          <div class="px-5 py-3">
+            <div class="mono text-[26px] leading-none text-base-700">{{printf "%.0f" $flow.OpenPoints}}</div>
+            <div class="mono text-[13px] uppercase tracking-[0.14em] text-base-600 mt-1.5">open points</div>
+          </div>
+        </div>
+
+        <!-- Open tickets per column -->
+        <div class="px-5 py-3 flex flex-col gap-2">
+          {{range $flow.Columns}}
+          <div class="flex items-center gap-3">
+            <span class="text-[14px] text-base-800 w-[92px] truncate shrink-0">{{.Name}}</span>
+            <div class="flex-1 h-1.5 bg-base-300 rounded-sm overflow-hidden">
+              <div class="h-full bg-primary-500 rounded-sm" style="width:{{$flow.Pct .}}%"></div>
+            </div>
+            <span class="mono text-[13px] text-base-700 w-8 text-right shrink-0">{{.Open}}</span>
+          </div>
+          {{end}}
+        </div>
+      </section>
+
       {{else if $board}}
       <!-- No active sprint empty state -->
       <section class="bg-base-200 border border-base-300 rounded-md overflow-hidden">

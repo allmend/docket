@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -203,6 +204,60 @@ type BoardView struct {
 	FirstColumnID       uuid.UUID            // first column's ID — used by New Ticket button
 	ActiveSprintSection *ActiveSprintSection // backlog page: active sprint tickets grouped by column
 	BoardTags           []Tag                // all board labels/tracks — used by the board filter
+}
+
+// FlowSummary is the workspace dashboard's view of a board without sprints
+// (Kanban, Blank): open work per column and what finished recently. It takes
+// the place of the active-sprint panel, which such a board never has.
+type FlowSummary struct {
+	Columns    []FlowColumn // board order
+	DoneLast7d int          // tickets closed in the last 7 days
+}
+
+// FlowColumn is one column's open tickets.
+type FlowColumn struct {
+	Name       string
+	Open       int
+	OpenPoints float64
+}
+
+// Open counts open tickets on the board.
+func (f FlowSummary) Open() int {
+	n := 0
+	for _, c := range f.Columns {
+		n += c.Open
+	}
+	return n
+}
+
+// InProgress counts open tickets that have been started: past the first
+// column (where new work lands) and not in Done.
+func (f FlowSummary) InProgress() int {
+	n := 0
+	for i, c := range f.Columns {
+		if i == 0 || strings.EqualFold(c.Name, "done") {
+			continue
+		}
+		n += c.Open
+	}
+	return n
+}
+
+// OpenPoints sums the story points of open tickets.
+func (f FlowSummary) OpenPoints() float64 {
+	var p float64
+	for _, c := range f.Columns {
+		p += c.OpenPoints
+	}
+	return p
+}
+
+// Pct is a column's share of open tickets, for the distribution bar.
+func (f FlowSummary) Pct(c FlowColumn) int {
+	if open := f.Open(); open > 0 {
+		return c.Open * 100 / open
+	}
+	return 0
 }
 
 // ActiveSprintSection is the active sprint shown above the backlog list.

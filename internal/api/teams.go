@@ -112,10 +112,14 @@ func (h *Handler) TeamView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]any{"Team": team, "Board": nil}
+	data := map[string]any{"Team": team, "Board": nil, "Flow": nil}
 
 	if board, err := h.teams.GetBoardForTeam(ctx, orgID, team.ID); err == nil {
 		data["Board"] = board
+		// Kanban and Blank boards never have an active sprint; show their flow.
+		if flow, err := h.boards.FlowSummary(ctx, orgID, board); err == nil && flow != nil {
+			data["Flow"] = flow
+		}
 	}
 
 	blocked, _ := h.tickets.ListBlockedTicketsByTeam(ctx, orgID, team.ID)

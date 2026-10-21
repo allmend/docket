@@ -227,6 +227,15 @@ func (s *BoardService) GetBoardView(ctx context.Context, orgID, boardID uuid.UUI
 	return view, nil
 }
 
+// FlowSummary is the dashboard panel for a board without sprints. Scrum boards
+// get nil: their dashboard shows the active sprint instead.
+func (s *BoardService) FlowSummary(ctx context.Context, orgID uuid.UUID, board *model.Board) (*model.FlowSummary, error) {
+	if board == nil || board.Mode.IsScrum() {
+		return nil, nil
+	}
+	return s.store.FlowSummary(ctx, orgID, board.ID)
+}
+
 func (s *BoardService) ListColumns(ctx context.Context, orgID, boardID uuid.UUID) ([]model.Column, error) {
 	return s.store.ListColumns(ctx, orgID, boardID)
 }
