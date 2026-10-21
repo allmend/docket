@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-21
+
+### Added
+- `GET /api/v1/tickets/{ref}` includes the ticket's links (relation and the other ticket's ID, title and state).
+- The Backlog page's active-sprint section can change a ticket's points after a warning. The history records it as a re-estimate during the sprint.
+
+### Changed
+- Kanban and Blank boards show Done tickets closed in the last 14 days. A footer counts the older ones and links to show all.
+- Changing the points of a ticket in the active sprint needs an explicit override, also through the HTMX route; without it the server answers 400. Before, only the UI locked them.
+- An omitted field in the v1 `PUT` endpoints keeps its value and an explicit `""` clears it, for a ticket's `priority` and `body` and a team's `description`. Creating a ticket with `"priority": ""` means no priority; leaving it out still defaults to medium.
+- The README states that `MODE=worker` and the read-replica slot do nothing yet, and no longer hard-codes a version.
+
+### Fixed
+- The v1 ticket reads report `is_blocked`, `blocked_by`, `is_waiting` and `waiting_on`. They were always false and empty.
+- Updating a team through the API without a `description` no longer clears it.
+
+### Removed
+- The unused WebSocket hub.
+
 ## [0.16.0] - 2026-10-21
 
 ### Upgrade notes
@@ -357,7 +376,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial public release: teams, Scrum and Kanban boards, sprints, backlog, tickets, and the core Scrum workflow.
 
-[Unreleased]: https://github.com/allmend/docket/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/allmend/docket/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/allmend/docket/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/allmend/docket/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/allmend/docket/compare/v0.14.3...v0.15.0
 [0.14.3]: https://github.com/allmend/docket/compare/v0.14.2...v0.14.3
